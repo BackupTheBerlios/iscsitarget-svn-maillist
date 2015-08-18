@@ -1,0 +1,251 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r254 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r254%20-%20trunk/usr&In-Reply-To=%3C200910081811.n98IBcnq013886%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000165.html">
+   <LINK REL="Next"  HREF="000167.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r254 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r254%20-%20trunk/usr&In-Reply-To=%3C200910081811.n98IBcnq013886%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r254 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 20:11:38 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000165.html">[Iscsitarget-svn] r253 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000167.html">[Iscsitarget-svn] r255 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#166">[ date ]</a>
+              <a href="thread.html#166">[ thread ]</a>
+              <a href="subject.html#166">[ subject ]</a>
+              <a href="author.html#166">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 20:11:38 +0200 (Thu, 08 Oct 2009)
+New Revision: 254
+
+Modified:
+   trunk/usr/iscsid.c
+   trunk/usr/iscsid.h
+   trunk/usr/isns.c
+   trunk/usr/plain.c
+   trunk/usr/target.c
+Log:
+From: &quot;Andreas Florath&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+target-find-by-name: harmonize target_find_by_xxx   functions
+
+During the re-implementation of a MaxSession feature, I recognized that
+the two functions 'target_find_by_name()' and 'target_find_by_id()'
+(which do mostly the same) return different things: one the target
+itself the other the target id.  The target id itself can be accessed
+though 'target-&gt;tid'.
+
+The only possibility to get a target (not only the id) from a known
+name is to call the 'target_find_by_name()' - which scans the list of
+all targets - and with the result of this call the function
+'target_find_by_id()' - which scans the list of all targets
+again.
+
+IMHO it is much easier to adapt the return value of the function
+'target_find_by_name()' to directly return the target.
+
+Signed-off-by: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-10-08 17:31:38 UTC (rev 253)
++++ trunk/usr/iscsid.c	2009-10-08 18:11:38 UTC (rev 254)
+@@ -441,16 +441,21 @@
+ 			return;
+ 		}
+ 
+-		if (!(conn-&gt;tid = target_find_by_name(target_name))
+-			|| !cops-&gt;initiator_allow(conn-&gt;tid, conn-&gt;fd, name)
+-			|| !cops-&gt;target_allow(conn-&gt;tid, (struct sockaddr *) &amp;ss)
+-			|| !isns_scn_allow(conn-&gt;tid, name)) {
++		struct target * const target =
++			target_find_by_name(target_name);
++
++		if (!target
++		    || !cops-&gt;initiator_allow(target-&gt;tid, conn-&gt;fd, name)
++		    || !cops-&gt;target_allow(target-&gt;tid, (struct sockaddr *) &amp;ss)
++		    || !isns_scn_allow(target-&gt;tid, name)) {
+ 			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+ 			rsp-&gt;status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
+ 			conn-&gt;state = STATE_EXIT;
+ 			return;
+ 		}
+ 
++		conn-&gt;tid = target-&gt;tid;
++
+ /* 		if (conn-&gt;target-&gt;max_sessions &amp;&amp; */
+ /* 		    (++conn-&gt;target-&gt;session_cnt &gt; conn-&gt;target-&gt;max_sessions)) { */
+ /* 			conn-&gt;target-&gt;session_cnt--; */
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2009-10-08 17:31:38 UTC (rev 253)
++++ trunk/usr/iscsid.h	2009-10-08 18:11:38 UTC (rev 254)
+@@ -208,8 +208,8 @@
+ extern struct __qelem targets_list;
+ extern int target_add(u32 *, char *);
+ extern int target_del(u32);
+-extern u32 target_find_by_name(const char *name);
+-struct target * target_find_by_id(u32);
++extern struct target * target_find_by_name(const char *name);
++extern struct target * target_find_by_id(u32);
+ extern void target_list_build(struct connection *, char *);
+ 
+ /* message.c */
+
+Modified: trunk/usr/isns.c
+===================================================================
+--- trunk/usr/isns.c	2009-10-08 17:31:38 UTC (rev 253)
++++ trunk/usr/isns.c	2009-10-08 18:11:38 UTC (rev 254)
+@@ -445,16 +445,6 @@
+ 	}
+ }
+ 
+-static struct target *target_lookup_by_name(char *name)
+-{
+-	uint32_t tid;
+-
+-	tid = target_find_by_name(name);
+-	if (!tid)
+-		return NULL;
+-	return target_find_by_id(tid);
+-}
+-
+ int isns_target_deregister(char *name)
+ {
+ 	char buf[4096];
+@@ -464,7 +454,7 @@
+ 	int err, last = list_empty(&amp;targets_list);
+ 	struct target *target;
+ 
+-	target = target_lookup_by_name(name);
++	target = target_find_by_name(name);
+ 	if (target)
+ 		free_all_acl(target);
+ 
+@@ -665,7 +655,7 @@
+ 		goto free_qry_mgmt;
+ 	}
+ 
+-	target = target_lookup_by_name(mgmt-&gt;name);
++	target = target_find_by_name(mgmt-&gt;name);
+ 	if (!target) {
+ 		log_error(&quot;%s %d: invalid tid %s&quot;,
+ 			  __FUNCTION__, __LINE__, mgmt-&gt;name);
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-10-08 17:31:38 UTC (rev 253)
++++ trunk/usr/plain.c	2009-10-08 18:11:38 UTC (rev 254)
+@@ -405,6 +405,8 @@
+ 	 * implement 'reload feature'. It's slow, however, it doesn't matter.
+ 	 */
+ 	while ((p = fgets(buf, sizeof(buf), fp))) {
++		struct target *target;
++
+ 		q = &amp;buf[strlen(buf) - 1];
+ 
+ 		if (*q != '\n')
+@@ -419,7 +421,13 @@
+ 		if (!p || *p == '#')
+ 			continue;
+ 
+-		if (target_find_by_name(p) != tid &amp;&amp; strcmp(p, &quot;ALL&quot;))
++		target = target_find_by_name(p);
++		u32 tid = 0;
++
++		if (target)
++			tid = target-&gt;tid;
++
++		if (tid != tid &amp;&amp; strcmp(p, &quot;ALL&quot;))
+ 			continue;
+ 
+ 		if (__match(sa, initiator, q))
+@@ -645,10 +653,14 @@
+ 			continue;
+ 
+ 		if (!strcasecmp(p, &quot;Target&quot;)) {
++			struct target *target;
+ 			tid = 0;
+ 			if (!(p = target_sep_string(&amp;q)))
+ 				continue;
+-			tid = target_find_by_name(p);
++
++			target = target_find_by_name(p);
++			if (target)
++				tid = target-&gt;tid;
+ 		} else if (!((idx = param_index_by_name(p, user_keys)) &lt; 0)) {
+ 			char *name, *pass;
+ 			name = target_sep_string(&amp;q);
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2009-10-08 17:31:38 UTC (rev 253)
++++ trunk/usr/target.c	2009-10-08 18:11:38 UTC (rev 254)
+@@ -164,16 +164,16 @@
+ 	}
+ }
+ 
+-u32 target_find_by_name(const char *name)
++struct target* target_find_by_name(const char *name)
+ {
+ 	struct target *target;
+ 
+ 	list_for_each_entry(target, &amp;targets_list, tlist) {
+ 		if (!strcasecmp(target-&gt;name, name))
+-			return target-&gt;tid;
++			return target;
+ 	}
+ 
+-	return 0;
++	return NULL;
+ }
+ 
+ struct target* target_find_by_id(u32 tid)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000165.html">[Iscsitarget-svn] r253 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000167.html">[Iscsitarget-svn] r255 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#166">[ date ]</a>
+              <a href="thread.html#166">[ thread ]</a>
+              <a href="subject.html#166">[ subject ]</a>
+              <a href="author.html#166">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r208 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r208%20-%20trunk/usr&In-Reply-To=%3C200902241944.n1OJidbk003292%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000119.html">
+   <LINK REL="Next"  HREF="000121.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r208 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r208%20-%20trunk/usr&In-Reply-To=%3C200902241944.n1OJidbk003292%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r208 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Feb 24 20:44:39 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000119.html">[Iscsitarget-svn] r207 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000121.html">[Iscsitarget-svn] r209 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#120">[ date ]</a>
+              <a href="thread.html#120">[ thread ]</a>
+              <a href="subject.html#120">[ subject ]</a>
+              <a href="author.html#120">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-02-24 20:44:39 +0100 (Tue, 24 Feb 2009)
+New Revision: 208
+
+Modified:
+   trunk/usr/plain.c
+Log:
+Fix the previous commit: list iteration w/ element deletion was broken
+
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-02-24 19:32:40 UTC (rev 207)
++++ trunk/usr/plain.c	2009-02-24 19:44:39 UTC (rev 208)
+@@ -241,14 +241,13 @@
+ 	list = account_list_get(tid, dir);
+ 	log_error(&quot;list: %p\n&quot;, list);
+ 	if (dir == AUTH_DIR_OUTGOING) {
+-		struct user *old;
+-		list_for_each_entry(old, list, ulist) {
++		struct user *old, *tmp;
++		list_for_each_entry_safe(old, tmp, list, ulist) {
+ 			if (tid != old-&gt;tid)
+ 				continue;
+ 			log_warning(&quot;Only one outgoing %s account is supported.&quot;
+ 				    &quot; Replacing the old one.\n&quot;,
+ 				    tid ? &quot;target&quot; : &quot;discovery&quot;);
+-			old = list_entry(list-&gt;q_forw, struct user, ulist);
+ 			account_destroy(old);
+ 		}
+ 	}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000119.html">[Iscsitarget-svn] r207 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000121.html">[Iscsitarget-svn] r209 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#120">[ date ]</a>
+              <a href="thread.html#120">[ thread ]</a>
+              <a href="subject.html#120">[ subject ]</a>
+              <a href="author.html#120">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

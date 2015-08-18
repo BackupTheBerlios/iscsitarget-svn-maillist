@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r181 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r181%20-%20trunk/usr&In-Reply-To=%3C200811231716.mANHGrRE015915%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000092.html">
+   <LINK REL="Next"  HREF="000094.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r181 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r181%20-%20trunk/usr&In-Reply-To=%3C200811231716.mANHGrRE015915%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r181 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Sun Nov 23 18:16:53 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000092.html">[Iscsitarget-svn] r180 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000094.html">[Iscsitarget-svn] r182 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#93">[ date ]</a>
+              <a href="thread.html#93">[ thread ]</a>
+              <a href="subject.html#93">[ subject ]</a>
+              <a href="author.html#93">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-11-23 18:16:53 +0100 (Sun, 23 Nov 2008)
+New Revision: 181
+
+Modified:
+   trunk/usr/isns.c
+Log:
+Take \0-termination into account when passing strings to isns_tlv_set()
+
+From: Charley_Cheng &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">charleycheng at qnap.com</A>&gt;
+Subject: [Iscsitarget-devel] A patch solved incompatible with MS iSNS 3.0
+ as IQN length is multiple of 4
+Date: Wed, 19 Nov 2008 19:53:41 -0800 (PST)
+
+
+Modified: trunk/usr/isns.c
+===================================================================
+--- trunk/usr/isns.c	2008-11-16 12:17:53 UTC (rev 180)
++++ trunk/usr/isns.c	2008-11-23 17:16:53 UTC (rev 181)
+@@ -199,8 +199,10 @@
+ 	memset(buf, 0, sizeof(buf));
+ 	tlv = (struct isns_tlv *) hdr-&gt;pdu;
+ 
+-	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name), name);
+-	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name), name);
++	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name) + 1,
++			       name);
++	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name) + 1,
++			       name);
+ 
+ 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
+ 	isns_hdr_init(hdr, ISNS_FUNC_SCN_DEREG, length, flags,
+@@ -249,9 +251,9 @@
+ 	target = list_entry(targets_list.q_forw, struct target, tlist);
+ 
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME,
+-			       strlen(target-&gt;name), target-&gt;name);
++			       strlen(target-&gt;name) + 1, target-&gt;name);
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME,
+-			       strlen(target-&gt;name), target-&gt;name);
++			       strlen(target-&gt;name) + 1, target-&gt;name);
+ 	length += isns_tlv_set(&amp;tlv, 0, 0, 0);
+ 
+ 	scn_flags = ISNS_SCN_FLAG_INITIATOR | ISNS_SCN_FLAG_OBJECT_REMOVE |
+@@ -306,7 +308,8 @@
+ 		name = target-&gt;name;
+ 	}
+ 
+-	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name), name);
++	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name) + 1,
++			       name);
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NODE_TYPE,
+ 			       sizeof(node), &amp;node);
+ 	length += isns_tlv_set(&amp;tlv, 0, 0, 0);
+@@ -348,10 +351,10 @@
+ 	target = list_entry(targets_list.q_forw, struct target, tlist);
+ 
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME,
+-			       strlen(target-&gt;name), target-&gt;name);
++			       strlen(target-&gt;name) + 1, target-&gt;name);
+ 	length += isns_tlv_set(&amp;tlv, 0, 0, 0);
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ENTITY_IDENTIFIER,
+-			       strlen(eid), eid);
++			       strlen(eid) + 1, eid);
+ 
+ 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
+ 	isns_hdr_init(hdr, ISNS_FUNC_DEV_DEREG, length, flags,
+@@ -387,14 +390,14 @@
+ 
+         target = list_entry(targets_list.q_back, struct target, tlist);
+         length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME,
+-			       strlen(target-&gt;name), target-&gt;name);
++			       strlen(target-&gt;name) + 1, target-&gt;name);
+ 
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ENTITY_IDENTIFIER,
+-			       strlen(eid), eid);
++			       strlen(eid) + 1, eid);
+ 
+ 	length += isns_tlv_set(&amp;tlv, 0, 0, 0);
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ENTITY_IDENTIFIER,
+-			       strlen(eid), eid);
++			       strlen(eid) + 1, eid);
+ 	if (initial) {
+ 		length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ENTITY_PROTOCOL,
+ 				       sizeof(type), &amp;type);
+@@ -411,7 +414,8 @@
+ 		}
+ 	}
+ 
+-	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name), name);
++	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name) + 1,
++			       name);
+ 	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NODE_TYPE,
+ 			       sizeof(node), &amp;node);
+ 
+@@ -476,14 +480,15 @@
+ 	memset(buf, 0, sizeof(buf));
+ 	tlv = (struct isns_tlv *) hdr-&gt;pdu;
+ 
+-	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name), name);
++	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name) + 1,
++			       name);
+ 	length += isns_tlv_set(&amp;tlv, 0, 0, 0);
+ 	if (last)
+ 		length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ENTITY_IDENTIFIER,
+-				       strlen(eid), eid);
++				       strlen(eid) + 1, eid);
+ 	else
+ 		length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME,
+-				       strlen(name), name);
++				       strlen(name) + 1, name);
+ 
+ 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
+ 	isns_hdr_init(hdr, ISNS_FUNC_DEV_DEREG, length, flags,
+@@ -796,7 +801,8 @@
+ 	tlv = (struct isns_tlv *) ((char *) hdr-&gt;pdu + 4);
+ 	length +=4;
+ 
+-	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name), name);
++	length += isns_tlv_set(&amp;tlv, ISNS_ATTR_ISCSI_NAME, strlen(name) + 1,
++			       name);
+ 
+ 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
+ 	isns_hdr_init(hdr, ISNS_FUNC_SCN_RSP, length, flags, transaction, 0);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000092.html">[Iscsitarget-svn] r180 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000094.html">[Iscsitarget-svn] r182 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#93">[ date ]</a>
+              <a href="thread.html#93">[ thread ]</a>
+              <a href="subject.html#93">[ subject ]</a>
+              <a href="author.html#93">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[373] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B373%5D%20trunk&In-Reply-To=%3CE1P7QiD-0004P4-7g%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[373] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B373%5D%20trunk&In-Reply-To=%3CE1P7QiD-0004P4-7g%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[373] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Oct 17 12:43:33 CEST 2010</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#285">[ date ]</a>
+              <a href="thread.html#285">[ thread ]</a>
+              <a href="subject.html#285">[ subject ]</a>
+              <a href="author.html#285">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 373
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=373&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=373&amp;view=rev</A>
+Author:   agr1
+Date:     2010-10-17 10:43:32 +0000 (Sun, 17 Oct 2010)
+
+Log Message:
+-----------
+2.6.36 compile fix
+
+The NIPQUAD macro has been removed, instead &quot;%pI4&quot; is used in
+format strings.
+Independently submitted by Wido den Hollander and Chris Siebenmann.
+
+Submitted-by: Wido den Hollander &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">wido at widodh.nl</A>&gt;
+Submitted-by: Chris Siebenmann &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">cks at cs.toronto.edu</A>&gt;
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/kernel/conn.c
+
+Added Paths:
+-----------
+    trunk/patches/compat-2.6.33-2.6.35.patch
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2010-09-30 17:44:10 UTC (rev 372)
++++ trunk/Makefile	2010-10-17 10:43:32 UTC (rev 373)
+@@ -56,6 +56,11 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++# Compatibility patch for kernels &gt; 2.6.32 &lt;= 2.6.35
++ifeq ($(call kver_le,2,6,35),1)
++	PATCHES := $(PATCHES) compat-2.6.33-2.6.35.patch
++endif
++
+ # Compatibility patch for kernels &lt;= 2.6.32
+ ifeq ($(call kver_le,2,6,32),1)
+ 	PATCHES := $(PATCHES) compat-2.6.32.patch
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2010-09-30 17:44:10 UTC (rev 372)
++++ trunk/kernel/conn.c	2010-10-17 10:43:32 UTC (rev 373)
+@@ -44,7 +44,7 @@
+ 		switch (sk-&gt;sk_family) {
+ 		case AF_INET:
+ 			snprintf(buf, sizeof(buf),
+-				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;inet_daddr));
++				 &quot;%pI4&quot;, inet_sk(sk)-&gt;inet_daddr);
+ 			break;
+ 		case AF_INET6:
+ 			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
+
+Added: trunk/patches/compat-2.6.33-2.6.35.patch
+===================================================================
+--- trunk/patches/compat-2.6.33-2.6.35.patch	                        (rev 0)
++++ trunk/patches/compat-2.6.33-2.6.35.patch	2010-10-17 10:43:32 UTC (rev 373)
+@@ -0,0 +1,13 @@
++diff --git b/kernel/conn.c a/kernel/conn.c
++index c7b8ea1..ec6dada 100644
++--- b/kernel/conn.c
+++++ a/kernel/conn.c
++@@ -44,7 +44,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
++ 		switch (sk-&gt;sk_family) {
++ 		case AF_INET:
++ 			snprintf(buf, sizeof(buf),
++-				 &quot;%pI4&quot;, inet_sk(sk)-&gt;inet_daddr);
+++				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;inet_daddr));
++ 			break;
++ 		case AF_INET6:
++ 			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#285">[ date ]</a>
+              <a href="thread.html#285">[ thread ]</a>
+              <a href="subject.html#285">[ subject ]</a>
+              <a href="author.html#285">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

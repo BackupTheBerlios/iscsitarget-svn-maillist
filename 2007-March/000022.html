@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r110 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r110%20-%20trunk&In-Reply-To=%3C200703221410.l2MEAvZw007397%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000021.html">
+   <LINK REL="Next"  HREF="000023.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r110 - trunk</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r110%20-%20trunk&In-Reply-To=%3C200703221410.l2MEAvZw007397%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r110 - trunk">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Mar 22 15:10:57 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000021.html">[Iscsitarget-svn] r109 - trunk/patches
+</A></li>
+        <LI>Next message: <A HREF="000023.html">[Iscsitarget-svn] r111 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22">[ date ]</a>
+              <a href="thread.html#22">[ thread ]</a>
+              <a href="subject.html#22">[ subject ]</a>
+              <a href="author.html#22">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-03-22 15:10:56 +0100 (Thu, 22 Mar 2007)
+New Revision: 110
+
+Modified:
+   trunk/Makefile
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rwalker at medallion.com</A>&gt;
+Subject: RHEL4/CentOS4 compatibility patch
+Date: Thu, 22 Mar 2007 10:00:23 -0400
+
+Here is a patch that provides RHEL4/CentOS4 compatibility fixes. It
+uses the new Makefile patch method and is auto-detected and
+auto-applied.
+
+This should also demonstrate how to add distro-specific patches
+into the code-base.
+
+With long-term support distros becoming more and more popular there
+is going to be a real need to add support for them over time. These
+patches should not require a lot of maintenance as their platforms
+are static, but the primary patches (those that are listed first)
+should make the best attempt to keep a static snapshot of the code
+base so as not to break the later patches.
+
+It was thoroughly tested by Arne and myself during the development of
+the latest Makefile.
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2007-03-22 03:08:04 UTC (rev 109)
++++ trunk/Makefile	2007-03-22 14:10:56 UTC (rev 110)
+@@ -48,17 +48,25 @@
+ #
+ # Please when adding patch sets start with the latest to the earliest
+ # the idea behind this is that by properly patching the latest code
+-# base first the earlier patche sets will not need to be modified.
++# base first the earlier patch sets will not need to be modified.
+ #
+ 
++# Compatibility patch for kernels &gt;= 2.6.14 and &lt;= 2.6.18
+ ifeq ($(call kver_le,2,6,18),1)
+ 	PATCHES := $(PATCHES) compat-2.6.14-2.6.18.patch
+ endif
+ 
++# We don't support kernels &lt; 2.6.14 except for explicit distros
+ ifeq ($(call kver_lt,2,6,14),1)
+ 	UNSUPPORTED := true
+ endif
+ 
++# Compatibility patch for RHEL4/CentOS4
++ifeq ($(call kver_lk,&quot;2\.6\.9-.*\.(EL|plus\.c4)&quot;),1)
++	PATCHES += compat-rhel4.patch
++	UNSUPPORTED :=
++endif
++
+ MANPAGES:= ietadm.8 ietd.8 ietd.conf.5
+ 
+ ifeq ($(MANDIR),)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000021.html">[Iscsitarget-svn] r109 - trunk/patches
+</A></li>
+	<LI>Next message: <A HREF="000023.html">[Iscsitarget-svn] r111 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22">[ date ]</a>
+              <a href="thread.html#22">[ thread ]</a>
+              <a href="subject.html#22">[ subject ]</a>
+              <a href="author.html#22">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

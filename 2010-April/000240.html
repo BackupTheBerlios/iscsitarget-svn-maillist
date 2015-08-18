@@ -1,0 +1,276 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[328] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B328%5D%20trunk&In-Reply-To=%3CE1O1lv5-0007Ae-Lm%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000239.html">
+   <LINK REL="Next"  HREF="000241.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[328] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B328%5D%20trunk&In-Reply-To=%3CE1O1lv5-0007Ae-Lm%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[328] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Apr 13 21:37:11 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000239.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[327] trunk/patches
+</A></li>
+        <LI>Next message: <A HREF="000241.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[329] tags/1.4.20/
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#240">[ date ]</a>
+              <a href="thread.html#240">[ thread ]</a>
+              <a href="subject.html#240">[ subject ]</a>
+              <a href="author.html#240">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 328
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=328&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=328&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-13 19:37:11 +0000 (Tue, 13 Apr 2010)
+
+Log Message:
+-----------
+
+Updated Changelog, RELEASE_NOTES, version number.
+
+Added README about experimental MC/S support.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/ChangeLog
+    trunk/RELEASE_NOTES
+    trunk/include/iet_u.h
+
+Added Paths:
+-----------
+    trunk/README.mcs
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2010-04-13 17:13:44 UTC (rev 327)
++++ trunk/ChangeLog	2010-04-13 19:37:11 UTC (rev 328)
+@@ -1,3 +1,47 @@
++Summary of changes from v1.4.19 to v1.4.20
++=================================
++Minh Tran
++  o fix TTT for final PDU in ietd
++
++Qinghua(Kevin) Ye
++  o release reservations during session delete
++
++Ross Walker
++  o multiple updates for abort task compliance
++  o replace sync_page_range with filemap_write_and_wait_range in fileio
++  o replace do_sync_read/write with vfs_read/write in fileio
++  o multiple updates for target_del_all, atomic deletion of targets,
++    sessions and connections
++  o install moves existing kernel module, uninstall moves it back
++  o cleaned up RPM and DKMS package building
++  o cleaned up usr-kernel ioctl calls, added version checking, semaphore
++    to prevent ioctls during kernel cleanup (target_del_all)
++  o cleaned up session and connection reinstatement
++  o setup IO contexts in wthread, fixes CFQ performance problem
++  o enabled multiple connections per session
++  o moved common parameters from iotypes to volume
++  o UA handling on aborted/terminated connections
++  o removed OpenSSL dependency by borrowing kernel md5/sha1 code
++  o code cleanups
++ 
++Arne Redlich
++  o multiple kernel compatibility updates
++  o code cleanups
++
++Lars Ellenberg
++  o support for logical sector sizes
++  o case insensitive volume options
++  o code cleanups
++
++Luca Berra
++  o fix warnings when compiling via gcc strict checks
++
++Kun Huang
++  o temporary target redirections via ietadm for existing targets
++
++Jagadish Kumar
++  o multiple code cleanups around network and worker thread handling
++
+ Summary of changes from v1.4.18 to v1.4.19
+ =================================
+ Andreas Florath
+
+Added: trunk/README.mcs
+===================================================================
+--- trunk/README.mcs	                        (rev 0)
++++ trunk/README.mcs	2010-04-13 19:37:11 UTC (rev 328)
+@@ -0,0 +1,32 @@
++Multiple Connections per Session
++================================
++
++Starting in 1.4.20 IET has experimental support for multiple
++connections per session (MC/S).
++
++IET always supported multiple sessions by a given initiator, but
++since SCSI command ordering can only be preserved within a session
++this meant that commands could (and over time will) be issued
++out-of-order which causes sequential operations to randomize over
++time reducing the effective throughput considerably.
++
++By utilizing multiple connections per session this eliminates the
++need to use multiple sessions and MPIO on the host system, as the
++abstraction appears to the host system as a single disk and it is
++up to the initiator to handle the distribution of SCSI commands
++over the connections of a session.
++
++It should be noted though, that on the initiator side one should
++use either MC/S OR MPIO for a target-initiator pair as on many
++operating systems the behavior is undefined when using both. Linux
++maintainers have decided to only support MPIO for it's initiators.
++Microsoft supports both, but says that using both at once on a
++given target-initiator pair is unsupported.
++
++IET being an iSCSI target really doesn't care either way, as it
++will process commands in the order per the RFC spec, but it is
++highly recommend you don't use both at once unless MPIO is used in
++a strictly active-passive fail-over fashion, while MC/S is used
++active-active, any other combination of MPIO and MC/S will most
++likely find you in trouble.
++
+
+Modified: trunk/RELEASE_NOTES
+===================================================================
+--- trunk/RELEASE_NOTES	2010-04-13 17:13:44 UTC (rev 327)
++++ trunk/RELEASE_NOTES	2010-04-13 19:37:11 UTC (rev 328)
+@@ -2,6 +2,64 @@
+                Release Notes for iSCSI Enterprise Target
+                =========================================
+ 
++                            April 13th, 2010
++                             Version 1.4.20
++                             --------------
++
++The IET development team is pleased to announce the release of version
++1.4.20 of the iSCSI Enterprise Target.
++
++This release includes numerous bug fixes and compatibility improvements
++and it is highly recommended that all production servers be on this
++version for compatibility and stability reasons.
++
++We would like to thank all those that contributed for this release. As
++we are a small project we rely heavily on user contributions and we
++welcome all who wish to participate in improving IET.
++
++New since 1.4.19:
++
++New Features:
++- Added ability to atomically delete all targets/sessions/connections
++- Added ability to move existing kernel module on install and move
++  back on uninstall per distribution requirements (dpkg-divert)
++- Added support for logical sector sizes (512, 1024, 2048, 4096)
++  and devices whose native sector size &gt; 512
++- Added case insensitive volume parameter processing
++- Added ability to set temporary target redirections via ietadm
++  for existing targets
++- Added support for auto-generating MD5 hash for SCSI ID, if not
++  specified, and auto-setting SCSI SN to the hex of the SCSI ID,
++  if not specified.
++
++Experimental Features:
++- Added experimental support for multiple connections per session
++
++Updated Features:
++- Updated kernel compatibility to 2.6.33
++- Updated RPM and DKMS build/install/maintenance handling
++- Updated kernel and usr ioctl functions to perform version checking
++  between kernel module and ietd
++
++Fixes:
++- Fixed bug in ietd text final text response
++- Fixed bug with reservation release during session deletion
++- Fixed compliance issues around ABORT TASK/ABORT TASK SET
++- Fixed fileio so it should work with all file system types
++- Fixed session and connection reinstatement to work per RFC
++- Fixed performance issue with CFQ scheduler
++- Fixed corner case with fileio_sync missing last page in a sync
++- Fixed bug in ietd where an interface without an address would
++  cause it to go into an infinite loop.
++- Fixed race condition between issuing ioctls during kernel cleanup
++- Fixed race condition between ietd shutdown and initiators which
++  would cause initiators to fail to reconnect properly
++- Fixed a race condition with data-out handling with multiple
++  connections per session
++- Fixed possible wthread lost wakeup condition when the number of
++  wthreads is less then the number of CPUs/cores.
++
++
+                           November 15th, 2009
+                              Version 1.4.19
+                              --------------
+@@ -68,8 +126,11 @@
+ 
+ Shreyansh Jain, Lars Ellenberg, Ming Zhang, Francois Micaux, Cheng Renquan,
+ Andreas Florath, sdrb, Xie Gang, Stefan Rubner, FUJITA Tomonori, Oliver R.,
+-Matthew Wild, Kevin Ye and to all list members who submitted bug reports,
+-suggestions and comments.
++Matthew Wild, Kevin Ye, Min Tran, Luca Berra, Kun Huang, VMware, spren,
++Jagadish Kumar, Steven Umbehocker, Emmanuel Florac, Harshal Shete,
++Tim Westervoorde, Andrei Tanas, Chris Siebenmann, Manoj Iyer, Rob Caldwell
++Pasi Karkkainen, Eugen Rieck and to all list members who submitted bug
++reports, suggestions and comments.
+ 
+ Without whose contributions IET would not have been possible.
+ 
+
+Modified: trunk/include/iet_u.h
+===================================================================
+--- trunk/include/iet_u.h	2010-04-13 17:13:44 UTC (rev 327)
++++ trunk/include/iet_u.h	2010-04-13 19:37:11 UTC (rev 328)
+@@ -1,7 +1,7 @@
+ #ifndef _IET_U_H
+ #define _IET_U_H
+ 
+-#define IET_VERSION_STRING	&quot;1.4.19&quot;
++#define IET_VERSION_STRING	&quot;1.4.20&quot;
+ 
+ /* The maximum length of 223 bytes in the RFC. */
+ #define ISCSI_NAME_LEN	256
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000239.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[327] trunk/patches
+</A></li>
+	<LI>Next message: <A HREF="000241.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[329] tags/1.4.20/
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#240">[ date ]</a>
+              <a href="thread.html#240">[ thread ]</a>
+              <a href="subject.html#240">[ subject ]</a>
+              <a href="author.html#240">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

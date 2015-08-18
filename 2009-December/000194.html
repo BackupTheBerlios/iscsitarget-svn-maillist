@@ -1,0 +1,320 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r282 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r282%20-%20trunk/kernel&In-Reply-To=%3C200912240858.nBO8w944009647%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000193.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r282 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r282%20-%20trunk/kernel&In-Reply-To=%3C200912240858.nBO8w944009647%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r282 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Dec 24 09:58:09 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000193.html">[Iscsitarget-svn] r281 - in trunk: kernel patches
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#194">[ date ]</a>
+              <a href="thread.html#194">[ thread ]</a>
+              <a href="subject.html#194">[ subject ]</a>
+              <a href="author.html#194">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-12-24 09:58:08 +0100 (Thu, 24 Dec 2009)
+New Revision: 282
+
+Modified:
+   trunk/kernel/conn.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/session.c
+   trunk/kernel/target.c
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+allow deletion of active kernel sessions (revision 2)
+
+This patch allows the deletion of kernel space sessions with active
+connections to allow for clean session reinstatement.
+
+This revised version fixes a bug in the prior versions:
+
+__target_del calls session_del and in the process session_del
+unlocks the target to allow nthread to clean up the connections
+marked closed, but it is possible that nthread could also close
+another session that had connections pending close just before
+the target was locked, in which case the list_for_each_entry_safe
+of sessions in __target_del would be working off a stale list.
+This avoids that situation by pulling off a single session from
+the list head and re-testing the list to see if it's empty each
+time.
+
+Also fixed:
+
+target_add and __target_del don't down the semaphores interruptible
+which would make killing the ietd process in the case that the
+iscsi kernel module bricks impossible which could slow system
+restart.
+
+Compiled and tested on RHEL5.
+
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2009-12-17 18:43:29 UTC (rev 281)
++++ trunk/kernel/conn.c	2009-12-24 08:58:08 UTC (rev 282)
+@@ -242,12 +242,3 @@
+ 
+ 	return 0;
+ }
+-
+-/* target_lock() supposed to be held */
+-void conn_del_all(struct iscsi_session *session)
+-{
+-	struct iscsi_conn *conn;
+-
+-	list_for_each_entry(conn, &amp;session-&gt;conn_list, list)
+-		conn_close(conn);
+-}
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2009-12-17 18:43:29 UTC (rev 281)
++++ trunk/kernel/iscsi.h	2009-12-24 08:58:08 UTC (rev 282)
+@@ -127,7 +127,6 @@
+ 	struct worker_thread_info * wthread_info;
+ 
+ 	struct semaphore target_sem;
+-	struct completion *done;
+ };
+ 
+ struct iscsi_queue {
+@@ -336,7 +335,6 @@
+ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
+ extern int conn_add(struct iscsi_session *, struct conn_info *);
+ extern int conn_del(struct iscsi_session *, struct conn_info *);
+-extern void conn_del_all(struct iscsi_session *);
+ extern int conn_free(struct iscsi_conn *);
+ extern void conn_close(struct iscsi_conn *);
+ extern void conn_info_show(struct seq_file *, struct iscsi_session *);
+@@ -377,7 +375,6 @@
+ extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
+ extern int session_add(struct iscsi_target *, struct session_info *);
+ extern int session_del(struct iscsi_target *, u64);
+-extern void session_del_all(struct iscsi_target *);
+ 
+ /* volume.c */
+ extern struct file_operations volume_seq_fops;
+
+Modified: trunk/kernel/session.c
+===================================================================
+--- trunk/kernel/session.c	2009-12-17 18:43:29 UTC (rev 281)
++++ trunk/kernel/session.c	2009-12-24 08:58:08 UTC (rev 282)
+@@ -131,37 +131,23 @@
+ 		return -ENOENT;
+ 
+ 	if (!list_empty(&amp;session-&gt;conn_list)) {
+-		eprintk(&quot;%llu still have connections\n&quot;, (unsigned long long) session-&gt;sid);
+-		return -EBUSY;
+-	}
++		DECLARE_COMPLETION_ONSTACK(done);
++		struct iscsi_conn *conn;
+ 
+-	list_for_each_entry(volume, &amp;target-&gt;volumes, list){
+-		volume_release(volume, sid, 0);
+-	}
+-	return session_free(session);
+-}
++		session-&gt;done = &done;
++		list_for_each_entry(conn, &amp;session-&gt;conn_list, list)
++			conn_close(conn);
+ 
+-void session_del_all(struct iscsi_target *target)
+-{
+-	DECLARE_COMPLETION_ONSTACK(done);
+-	struct iscsi_session *sess;
+-
+-	while (!list_empty(&amp;target-&gt;session_list)) {
+-		init_completion(&amp;done);
+-		target_lock(target, 0);
+-		sess = list_entry(target-&gt;session_list.next, struct
+-				  iscsi_session, list);
+-		sess-&gt;done = &done;
+-		conn_del_all(sess);
+ 		target_unlock(target);
+ 		wait_for_completion(&amp;done);
+ 		target_lock(target, 0);
+-		session_free(sess);
+-		target_unlock(target);
+ 	}
+ 
+-	if (target-&gt;done)
+-		complete(target-&gt;done);
++	list_for_each_entry(volume, &amp;target-&gt;volumes, list){
++		volume_release(volume, sid, 0);
++	}
++
++	return session_free(session);
+ }
+ 
+ static void iet_session_info_show(struct seq_file *seq, struct iscsi_target *target)
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2009-12-17 18:43:29 UTC (rev 281)
++++ trunk/kernel/target.c	2009-12-24 08:58:08 UTC (rev 282)
+@@ -192,22 +192,24 @@
+ 
+ int target_add(struct target_info *info)
+ {
+-	int err = -EEXIST;
+ 	u32 tid = info-&gt;tid;
++	int err;
+ 
+-	down(&amp;target_list_sem);
++	err = down_interruptible(&amp;target_list_sem);
++	if (err &lt; 0)
++		return err;
+ 
+ 	if (nr_targets &gt; MAX_NR_TARGETS) {
+ 		err = -EBUSY;
+ 		goto out;
+ 	}
+ 
+-	if (__target_lookup_by_name(info-&gt;name))
++	if (__target_lookup_by_name(info-&gt;name) || 
++			(tid &amp;&amp; __target_lookup_by_id(tid))) {
++		err = -EEXIST;
+ 		goto out;
++	}
+ 
+-	if (tid &amp;&amp; __target_lookup_by_id(tid))
+-		goto out;
+-
+ 	if (!tid) {
+ 		do {
+ 			if (!++next_target_id)
+@@ -217,7 +219,8 @@
+ 		tid = next_target_id;
+ 	}
+ 
+-	if (!(err = iscsi_target_create(info, tid)))
++	err = iscsi_target_create(info, tid);
++	if (!err)
+ 		nr_targets++;
+ out:
+ 	up(&amp;target_list_sem);
+@@ -246,13 +249,25 @@
+ }
+ 
+ /* @locking: target_list_sem must be locked */
+-int __target_del(struct iscsi_target *target)
++static int __target_del(struct iscsi_target *target)
+ {
+-	target_lock(target, 0);
++	int err;
+ 
++	err = target_lock(target, 1);
++	if (err &lt; 0)
++		return err;
++
+ 	if (!list_empty(&amp;target-&gt;session_list)) {
+-		target_unlock(target);
+-		return -EBUSY;
++		struct iscsi_session *session;
++
++		do {
++			session = list_entry(target-&gt;session_list.next, struct iscsi_session, list);
++			err = session_del(target, session-&gt;sid);
++			if (err &lt; 0) {
++				target_unlock(target);
++				return err;
++			}
++		} while (!list_empty(&amp;target-&gt;session_list));
+ 	}
+ 
+ 	list_del(&amp;target-&gt;t_list);
+@@ -260,13 +275,16 @@
+ 
+ 	target_unlock(target);
+ 	target_destroy(target);
++
+ 	return 0;
+ }
+ 
+ int target_del(u32 id)
+ {
+ 	struct iscsi_target *target;
+-	int err = down_interruptible(&amp;target_list_sem);
++	int err;
++
++	err = down_interruptible(&amp;target_list_sem);
+ 	if (err &lt; 0)
+ 		return err;
+ 
+@@ -277,14 +295,14 @@
+ 	}
+ 
+ 	err = __target_del(target);
+- out:
++out:
+ 	up(&amp;target_list_sem);
++
+ 	return err;
+ }
+ 
+ void target_del_all(void)
+ {
+-	DECLARE_COMPLETION_ONSTACK(done);
+ 	struct iscsi_target *target, *tmp;
+ 
+ 	down(&amp;target_list_sem);
+@@ -293,10 +311,6 @@
+ 		iprintk(&quot;Removing all connections, sessions and targets\n&quot;);
+ 
+ 	list_for_each_entry_safe(target, tmp, &amp;target_list, t_list) {
+-		init_completion(&amp;done);
+-		target-&gt;done = &done;
+-		session_del_all(target);
+-		wait_for_completion(&amp;done);
+ 		__target_del(target);
+ 	}
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000193.html">[Iscsitarget-svn] r281 - in trunk: kernel patches
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#194">[ date ]</a>
+              <a href="thread.html#194">[ thread ]</a>
+              <a href="subject.html#194">[ subject ]</a>
+              <a href="author.html#194">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

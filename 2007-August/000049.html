@@ -1,0 +1,86 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r137 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-August/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r137%20-%20trunk/kernel&In-Reply-To=%3C200708221739.l7MHdxVf009397%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000048.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r137 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r137%20-%20trunk/kernel&In-Reply-To=%3C200708221739.l7MHdxVf009397%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r137 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Wed Aug 22 19:39:59 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000048.html">[Iscsitarget-svn] r136 - trunk/etc/initd
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#49">[ date ]</a>
+              <a href="thread.html#49">[ thread ]</a>
+              <a href="subject.html#49">[ subject ]</a>
+              <a href="author.html#49">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-08-22 19:39:59 +0200 (Wed, 22 Aug 2007)
+New Revision: 137
+
+Modified:
+   trunk/kernel/nthread.c
+Log:
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Subject: Remove needless wait_queue declaration	from nthread.c
+Date: Wed, 22 Aug 2007 19:18:10 +0200
+
+
+
+Modified: trunk/kernel/nthread.c
+===================================================================
+--- trunk/kernel/nthread.c	2007-08-21 01:43:10 UTC (rev 136)
++++ trunk/kernel/nthread.c	2007-08-22 17:39:59 UTC (rev 137)
+@@ -13,8 +13,6 @@
+ #include &quot;iscsi_dbg.h&quot;
+ #include &quot;digest.h&quot;
+ 
+-DECLARE_WAIT_QUEUE_HEAD(iscsi_ctl_wait);
+-
+ enum daemon_state_bit {
+ 	D_ACTIVE,
+ 	D_DATA_READY,
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000048.html">[Iscsitarget-svn] r136 - trunk/etc/initd
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#49">[ date ]</a>
+              <a href="thread.html#49">[ thread ]</a>
+              <a href="subject.html#49">[ subject ]</a>
+              <a href="author.html#49">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

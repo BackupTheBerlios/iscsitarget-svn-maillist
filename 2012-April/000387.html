@@ -1,0 +1,351 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[476] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B476%5D%20trunk/kernel&In-Reply-To=%3CE1SEKPk-00080z-At%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000386.html">
+   <LINK REL="Next"  HREF="000388.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[476] trunk/kernel</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B476%5D%20trunk/kernel&In-Reply-To=%3CE1SEKPk-00080z-At%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[476] trunk/kernel">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr  1 15:01:48 CEST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000386.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[475] trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000388.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[477] trunk/kernel/iscsi.h
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#387">[ date ]</a>
+              <a href="thread.html#387">[ thread ]</a>
+              <a href="subject.html#387">[ subject ]</a>
+              <a href="author.html#387">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 476
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=476&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=476&amp;view=rev</A>
+Author:   agr1
+Date:     2012-04-01 13:01:47 +0000 (Sun, 01 Apr 2012)
+Log Message:
+-----------
+Add support for All-Registrants-type reservations
+
+Hi All:
+
+This patch updates the SCSI-3 Persistent Reservation code to add support
+for reservations of type=7 (Write Exclusive, All Registrants) and type=8
+(Exclusive Access, All Registrants), as these newer reservation types
+are needed by some types of clustering software.
+
+Existing behavior for other reservation types does not change.
+
+Target tested on SLES 11 SP2, with one initiator on the same system, and
+one on a OpenSUSE 12.1 system, and one on a SLES 11 SP2 VM (all using
+open-iscsi).
+
+Tested:
+ - REGISTER [and unregister]
+ - REPORT CAPABILITIES
+ - READ FULL STATUS
+ - RESERVE
+ - RELEASE
+ - CLEAR
+ - PREEMPT
+
+Signed-of-by: Lee Duncan &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">lduncan at suse.com</A>&gt;
+
+ persist.c |  115
++++++++++++++++++++++++++++++++++++++-------------------------
+ persist.h |    7 +++
+ volume.c  |    2 +
+ 3 files changed, 79 insertions(+), 45 deletions(-)
+
+Modified Paths:
+--------------
+    trunk/kernel/persist.c
+    trunk/kernel/persist.h
+    trunk/kernel/volume.c
+
+Modified: trunk/kernel/persist.c
+===================================================================
+--- trunk/kernel/persist.c	2012-04-01 11:02:06 UTC (rev 475)
++++ trunk/kernel/persist.c	2012-04-01 13:01:47 UTC (rev 476)
+@@ -9,21 +9,28 @@
+ #include &quot;iscsi_dbg.h&quot;
+ #include &quot;persist.h&quot;
+ 
+-bool
+-pr_is_reserved_by_session(const struct reservation *res,
+-			  const struct iscsi_session *sess)
+-{
+-	return (pr_is_reserved(res) &amp;&amp; res-&gt;sid == sess-&gt;sid);
+-}
+-
+ static bool
+ pr_is_reserved_by_sid(const struct reservation *res,
+ 		      const u64 sid)
+ {
+-	return (pr_is_reserved(res) &amp;&amp; res-&gt;sid == sid);
++	if (!pr_is_reserved(res))
++		return false;
++
++	if (pr_type_is_all_registrants(res)) {
++		return pr_initiator_has_registered(res, sid);
++	} else {
++		return res-&gt;sid == sid;
++	}
+ }
+ 
+ bool
++pr_is_reserved_by_session(const struct reservation *res,
++			  const struct iscsi_session *sess)
++{
++	return pr_is_reserved_by_sid(res, sess-&gt;sid);
++}
++
++bool
+ pr_initiator_has_registered(const struct reservation *res,
+ 			    u64 sid)
+ {
+@@ -44,7 +51,9 @@
+ 	.type_mask = cpu_to_be16(PR_TYPE_WR_EX|
+ 				 PR_TYPE_EX_AC|
+ 				 PR_TYPE_WR_EX_RO|
+-				 PR_TYPE_EX_AC_RO),
++				 PR_TYPE_EX_AC_RO|
++				 PR_TYPE_WR_EX_AR|
++				 PR_TYPE_EX_AC_AR),
+ };
+ 
+ static void
+@@ -79,7 +88,10 @@
+ 	pin_data-&gt;generation = cpu_to_be32(reservation-&gt;generation);
+ 
+ 	if (pr_is_reserved(reservation)) {
+-		pin_data-&gt;reservation_key = reservation-&gt;reservation_key;
++		if (pr_type_is_all_registrants(reservation))
++			pin_data-&gt;reservation_key = 0;
++		else
++			pin_data-&gt;reservation_key = reservation-&gt;reservation_key;
+ 		pin_data-&gt;scope_type = PR_SCOPE_LU | reservation-&gt;persistent_type;
+ 		/*
+ 		 * SPC-3, 6.11.3.2
+@@ -350,7 +362,8 @@
+ 		}
+ 
+ 		if (!param-&gt;service_action_key) {
+-			if (pr_is_reserved_by_session(reservation, session)) {
++			if (pr_is_reserved_by_session(reservation, session) &amp;&amp;
++			    !pr_type_is_all_registrants(reservation)) {
+ 				reservation-&gt;reservation_type = RESERVATION_TYPE_NONE;
+ 				reservation-&gt;persistent_type = 0;
+ 				reservation-&gt;reservation_key = 0;
+@@ -361,6 +374,12 @@
+ 			}
+ 			list_del(&amp;reg-&gt;r_list);
+ 			kfree(reg);
++			if (list_empty(&amp;reservation-&gt;registration_list) &amp;&amp;
++			    pr_type_is_all_registrants(reservation)) {
++				reservation-&gt;reservation_type = RESERVATION_TYPE_NONE;
++				reservation-&gt;persistent_type = 0;
++				reservation-&gt;reservation_key = 0;
++			}
+ 		} else {
+ 			reg-&gt;reservation_key = param-&gt;service_action_key;
+ 		}
+@@ -410,6 +429,8 @@
+ 	case PR_TYPE_EXCLUSIVE_ACCESS:
+ 	case PR_TYPE_WRITE_EXCLUSIVE_REGISTRANTS_ONLY:
+ 	case PR_TYPE_EXCLUSIVE_ACCESS_REGISTRANTS_ONLY:
++	case PR_TYPE_WRITE_EXCLUSIVE_ALL_REGISTRANTS:
++	case PR_TYPE_EXCLUSIVE_ACCESS_ALL_REGISTRANTS:
+ 		return true;
+ 	default:
+ 		return false;
+@@ -500,17 +521,20 @@
+ 		goto out;
+ 	}
+ 
+-	if (reservation-&gt;sid != session-&gt;sid)
+-		goto out;
+-
+-	if (reservation-&gt;reservation_key != param-&gt;reservation_key) {
+-		cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
+-		goto out;
++	if (!pr_type_is_all_registrants(reservation)) {
++		if (reservation-&gt;sid != session-&gt;sid)
++			goto out;
++		if (reservation-&gt;reservation_key != param-&gt;reservation_key) {
++			cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
++			goto out;
++		}
+ 	}
+ 
+ 	switch (reservation-&gt;persistent_type) {
+ 	case PR_TYPE_WRITE_EXCLUSIVE_REGISTRANTS_ONLY:
+ 	case PR_TYPE_EXCLUSIVE_ACCESS_REGISTRANTS_ONLY:
++	case PR_TYPE_WRITE_EXCLUSIVE_ALL_REGISTRANTS:
++	case PR_TYPE_EXCLUSIVE_ACCESS_ALL_REGISTRANTS:
+ 		send_ua = true;
+ 		break;
+ 	default:
+@@ -601,54 +625,55 @@
+ 	struct reservation *reservation = &amp;volume-&gt;reservation;
+ 	bool all = 0;
+ 
+-	if (!param-&gt;service_action_key) {
++	spin_lock(&amp;volume-&gt;reserve_lock);
++	if (!param-&gt;service_action_key &amp;&amp;
++	    !pr_type_is_all_registrants(reservation)) {
+ 		iscsi_cmnd_set_sense(cmnd,
+ 				     ILLEGAL_REQUEST,
+ 				     INVALID_FIELD_IN_PARAMETER_LIST_ASC,
+ 				     INVALID_FIELD_IN_PARAMETER_LIST_ASCQ);
+-		return;
++		goto out;
+ 	}
+ 
+-	spin_lock(&amp;volume-&gt;reserve_lock);
+ 	registered = pr_initiator_has_registered(reservation, session-&gt;sid);
+ 	if (!registered) {
+ 		cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
+ 		goto out;
+ 	}
+ 
+-	if (pr_is_reserved(reservation) &amp;&amp;
+-	    reservation-&gt;reservation_key == param-&gt;service_action_key &amp;&amp;
+-	    reservation-&gt;sid != session-&gt;sid) {
+-		if (!persistent_type_valid(pr_type)) {
+-			iscsi_cmnd_set_sense(cmnd,
+-					     ILLEGAL_REQUEST,
+-					     INVALID_FIELD_IN_CDB_ASC,
+-					     INVALID_FIELD_IN_CDB_ASCQ);
+-			goto out;
+-		}
++	if (pr_is_reserved(reservation)) {
++		if ((!pr_type_is_all_registrants(reservation) &amp;&amp;
++		     reservation-&gt;reservation_key == param-&gt;service_action_key &amp;&amp;
++		     reservation-&gt;sid != session-&gt;sid) ||
++		    (pr_type_is_all_registrants(reservation) &amp;&amp;
++		     !param-&gt;service_action_key)) {
+ 
+-		reserv_session = session_lookup(target, reservation-&gt;sid);
+-		if (reserv_session) {
+-			if (abort)
+-				session_abort_tasks(reserv_session, volume-&gt;lun);
+-			ua_establish_for_session(reserv_session,
+-						 volume-&gt;lun,
+-						 RESERVATIONS_PREEMPTED_ASC,
+-						 RESERVATIONS_PREEMPTED_ASCQ);
++			reserv_session = session_lookup(target, reservation-&gt;sid);
++			if (reserv_session) {
++				if (abort)
++					session_abort_tasks(reserv_session,
++					    volume-&gt;lun);
++				ua_establish_for_session(reserv_session,
++							 volume-&gt;lun,
++							 RESERVATIONS_PREEMPTED_ASC,
++							 RESERVATIONS_PREEMPTED_ASCQ);
++			}
++
++			reservation-&gt;reservation_type = RESERVATION_TYPE_PERSISTENT;
++			reservation-&gt;sid = session-&gt;sid;
++			reservation-&gt;reservation_key = param-&gt;reservation_key;
++			reservation-&gt;persistent_type = pr_type;
++			all = true;
+ 		}
+-
+-		reservation-&gt;reservation_type = RESERVATION_TYPE_PERSISTENT;
+-		reservation-&gt;sid = session-&gt;sid;
+-		reservation-&gt;reservation_key = param-&gt;reservation_key;
+-		reservation-&gt;persistent_type = pr_type;
+-		all = true;
+ 	}
+ 
+ 	list_for_each_entry_safe(reg, tmp_reg, &amp;reservation-&gt;registration_list, r_list) {
+ 		if (reg-&gt;sid == session-&gt;sid)
+ 			continue;
+ 
+-		if (!all &amp;&amp; reg-&gt;reservation_key != param-&gt;service_action_key)
++		if (!all &amp;&amp;
++		    reg-&gt;reservation_key != param-&gt;service_action_key &amp;&amp;
++		    !pr_type_is_all_registrants(reservation))
+ 			continue;
+ 
+ 		reserv_session = session_lookup(target, reg-&gt;sid);
+
+Modified: trunk/kernel/persist.h
+===================================================================
+--- trunk/kernel/persist.h	2012-04-01 11:02:06 UTC (rev 475)
++++ trunk/kernel/persist.h	2012-04-01 13:01:47 UTC (rev 476)
+@@ -224,6 +224,13 @@
+ 	return res-&gt;reservation_type != RESERVATION_TYPE_NONE;
+ }
+ 
++static inline bool
++pr_type_is_all_registrants(const struct reservation *res)
++{
++	return ((res-&gt;persistent_type == PR_TYPE_WRITE_EXCLUSIVE_ALL_REGISTRANTS) ||
++		(res-&gt;persistent_type == PR_TYPE_EXCLUSIVE_ACCESS_ALL_REGISTRANTS));
++}
++
+ struct iscsi_session;
+ 
+ bool
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2012-04-01 11:02:06 UTC (rev 475)
++++ trunk/kernel/volume.c	2012-04-01 13:01:47 UTC (rev 476)
+@@ -420,9 +420,11 @@
+ 		excl_access = true;
+ 		break;
+ 	case PR_TYPE_WRITE_EXCLUSIVE_REGISTRANTS_ONLY:
++	case PR_TYPE_WRITE_EXCLUSIVE_ALL_REGISTRANTS:
+ 		write_excl_ro = true;
+ 		break;
+ 	case PR_TYPE_EXCLUSIVE_ACCESS_REGISTRANTS_ONLY:
++	case PR_TYPE_EXCLUSIVE_ACCESS_ALL_REGISTRANTS:
+ 		excl_access_ro = true;
+ 		break;
+ 	default:
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000386.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[475] trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000388.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[477] trunk/kernel/iscsi.h
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#387">[ date ]</a>
+              <a href="thread.html#387">[ thread ]</a>
+              <a href="subject.html#387">[ subject ]</a>
+              <a href="author.html#387">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[318]	trunk/kernel/target.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B318%5D%0A%09trunk/kernel/target.c&In-Reply-To=%3CE1O0ymV-0004fc-PW%40sfp-svn-5.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000229.html">
+   <LINK REL="Next"  HREF="000231.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[318]	trunk/kernel/target.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B318%5D%0A%09trunk/kernel/target.c&In-Reply-To=%3CE1O0ymV-0004fc-PW%40sfp-svn-5.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[318]	trunk/kernel/target.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr 11 17:09:03 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000229.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[317] trunk
+</A></li>
+        <LI>Next message: <A HREF="000231.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[319] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#230">[ date ]</a>
+              <a href="thread.html#230">[ thread ]</a>
+              <a href="subject.html#230">[ subject ]</a>
+              <a href="author.html#230">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 318
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=318&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=318&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-11 15:09:03 +0000 (Sun, 11 Apr 2010)
+
+Log Message:
+-----------
+
+__target_del did an interruptible semaphore lock on target which
+if the target is processing IO could cause it to interrupt out
+which if it happens during a target_del_all would leave the target
+orphaned.
+
+Signed-off-by: Ross Walker
+
+- line, and those below, will be ignored--
+
+M    kernel/target.c
+
+Modified Paths:
+--------------
+    trunk/kernel/target.c
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2010-04-08 22:25:37 UTC (rev 317)
++++ trunk/kernel/target.c	2010-04-11 15:09:03 UTC (rev 318)
+@@ -253,15 +253,14 @@
+ {
+ 	int err;
+ 
+-	err = target_lock(target, 1);
+-	if (err &lt; 0)
+-		return err;
++	target_lock(target, 0);
+ 
+ 	if (!list_empty(&amp;target-&gt;session_list)) {
+ 		struct iscsi_session *session;
+ 
+ 		do {
+-			session = list_entry(target-&gt;session_list.next, struct iscsi_session, list);
++			session = list_entry(target-&gt;session_list.next,
++						struct iscsi_session, list);
+ 			err = session_del(target, session-&gt;sid);
+ 			if (err &lt; 0) {
+ 				target_unlock(target);
+@@ -311,7 +310,9 @@
+ 		iprintk(&quot;Removing all connections, sessions and targets\n&quot;);
+ 
+ 	list_for_each_entry_safe(target, tmp, &amp;target_list, t_list) {
+-		__target_del(target);
++		err =__target_del(target);
++		if (err)
++			eprintk(&quot;Error deleteing target %u: %d\n&quot;, tid, err);
+ 	}
+ 
+ 	next_target_id = 0;
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000229.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[317] trunk
+</A></li>
+	<LI>Next message: <A HREF="000231.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[319] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#230">[ date ]</a>
+              <a href="thread.html#230">[ thread ]</a>
+              <a href="subject.html#230">[ subject ]</a>
+              <a href="author.html#230">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

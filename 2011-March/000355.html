@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[443]	branches/1.4.20/kernel/iscsi.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B443%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1Q5O4I-00041S-9Y%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000354.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[443]	branches/1.4.20/kernel/iscsi.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B443%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1Q5O4I-00041S-9Y%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[443]	branches/1.4.20/kernel/iscsi.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Mar 31 22:02:10 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000354.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[442] trunk/kernel/iscsi.c
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#355">[ date ]</a>
+              <a href="thread.html#355">[ thread ]</a>
+              <a href="subject.html#355">[ subject ]</a>
+              <a href="author.html#355">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 443
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=443&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=443&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-31 20:02:09 +0000 (Thu, 31 Mar 2011)
+
+Log Message:
+-----------
+After bypassing sending data-outs in the zero EDTL/SPDTL patch I
+discovered that read residuals for these responses were missing.
+
+FYI residual reporting on failing commands is valid per RFC.
+
+Compile tested on CentOS5
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/kernel/iscsi.c
+
+Modified: branches/1.4.20/kernel/iscsi.c
+===================================================================
+--- branches/1.4.20/kernel/iscsi.c	2011-03-31 20:01:27 UTC (rev 442)
++++ branches/1.4.20/kernel/iscsi.c	2011-03-31 20:02:09 UTC (rev 443)
+@@ -384,17 +384,29 @@
+ void send_data_rsp(struct iscsi_cmnd *req, void (*func)(struct iscsi_cmnd *))
+ {
+ 	struct iscsi_cmnd *rsp;
+-	u32 datasize = 0;
++	struct iscsi_scsi_rsp_hdr *rsp_hdr;
++	u32 size;
+ 
+ 	func(req);
+ 
+-	if (req-&gt;tio)
+-		datasize = min(req-&gt;tio-&gt;size, cmnd_read_size(req));
++	assert(req-&gt;tio);
++
++	size = min(req-&gt;tio-&gt;size, cmnd_read_size(req));
+  
+-	if (req-&gt;status == SAM_STAT_GOOD &amp;&amp; datasize)
++	if (req-&gt;status == SAM_STAT_GOOD &amp;&amp; size)
+ 		do_send_data_rsp(req);
+ 	else {
+ 		rsp = create_scsi_rsp(req);
++		rsp_hdr = (struct iscsi_scsi_rsp_hdr *) &amp;rsp-&gt;pdu.bhs;
++		if ((size = cmnd_read_size(req)) &gt; req-&gt;tio-&gt;size) {
++			rsp_hdr-&gt;flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
++			rsp_hdr-&gt;residual_count =
++					cpu_to_be32(size - req-&gt;tio-&gt;size);
++		} else if (size &lt; req-&gt;tio-&gt;size) {
++			rsp_hdr-&gt;flags |= ISCSI_FLG_RESIDUAL_OVERFLOW;
++			rsp_hdr-&gt;residual_count =
++					cpu_to_be32(req-&gt;tio-&gt;size - size);
++		}
+ 		iscsi_cmnd_init_write(rsp);
+ 	}
+ }
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000354.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[442] trunk/kernel/iscsi.c
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#355">[ date ]</a>
+              <a href="thread.html#355">[ thread ]</a>
+              <a href="subject.html#355">[ subject ]</a>
+              <a href="author.html#355">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

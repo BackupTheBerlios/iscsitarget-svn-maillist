@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[312] trunk/kernel/iscsi.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B312%5D%20trunk/kernel/iscsi.c&In-Reply-To=%3CE1Nzya1-00033k-15%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000225.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[312] trunk/kernel/iscsi.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B312%5D%20trunk/kernel/iscsi.c&In-Reply-To=%3CE1Nzya1-00033k-15%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[312] trunk/kernel/iscsi.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Apr  8 22:44:01 CEST 2010</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000225.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[313] trunk/kernel/param.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#224">[ date ]</a>
+              <a href="thread.html#224">[ thread ]</a>
+              <a href="subject.html#224">[ subject ]</a>
+              <a href="author.html#224">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 312
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=312&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=312&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-08 20:44:00 +0000 (Thu, 08 Apr 2010)
+
+Log Message:
+-----------
+This fixes a race condition with data-outs when running multiple
+connections over a session.
+
+The race exists between iscsi_session_push_cmnd() and
+data_out_end() for scsi_cmnd_exec() where due to the order of
+processing incoming data the same command could be issued twice
+causing an oops.
+
+The fix is relatively simple, only push() complete commands and
+make data_out_end() push() instead of exec() on final data-out
+pdus.
+
+Tested on RHEL5 with MS initiator using MC/S.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/iscsi.c
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2010-03-30 18:17:54 UTC (rev 311)
++++ trunk/kernel/iscsi.c	2010-04-08 20:44:00 UTC (rev 312)
+@@ -826,15 +826,12 @@
+ 
+ static void scsi_cmnd_exec(struct iscsi_cmnd *cmnd)
+ {
+-	if (cmnd-&gt;r2t_length) {
+-		if (!cmnd-&gt;is_unsolicited_data)
+-			send_r2t(cmnd);
++	assert(!cmnd-&gt;r2t_length);
++
++	if (cmnd-&gt;lun) {
++		iscsi_scsi_queuecmnd(cmnd);
+ 	} else {
+-		if (cmnd-&gt;lun) {
+-			iscsi_scsi_queuecmnd(cmnd);
+-		} else {
+-			iscsi_device_queue_cmnd(cmnd);
+-		}
++		iscsi_device_queue_cmnd(cmnd);
+ 	}
+ }
+ 
+@@ -1093,6 +1090,8 @@
+ 	return;
+ }
+ 
++static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd);
++
+ static void data_out_end(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
+ {
+ 	struct iscsi_data_out_hdr *req = (struct iscsi_data_out_hdr *) &amp;cmnd-&gt;pdu.bhs;
+@@ -1116,8 +1115,7 @@
+ 	if (req-&gt;ttt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+ 		if (req-&gt;flags &amp; ISCSI_FLG_FINAL) {
+ 			scsi_cmnd-&gt;is_unsolicited_data = 0;
+-			if (!cmnd_pending(scsi_cmnd))
+-				scsi_cmnd_exec(scsi_cmnd);
++			iscsi_session_push_cmnd(scsi_cmnd);
+ 		}
+ 	} else {
+ 		/* TODO : proper error handling */
+@@ -1132,7 +1130,7 @@
+ 		if (scsi_cmnd-&gt;r2t_length == 0)
+ 			assert(list_empty(&amp;scsi_cmnd-&gt;pdu_list));
+ 
+-		scsi_cmnd_exec(scsi_cmnd);
++		iscsi_session_push_cmnd(scsi_cmnd);
+ 	}
+ 
+ out:
+@@ -1734,6 +1732,12 @@
+ 	struct list_head *entry;
+ 	u32 cmd_sn;
+ 
++	if (cmnd-&gt;r2t_length) {
++		if (!cmnd-&gt;is_unsolicited_data)
++			send_r2t(cmnd);
++		return;
++	}
++
+ 	dprintk(D_GENERIC, &quot;%p:%x %u,%u\n&quot;,
+ 		cmnd, cmnd_opcode(cmnd), cmnd-&gt;pdu.bhs.sn, session-&gt;exp_cmd_sn);
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000225.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[313] trunk/kernel/param.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#224">[ date ]</a>
+              <a href="thread.html#224">[ thread ]</a>
+              <a href="subject.html#224">[ subject ]</a>
+              <a href="author.html#224">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,98 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[384]	trunk/kernel/volume.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B384%5D%0A%09trunk/kernel/volume.c&In-Reply-To=%3CE1PfaAX-0001Cc-5z%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000295.html">
+   <LINK REL="Next"  HREF="000297.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[384]	trunk/kernel/volume.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B384%5D%0A%09trunk/kernel/volume.c&In-Reply-To=%3CE1PfaAX-0001Cc-5z%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[384]	trunk/kernel/volume.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jan 19 16:41:57 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000295.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[383]	branches/1.4.20/kernel
+</A></li>
+        <LI>Next message: <A HREF="000297.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[385] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#296">[ date ]</a>
+              <a href="thread.html#296">[ thread ]</a>
+              <a href="subject.html#296">[ subject ]</a>
+              <a href="author.html#296">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 384
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=384&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=384&amp;view=rev</A>
+Author:   agr1
+Date:     2011-01-19 15:41:56 +0000 (Wed, 19 Jan 2011)
+
+Log Message:
+-----------
+Fix compile breakage
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/volume.c
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2011-01-13 22:23:18 UTC (rev 383)
++++ trunk/kernel/volume.c	2011-01-19 15:41:56 UTC (rev 384)
+@@ -120,11 +120,13 @@
+ 	int err = 0;
+ 	unsigned blk_sz;
+ 	substring_t args[MAX_OPT_ARGS];
+-	char *p, *argp = NULL, *bp = *buf = (char *) get_zeroed_page(GFP_USER);
++	char *p, *argp = NULL, *bp, *buf = (char *) get_zeroed_page(GFP_USER);
+ 
+ 	if (!buf)
+ 		return -ENOMEM;
+ 
++	bp = buf;
++
+ 	strncpy(buf, params, PAGE_CACHE_SIZE);
+ 
+ 	while ((p = strsep(&amp;buf, &quot;,&quot;)) != NULL) {
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000295.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[383]	branches/1.4.20/kernel
+</A></li>
+	<LI>Next message: <A HREF="000297.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[385] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#296">[ date ]</a>
+              <a href="thread.html#296">[ thread ]</a>
+              <a href="subject.html#296">[ subject ]</a>
+              <a href="author.html#296">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

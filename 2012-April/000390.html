@@ -1,0 +1,416 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[479] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B479%5D%20trunk/kernel&In-Reply-To=%3CE1SJrud-0004eF-GJ%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000389.html">
+   <LINK REL="Next"  HREF="000391.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[479] trunk/kernel</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B479%5D%20trunk/kernel&In-Reply-To=%3CE1SJrud-0004eF-GJ%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[479] trunk/kernel">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Mon Apr 16 21:48:35 CEST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000389.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[478] trunk/kernel/event.c
+</A></li>
+        <LI>Next message: <A HREF="000391.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[480] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#390">[ date ]</a>
+              <a href="thread.html#390">[ thread ]</a>
+              <a href="subject.html#390">[ subject ]</a>
+              <a href="author.html#390">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 479
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=479&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=479&amp;view=rev</A>
+Author:   agr1
+Date:     2012-04-16 19:48:34 +0000 (Mon, 16 Apr 2012)
+Log Message:
+-----------
+refactor tio.c
+
+1) tio-&gt;offset is changed to loff_t and stores target bytes offset
+   directly. all place referencing tio-&gt;offset is fixed.
+
+2) get_pgcnt() macro now only needs size paramter to cacluate
+   the necessary pages, and data should always starts in offset
+   0 in first page allocated.
+
+This patch is tested with ESXi5 initiator, badblocks repeatly with
+different block size. both file-io and block-io is tested. adttionaly
+ext4 mkfs and fsck is tested.
+
+Signed-off-by: Yucong Sun &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sunyucong at gmail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/block-io.c
+    trunk/kernel/digest.c
+    trunk/kernel/file-io.c
+    trunk/kernel/iscsi.c
+    trunk/kernel/iscsi.h
+    trunk/kernel/persist.c
+    trunk/kernel/target_disk.c
+    trunk/kernel/tio.c
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/block-io.c	2012-04-16 19:48:34 UTC (rev 479)
+@@ -58,14 +58,13 @@
+ 	struct bio *tio_bio = NULL, *bio = NULL, *biotail = NULL;
+ 	struct blk_plug plug;
+ 
+-	u32 offset = tio-&gt;offset;
+ 	u32 size = tio-&gt;size;
+ 	u32 tio_index = 0;
+ 
+ 	int max_pages = 1;
+ 	int err = 0;
+ 
+-	loff_t ppos = ((loff_t) tio-&gt;idx &lt;&lt; PAGE_SHIFT) + offset;
++	loff_t ppos = tio-&gt;offset;
+ 
+ 	/* Calculate max_pages for bio_alloc (memory saver) */
+ 	if (bdev_q)
+@@ -102,19 +101,17 @@
+ 
+ 		/* Loop for filling bio */
+ 		while (tio_index &lt; tio-&gt;pg_cnt) {
+-			unsigned int bytes = PAGE_SIZE - offset;
++			unsigned int bytes = PAGE_SIZE;
+ 
+ 			if (bytes &gt; size)
+ 				bytes = size;
+ 
+-			if (!bio_add_page(bio, tio-&gt;pvec[tio_index], bytes, offset))
++			if (!bio_add_page(bio, tio-&gt;pvec[tio_index], bytes, 0))
+ 				break;
+ 
+ 			size -= bytes;
+ 			ppos += bytes;
+ 
+-			offset = 0;
+-
+ 			tio_index++;
+ 		}
+ 	}
+
+Modified: trunk/kernel/digest.c
+===================================================================
+--- trunk/kernel/digest.c	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/digest.c	2012-04-16 19:48:34 UTC (rev 479)
+@@ -200,29 +200,22 @@
+ {
+ 	struct scatterlist *sg = cmnd-&gt;conn-&gt;hash_sg;
+ 	u32 size, length;
+-	int i, idx, count;
++	int i, idx;
+ 	unsigned int nbytes;
+ 
+ 	size = cmnd-&gt;pdu.datasize;
+ 	nbytes = size = (size + 3) &amp; ~3;
+ 
+-	offset += tio-&gt;offset;
+ 	idx = offset &gt;&gt; PAGE_CACHE_SHIFT;
+ 	offset &amp;= ~PAGE_CACHE_MASK;
+-	count = get_pgcnt(size, offset);
+-	assert(idx + count &lt;= tio-&gt;pg_cnt);
+ 
+-	assert(count &lt;= ISCSI_CONN_IOV_MAX);
++	assert(idx &lt;= ISCSI_CONN_IOV_MAX);
+ 
+ 	sg_init_table(sg, ARRAY_SIZE(cmnd-&gt;conn-&gt;hash_sg));
+ 	crypto_hash_init(hash);
+ 
+-	for (i = 0; size; i++) {
+-		if (offset + size &gt; PAGE_CACHE_SIZE)
+-			length = PAGE_CACHE_SIZE - offset;
+-		else
+-			length = size;
+-
++	for (i = 0; size &gt; 0; i++) {
++		length = min_t(u32, PAGE_CACHE_SIZE - offset, size);
+ 		sg_set_page(&amp;sg[i], tio-&gt;pvec[idx + i], length, offset);
+ 		size -= length;
+ 		offset = 0;
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/file-io.c	2012-04-16 19:48:34 UTC (rev 479)
+@@ -24,31 +24,22 @@
+ 	struct file *filp;
+ 	mm_segment_t oldfs;
+ 	struct page *page;
+-	u32 offset, size;
+-	loff_t ppos, count;
++	loff_t ppos;
+ 	char *buf;
+ 	int i, err = 0;
+-	ssize_t ret;
++	u32 count, size, ret;
+ 
+ 	assert(p);
+ 	filp = p-&gt;filp;
+ 	size = tio-&gt;size;
+-	offset= tio-&gt;offset;
++	ppos = tio-&gt;offset;
+ 
+-	ppos = (loff_t) tio-&gt;idx &lt;&lt; PAGE_CACHE_SHIFT;
+-	ppos += offset;
+-
+ 	for (i = 0; i &lt; tio-&gt;pg_cnt; i++) {
+ 		page = tio-&gt;pvec[i];
+ 		assert(page);
+ 		buf = page_address(page);
+-		buf += offset;
++		count = min_t(u32, PAGE_CACHE_SIZE, size);
+ 
+-		if (offset + size &gt; PAGE_CACHE_SIZE)
+-			count = PAGE_CACHE_SIZE - offset;
+-		else
+-			count = size;
+-
+ 		oldfs = get_fs();
+ 		set_fs(get_ds());
+ 
+@@ -60,12 +51,12 @@
+ 		set_fs(oldfs);
+ 
+ 		if (ret != count) {
+-			eprintk(&quot;I/O error %lld, %ld\n&quot;, count, (long) ret);
++			eprintk(&quot;I/O error %u, %ld\n&quot;, count, (long) ret);
+ 			err = -EIO;
++			break;
+ 		}
+ 
+ 		size -= count;
+-		offset = 0;
+ 	}
+ 	assert(!size);
+ 
+@@ -81,8 +72,7 @@
+ 	int res;
+ 
+ 	if (tio) {
+-		ppos = (loff_t) tio-&gt;idx &lt;&lt; PAGE_CACHE_SHIFT;
+-		ppos += tio-&gt;offset;
++		ppos = tio-&gt;offset;
+ 		count = tio-&gt;size;
+ 	} else {
+ 		ppos = 0;
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/iscsi.c	2012-04-16 19:48:34 UTC (rev 479)
+@@ -331,8 +331,7 @@
+ 		rsp-&gt;pdu.datasize = sizeof(struct iscsi_sense_data) +
+ 			IET_SENSE_BUF_SIZE;
+ 
+-		rsp-&gt;tio-&gt;size = (rsp-&gt;pdu.datasize + 3) &amp; -4;
+-		rsp-&gt;tio-&gt;offset = 0;
++		tio_set(rsp-&gt;tio, (rsp-&gt;pdu.datasize + 3) &amp; -4, 0);
+ 	}
+ 
+ 	return rsp;
+@@ -706,18 +705,15 @@
+ 	char *addr;
+ 
+ 	dprintk(D_GENERIC, &quot;%p %u,%u\n&quot;, tio, offset, size);
+-	offset += tio-&gt;offset;
+ 
+ 	if (!size)
+ 		return 0;
+ 
+-	if (!(offset &lt; tio-&gt;offset + tio-&gt;size) ||
+-	    !(offset + size &lt;= tio-&gt;offset + tio-&gt;size)) {
+-		eprintk(&quot;%u %u %u %u&quot;, offset, size, tio-&gt;offset, tio-&gt;size);
++	if (!(offset + size &lt;= tio-&gt;pg_cnt * PAGE_CACHE_SIZE)) {
++		eprintk(&quot;bad offset: o:%u s:%u total:%lu&quot;,
++			offset, size, tio-&gt;pg_cnt * PAGE_CACHE_SIZE);
+ 		return -EIO;
+ 	}
+-	assert(offset &lt; tio-&gt;offset + tio-&gt;size);
+-	assert(offset + size &lt;= tio-&gt;offset + tio-&gt;size);
+ 
+ 	idx = offset &gt;&gt; PAGE_CACHE_SHIFT;
+ 	offset &amp;= ~PAGE_CACHE_MASK;
+@@ -924,7 +920,7 @@
+ 		conn-&gt;read_msg.msg_iov = conn-&gt;read_iov;
+ 		if (cmnd-&gt;pdu.bhs.itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
+ 			struct tio *tio;
+-			int pg_cnt = get_pgcnt(size, 0);
++			int pg_cnt = get_pgcnt(size);
+ 
+ 			assert(pg_cnt &lt; ISCSI_CONN_IOV_MAX);
+ 			cmnd-&gt;tio = tio = tio_alloc(pg_cnt);
+@@ -1030,7 +1026,7 @@
+ 		}
+ 
+ 		set_offset_and_length(req-&gt;lun, req_hdr-&gt;scb, &amp;offset, &amp;length);
+-		req-&gt;tio = tio_alloc(get_pgcnt(length, offset));
++		req-&gt;tio = tio_alloc(get_pgcnt(length));
+ 		tio_set(req-&gt;tio, length, offset);
+ 		break;
+ 	}
+@@ -1070,7 +1066,7 @@
+ 		if (cmnd_write_size(req) != length)
+ 			eprintk(&quot;%x %u %u\n&quot;, cmnd_itt(req), cmnd_write_size(req), length);
+ 
+-		req-&gt;tio = tio_alloc(get_pgcnt(length, offset));
++		req-&gt;tio = tio_alloc(get_pgcnt(length));
+ 		tio_set(req-&gt;tio, length, offset);
+ 
+ 		if (req-&gt;pdu.datasize) {
+@@ -1451,7 +1447,7 @@
+ 			rsp-&gt;tio = req-&gt;tio;
+ 		}
+ 
+-		assert(get_pgcnt(req-&gt;pdu.datasize, 0) &lt; ISCSI_CONN_IOV_MAX);
++		assert(get_pgcnt(req-&gt;pdu.datasize) &lt; ISCSI_CONN_IOV_MAX);
+ 		rsp-&gt;pdu.datasize = req-&gt;pdu.datasize;
+ 		iscsi_cmnd_init_write(rsp);
+ 	} else {
+@@ -1609,10 +1605,8 @@
+ static void __cmnd_send_pdu(struct iscsi_conn *conn, struct tio *tio, u32 offset, u32 size)
+ {
+ 	dprintk(D_GENERIC, &quot;%p %u,%u\n&quot;, tio, offset, size);
+-	offset += tio-&gt;offset;
+ 
+-	assert(offset &lt;= tio-&gt;offset + tio-&gt;size);
+-	assert(offset + size &lt;= tio-&gt;offset + tio-&gt;size);
++	assert(offset + size &lt;= tio-&gt;pg_cnt * PAGE_CACHE_SIZE);
+ 
+ 	conn-&gt;write_tcmnd = tio;
+ 	conn-&gt;write_offset = offset;
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/iscsi.h	2012-04-16 19:48:34 UTC (rev 479)
+@@ -55,16 +55,15 @@
+ 	int nop_timeout;
+ };
+ 
++/* target io */
+ struct tio {
+-	u32 pg_cnt;
++       loff_t offset; /* byte offset on target */
++       u32 size; /* total io bytes */
+ 
+-	pgoff_t idx;
+-	u32 offset;
+-	u32 size;
++       u32 pg_cnt; /* total page count */
++       struct page **pvec; /* array of pages holding data */
+ 
+-	struct page **pvec;
+-
+-	atomic_t count;
++       atomic_t count; /* ref count */
+ };
+ 
+ struct tio_iterator {
+@@ -454,7 +453,7 @@
+ void ua_establish_for_all_sessions(struct iscsi_target *, u32 lun, u8 asc,
+ 				   u8 ascq);
+ 
+-#define get_pgcnt(size, offset)	((((size) + ((offset) &amp; ~PAGE_CACHE_MASK)) + PAGE_CACHE_SIZE - 1) &gt;&gt; PAGE_CACHE_SHIFT)
++#define get_pgcnt(size)	(((size) + PAGE_CACHE_SIZE - 1) &gt;&gt; PAGE_CACHE_SHIFT)
+ 
+ static inline void iscsi_cmnd_get_length(struct iscsi_pdu *pdu)
+ {
+
+Modified: trunk/kernel/persist.c
+===================================================================
+--- trunk/kernel/persist.c	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/persist.c	2012-04-16 19:48:34 UTC (rev 479)
+@@ -273,7 +273,7 @@
+ 	case SERVICE_ACTION_READ_FULL_STATUS:
+ 		if (allocation_length == 0)
+ 			return;
+-		cmnd-&gt;tio = tio_alloc(get_pgcnt(allocation_length, 0));
++		cmnd-&gt;tio = tio_alloc(get_pgcnt(allocation_length));
+ 		break;
+ 	default:
+ 		eprintk(&quot;%#Lx:%hu: invalid PR In Service Action %x\n&quot;,
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/target_disk.c	2012-04-16 19:48:34 UTC (rev 479)
+@@ -291,7 +291,7 @@
+ 	size = min(size &amp; ~(8 - 1), len + 8);
+ 
+ 	assert(!tio);
+-	tio = cmnd-&gt;tio = tio_alloc(get_pgcnt(size, 0));
++	tio = cmnd-&gt;tio = tio_alloc(get_pgcnt(size));
+ 	tio_set(tio, size, 0);
+ 
+ 	data = page_address(tio-&gt;pvec[idx]);
+
+Modified: trunk/kernel/tio.c
+===================================================================
+--- trunk/kernel/tio.c	2012-04-06 21:58:31 UTC (rev 478)
++++ trunk/kernel/tio.c	2012-04-16 19:48:34 UTC (rev 479)
+@@ -44,7 +44,6 @@
+ 	tio = kmem_cache_alloc(tio_cache, GFP_KERNEL | __GFP_NOFAIL);
+ 
+ 	tio-&gt;pg_cnt = 0;
+-	tio-&gt;idx = 0;
+ 	tio-&gt;offset = 0;
+ 	tio-&gt;size = 0;
+ 	tio-&gt;pvec = NULL;
+@@ -119,8 +118,7 @@
+ 
+ void tio_set(struct tio *tio, u32 size, loff_t offset)
+ {
+-	tio-&gt;idx = offset &gt;&gt; PAGE_CACHE_SHIFT;
+-	tio-&gt;offset = offset &amp; ~PAGE_CACHE_MASK;
++	tio-&gt;offset = offset;
+ 	tio-&gt;size = size;
+ }
+ 
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000389.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[478] trunk/kernel/event.c
+</A></li>
+	<LI>Next message: <A HREF="000391.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[480] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#390">[ date ]</a>
+              <a href="thread.html#390">[ thread ]</a>
+              <a href="subject.html#390">[ subject ]</a>
+              <a href="author.html#390">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

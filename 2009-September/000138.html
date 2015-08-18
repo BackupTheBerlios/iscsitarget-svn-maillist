@@ -1,0 +1,90 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r226 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r226%20-%20trunk/kernel&In-Reply-To=%3C200909082123.n88LNBd6007149%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000137.html">
+   <LINK REL="Next"  HREF="000139.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r226 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r226%20-%20trunk/kernel&In-Reply-To=%3C200909082123.n88LNBd6007149%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r226 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Sep  8 23:23:11 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000137.html">[Iscsitarget-svn] r225 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000139.html">[Iscsitarget-svn] r227 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#138">[ date ]</a>
+              <a href="thread.html#138">[ thread ]</a>
+              <a href="subject.html#138">[ subject ]</a>
+              <a href="author.html#138">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-08 23:23:10 +0200 (Tue, 08 Sep 2009)
+New Revision: 226
+
+Modified:
+   trunk/kernel/target_disk.c
+Log:
+Allow READ CAPACITY commands on reserved volumes
+
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2009-09-08 21:22:35 UTC (rev 225)
++++ trunk/kernel/target_disk.c	2009-09-08 21:23:10 UTC (rev 226)
+@@ -482,8 +482,13 @@
+ 		case RELEASE:
+ 		case REPORT_LUNS:
+ 		case REQUEST_SENSE:
++		case READ_CAPACITY:
+ 			/* allowed commands when reserved */
+ 			break;
++		case SERVICE_ACTION_IN:
++			if ((cmnd_hdr(cmnd)-&gt;scb[1] &amp; 0x1F) == 0x10)
++				break;
++			/* fall through */
+ 		default:
+ 			/* return reservation conflict for all others */
+ 			send_scsi_rsp(cmnd,
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000137.html">[Iscsitarget-svn] r225 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000139.html">[Iscsitarget-svn] r227 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#138">[ date ]</a>
+              <a href="thread.html#138">[ thread ]</a>
+              <a href="subject.html#138">[ subject ]</a>
+              <a href="author.html#138">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

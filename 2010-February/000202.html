@@ -1,0 +1,1117 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[290] trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B290%5D%20trunk/usr&In-Reply-To=%3CE1NcO6X-0002w7-3m%403kljzd1.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000201.html">
+   <LINK REL="Next"  HREF="000203.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[290] trunk/usr</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B290%5D%20trunk/usr&In-Reply-To=%3CE1NcO6X-0002w7-3m%403kljzd1.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[290] trunk/usr">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Tue Feb  2 20:08:05 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000201.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[289] trunk
+</A></li>
+        <LI>Next message: <A HREF="000203.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[291] trunk/kernel/iscsi.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#202">[ date ]</a>
+              <a href="thread.html#202">[ thread ]</a>
+              <a href="subject.html#202">[ subject ]</a>
+              <a href="author.html#202">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 290
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=290&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=290&amp;view=rev</A>
+Author:   agr1
+Date:     2010-02-02 19:08:04 +0000 (Tue, 02 Feb 2010)
+
+Log Message:
+-----------
+clean up kernel-usr ioctls (usr)
+
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+This patch cleans up the usr ioctls.
+
+Revision 2:
+- modified to take into account ioctl name changes from first
+revision, START_TARGET to GET_MODULE_INFO, STOP_TARGET to
+DEL_TARGET_ALL. Added version check function to ietd.c.
+
+- moved the detailed error logging up to the calling functions
+from the ioctl level and replaced ioctl error logging with
+specific ioctl errors (currently -EFAULT). This will prevent
+log spamming for ioctl calls where error reporting wasn't
+necessary at that level.
+
+Revision 1:
+- removed procfs parsing from ietd, runs completly through ioctl
+now which makes it more robust and cleaner now
+
+- added better logging along the ioctl path
+
+- added better error handling along the ioctl path
+
+- added START_TARGET ioctl, which sends our version number to
+the kernel module, if the kernel module returns an error, exit
+with a kernel version mismatch
+
+- fixed session and connection reinstatement
+
+- where applicable cleaned up coding standard
+
+This patch depends on the kernel patch.
+
+Tested on CentOS5
+
+Revision Links:
+--------------
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev</A>
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=1&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=1&amp;view=rev</A>
+
+Modified Paths:
+--------------
+    trunk/usr/conn.c
+    trunk/usr/ctldev.c
+    trunk/usr/ietd.c
+    trunk/usr/iscsid.c
+    trunk/usr/iscsid.h
+    trunk/usr/message.c
+    trunk/usr/plain.c
+    trunk/usr/session.c
+    trunk/usr/target.c
+
+Modified: trunk/usr/conn.c
+===================================================================
+--- trunk/usr/conn.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/conn.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -38,82 +38,22 @@
+ 	free(conn);
+ }
+ 
+-int conn_test(struct connection *conn)
+-{
+-	FILE *f;
+-	char buf[8192], *p;
+-	u32 tid, t_tid, cid, t_cid;
+-	u64 sid, t_sid;
+-	int err = -ENOENT, find = 0;
+-
+-	t_tid = conn-&gt;tid;
+-	t_sid = conn-&gt;session-&gt;sid.id64;
+-	t_cid = conn-&gt;cid;
+-
+-	if ((f = fopen(PROC_SESSION, &quot;r&quot;)) == NULL) {
+-		fprintf(stderr, &quot;Can't open %s\n&quot;, PROC_SESSION);
+-		return -errno;
+-	}
+-
+-	while (fgets(buf, sizeof(buf), f)) {
+-		p = buf;
+-		while (isspace((int) *p))
+-			p++;
+-
+-		if (!strncmp(p, &quot;tid:&quot;, 4)) {
+-			if (sscanf(p, &quot;tid:%u&quot;, &amp;tid) != 1) {
+-				err = -EIO;
+-				goto out;
+-			}
+-			if (tid == t_tid)
+-				find = 1;
+-			else
+-				find = 0;
+-		} else if (!strncmp(p, &quot;sid:&quot;, 4)) {
+-			if (!find)
+-				continue;
+-			if (sscanf(p, &quot;sid:%&quot; SCNu64, &amp;sid) != 1) {
+-				err = -EIO;
+-				goto out;
+-			}
+-
+-			if (sid == t_sid)
+-				find = 1;
+-			else
+-				find = 0;
+-		} else if (!strncmp(p, &quot;cid:&quot;, 4)) {
+-			if (!find)
+-				continue;
+-			if (sscanf(p, &quot;cid:%u&quot;, &amp;cid) != 1) {
+-				err = -EIO;
+-				goto out;
+-			}
+-
+-			if (cid == t_cid) {
+-				err = 0;
+-				goto out;
+-			}
+-		}
+-	}
+-
+-out:
+-	fclose(f);
+-
+-	return err;
+-}
+-
+ void conn_take_fd(struct connection *conn, int fd)
+ {
+ 	int err;
++
+ 	log_debug(1, &quot;conn_take_fd: %d %u %u %u %&quot; PRIx64,
+ 		  fd, conn-&gt;cid, conn-&gt;stat_sn, conn-&gt;exp_stat_sn, conn-&gt;sid.id64);
+ 
+-	conn-&gt;session-&gt;conn_cnt++;
+-
+ 	err = ki-&gt;conn_create(conn-&gt;tid, conn-&gt;session-&gt;sid.id64, conn-&gt;cid,
+ 			      conn-&gt;stat_sn, conn-&gt;exp_stat_sn, fd,
+ 			      conn-&gt;session_param[key_header_digest].val,
+ 			      conn-&gt;session_param[key_data_digest].val);
++	if (!err)
++		conn-&gt;session-&gt;conn_cnt++;
++	else if (err &lt; 0 &amp;&amp; err != -EEXIST)
++		log_error(&quot;unable to create connection %u for session %#&quot; PRIx64 &quot; in target %u: %d&quot;,
++			conn-&gt;cid, conn-&gt;session-&gt;sid.id64, conn-&gt;tid, errno);
+ 
+ 	return;
+ }
+
+Modified: trunk/usr/ctldev.c
+===================================================================
+--- trunk/usr/ctldev.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/ctldev.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -21,12 +21,6 @@
+ 
+ extern int ctrl_fd;
+ 
+-struct session_file_operations {
+-	int (*target_op) (int fd, u32 tid, void *arg);
+-	int (*session_op) (int fd, u32 tid, u64 sid, void *arg);
+-	int (*connection_op) (int fd, u32 tid, u64 sid, u32 cid, void *arg);
+-};
+-
+ static int ctrdev_open(void)
+ {
+ 	FILE *f;
+@@ -36,7 +30,7 @@
+ 	int ctlfd;
+ 
+ 	if (!(f = fopen(&quot;/proc/devices&quot;, &quot;r&quot;))) {
+-		perror(&quot;Cannot open control path to the driver&quot;);
++		log_error(&quot;cannot open control path to the driver: %m&quot;);
+ 		return -1;
+ 	}
+ 
+@@ -56,58 +50,83 @@
+ 
+ 	fclose(f);
+ 	if (!devn) {
+-		printf
+-		    (&quot;cannot find iscsictl in /proc/devices - &quot;
+-		     &quot;make sure the module is loaded\n&quot;);
++		log_error(&quot;cannot find iscsictl in /proc/devices - &quot;
++		     &quot;make sure the kernel module is loaded&quot;);
+ 		return -1;
+ 	}
+ 
+ 	unlink(CTL_DEVICE);
+ 	if (mknod(CTL_DEVICE, (S_IFCHR | 0600), (devn &lt;&lt; 8))) {
+-		printf(&quot;cannot create %s %d\n&quot;, CTL_DEVICE, errno);
++		log_error(&quot;cannot create %s: %m&quot;, CTL_DEVICE);
+ 		return -1;
+ 	}
+ 
+ 	ctlfd = open(CTL_DEVICE, O_RDWR);
+ 	if (ctlfd &lt; 0) {
+-		printf(&quot;cannot open %s %d\n&quot;, CTL_DEVICE, errno);
++		log_error(&quot;cannot open %s: %m&quot;, CTL_DEVICE);
+ 		return -1;
+ 	}
+ 
+ 	return ctlfd;
+ }
+ 
+-static int iscsi_target_create(u32 *tid, char *name)
++static int iet_module_info(struct module_info *info)
+ {
+ 	int err;
++
++	err = ioctl(ctrl_fd, GET_MODULE_INFO, info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl GET_MODULE_INFO: %m&quot;);
++
++	return err;
++}
++
++static int iscsi_target_create(u32 *tid, char *name)
++{
+ 	struct target_info info;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+ 	snprintf(info.name, sizeof(info.name), &quot;%s&quot;, name);
+ 	info.tid = *tid;
+-	if ((err = ioctl(ctrl_fd, ADD_TARGET, &amp;info)) &lt; 0)
+-		log_warning(&quot;can't create a target %d %u\n&quot;, errno, info.tid);
+ 
++	err = ioctl(ctrl_fd, ADD_TARGET, &amp;info);
++	if (err == -EFAULT) {
++		log_error(&quot;error calling ioctl ADD_TARGET: %m&quot;);
++		return err;
++	}
++
+ 	*tid = info.tid;
++
+ 	return err;
+ }
+ 
+ static int iscsi_target_destroy(u32 tid)
+ {
+ 	struct target_info info;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+ 
+-	return ioctl(ctrl_fd, DEL_TARGET, &amp;info);
++	err = ioctl(ctrl_fd, DEL_TARGET, &amp;info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl DEL_TARGET: %m&quot;);
++
++	return err;
+ }
+ 
++static inline int iscsi_target_destroy_all(void)
++{
++	return ioctl(ctrl_fd, DEL_TARGET_ALL, NULL);
++}
++
+ static int iscsi_lunit_create(u32 tid, u32 lun, char *args)
+ {
+-	int err;
+ 	struct volume_info info;
+ 	char *p;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+@@ -123,197 +142,73 @@
+ 	info.args_len = strlen(args);
+ 
+ 	err = ioctl(ctrl_fd, ADD_VOLUME, &amp;info);
+-	if (err &lt; 0)
+-		log_warning(&quot;Can't create a logical unit %d %u %u %s\n&quot;,
+-			    errno, tid, lun, args);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl ADD_VOLUME: %m&quot;);
+ 
+ 	return err;
+ }
+ 
+ static int iscsi_lunit_destroy(u32 tid, u32 lun)
+ {
+-	int err;
+ 	struct volume_info info;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+ 	info.lun = lun;
+ 
+ 	err = ioctl(ctrl_fd, DEL_VOLUME, &amp;info);
+-	if (err &lt; 0)
+-		log_warning(&quot;Can't destroy a logical unit %d %u %u\n&quot;,
+-			    errno, tid, lun);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl DEL_VOLUME: %m&quot;);
+ 
+ 	return err;
+ }
+ 
+ static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
+ {
+-	int err;
+ 	struct conn_info info;
++	int err;
+ 
+ 	info.tid = tid;
+ 	info.sid = sid;
+ 	info.cid = cid;
+ 
+-	if ((err = ioctl(ctrl_fd, DEL_CONN, &amp;info)) &lt; 0)
+-		err = errno;
++	err = ioctl(ctrl_fd, DEL_CONN, &amp;info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl DEL_CONN: %m&quot;);
+ 
+ 	return err;
+ }
+ 
+-static int __conn_close(int fd, u32 tid, u64 sid, u32 cid, void *arg)
+-{
+-	return ki-&gt;conn_destroy(tid, sid, cid);
+-}
+-
+-static int __target_del(int fd, u32 tid, void *arg)
+-{
+-	return ki-&gt;target_destroy(tid);
+-}
+-
+-static int proc_session_parse(int fd, struct session_file_operations *ops, void *arg)
+-{
+-	FILE *f;
+-	char buf[8192], *p;
+-	u32 tid, cid;
+-	u64 sid;
+-	int err;
+-
+-	if ((f = fopen(PROC_SESSION, &quot;r&quot;)) == NULL) {
+-		fprintf(stderr, &quot;Can't open %s\n&quot;, PROC_SESSION);
+-		return errno;
+-	}
+-
+-	while (fgets(buf, sizeof(buf), f)) {
+-		p = buf;
+-		while (isspace((int) *p))
+-			p++;
+-
+-		if (!strncmp(p, &quot;tid:&quot;, 4)) {
+-			if (sscanf(p, &quot;tid:%u&quot;, &amp;tid) != 1)
+-				break;
+-			if (ops-&gt;target_op)
+-				if ((err = ops-&gt;target_op(fd, tid, arg)) &lt; 0)
+-					goto out;
+-
+-		} else if (!strncmp(p, &quot;sid:&quot;, 4)) {
+-			if (sscanf(p, &quot;sid:%&quot; SCNu64, &amp;sid) != 1)
+-				break;
+-			if (ops-&gt;session_op)
+-				if ((err = ops-&gt;session_op(fd, tid, sid, arg)) &lt; 0)
+-					goto out;
+-
+-		} else if (!strncmp(p, &quot;cid:&quot;, 4)) {
+-			if (sscanf(p, &quot;cid:%u&quot;, &amp;cid) != 1)
+-				break;
+-			if (ops-&gt;connection_op)
+-				if ((err = ops-&gt;connection_op(fd, tid, sid, cid, arg)) &lt; 0)
+-					goto out;
+-		}
+-	}
+-
+-	err = 0;
+-out:
+-	fclose(f);
+-
+-	return err;
+-}
+-
+-static int session_retry (int fd, u32 tid, u64 sid, void *arg)
+-{
+-	return -EAGAIN;
+-}
+-
+-static int conn_retry (int fd, u32 tid, u64 sid, u32 cid, void *arg)
+-{
+-	return -EAGAIN;
+-}
+-
+-struct session_file_operations conn_close_ops = {
+-	.connection_op = __conn_close,
+-};
+-
+-struct session_file_operations shutdown_wait_ops = {
+-	.session_op = session_retry,
+-	.connection_op = conn_retry,
+-};
+-
+-struct session_file_operations target_del_ops = {
+-	.target_op = __target_del,
+-};
+-
+-int server_stop(void)
+-{
+-	proc_session_parse(ctrl_fd, &amp;conn_close_ops, NULL);
+-
+-	while (proc_session_parse(ctrl_fd, &amp;shutdown_wait_ops, NULL) &lt; 0)
+-		sleep(1);
+-
+-	proc_session_parse(ctrl_fd, &amp;target_del_ops, NULL);
+-
+-	isns_exit();
+-
+-	return 0;
+-}
+-
+-struct session_conn_close_arg {
+-	u32 tid;
+-	u64 sid;
+-};
+-
+-static int session_conn_close(int fd, u32 tid, u64 sid, u32 cid, void *opaque)
+-{
+-	struct session_conn_close_arg *arg = (struct session_conn_close_arg *) opaque;
+-	int err;
+-
+-	if (arg-&gt;tid == tid &amp;&amp; arg-&gt;sid == sid)
+-		err = ki-&gt;conn_destroy(tid, sid, cid);
+-
+-	return 0;
+-}
+-
+-struct session_file_operations session_conns_close_ops = {
+-	.connection_op = session_conn_close,
+-};
+-
+-int session_conns_close(u32 tid, u64 sid)
+-{
+-	int err;
+-	struct session_conn_close_arg arg = {tid, sid};
+-
+-	err = proc_session_parse(ctrl_fd, &amp;session_conns_close_ops, &amp;arg);
+-
+-	return err;
+-}
+-
+ static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param)
+ {
+-	int err, i;
+ 	struct iscsi_param_info info;
++	int err, i;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+ 	info.sid = sid;
+ 	info.param_type = type;
+ 
+-	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &amp;info)) &lt; 0)
+-		log_error(&quot;Can't get session param %d %d\n&quot;, info.tid, errno);
++	err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &amp;info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl ISCSI_PARAM_GET: %m&quot;);
++	else if (!err) {
++		if (type == key_session)
++			for (i = 0; i &lt; session_key_last; i++)
++				param[i].val = info.session_param[i];
++		else
++			for (i = 0; i &lt; target_key_last; i++)
++				param[i].val = info.target_param[i];
++	}
+ 
+-	if (type == key_session)
+-		for (i = 0; i &lt; session_key_last; i++)
+-			param[i].val = info.session_param[i];
+-	else
+-		for (i = 0; i &lt; target_key_last; i++)
+-			param[i].val = info.target_param[i];
+-
+ 	return err;
+ }
+ 
+ static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial, struct iscsi_param *param)
+ {
+-	int i, err;
+ 	struct iscsi_param_info info;
++	int i, err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+@@ -328,9 +223,9 @@
+ 		for (i = 0; i &lt; target_key_last; i++)
+ 			info.target_param[i] = param[i].val;
+ 
+-	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &amp;info)) &lt; 0)
+-		fprintf(stderr, &quot;%d %d %u &quot; &quot;%&quot; PRIu64 &quot; %d %u\n&quot;,
+-			err, errno, tid, sid, type, partial);
++	err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &amp;info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl ISCSI_PARAM_SET: %m&quot;);
+ 
+ 	return err;
+ }
+@@ -338,6 +233,7 @@
+ static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn, u32 max_cmd_sn, char *name)
+ {
+ 	struct session_info info;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+@@ -347,25 +243,35 @@
+ 	info.max_cmd_sn = max_cmd_sn;
+ 	strncpy(info.initiator_name, name, sizeof(info.initiator_name) - 1);
+ 
+-	return ioctl(ctrl_fd, ADD_SESSION, &amp;info);
++	err = ioctl(ctrl_fd, ADD_SESSION, &amp;info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl ADD_SESSION: %m&quot;);
++
++	return err;
+ }
+ 
+ static int iscsi_session_destroy(u32 tid, u64 sid)
+ {
+ 	struct session_info info;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+ 	info.tid = tid;
+ 	info.sid = sid;
+ 
+-	return ioctl(ctrl_fd, DEL_SESSION, &amp;info);
++	err = ioctl(ctrl_fd, DEL_SESSION, &amp;info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl DEL_SESSION: %m&quot;);
++
++	return err;
+ }
+ 
+ static int iscsi_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
+ 			     int fd, u32 hdigest, u32 ddigest)
+ {
+ 	struct conn_info info;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+@@ -378,19 +284,37 @@
+ 	info.header_digest = hdigest;
+ 	info.data_digest = ddigest;
+ 
+-	return ioctl(ctrl_fd, ADD_CONN, &amp;info);
++	err = ioctl(ctrl_fd, ADD_CONN, &amp;info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl ADD_CONN: %m&quot;);
++
++	return err;
+ }
+ 
++static int iscsi_session_info(struct session_info *info)
++{
++	int err;
++
++	err = ioctl(ctrl_fd, GET_SESSION_INFO, info);
++	if (err == -EFAULT)
++		log_error(&quot;error calling ioctl GET_SESSION_INFO: %m&quot;);
++
++	return err;
++}
++
+ struct iscsi_kernel_interface ioctl_ki = {
+ 	.ctldev_open = ctrdev_open,
++	.module_info = iet_module_info,
+ 	.lunit_create = iscsi_lunit_create,
+ 	.lunit_destroy = iscsi_lunit_destroy,
+ 	.param_get = iscsi_param_get,
+ 	.param_set = iscsi_param_set,
+ 	.target_create = iscsi_target_create,
+ 	.target_destroy = iscsi_target_destroy,
++	.target_destroy_all = iscsi_target_destroy_all,
+ 	.session_create = iscsi_session_create,
+ 	.session_destroy = iscsi_session_destroy,
++	.session_info = iscsi_session_info,
+ 	.conn_create = iscsi_conn_create,
+ 	.conn_destroy = iscsi_conn_destroy,
+ };
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/ietd.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -79,6 +79,18 @@
+ 	exit(1);
+ }
+ 
++static int check_version(void)
++{
++	struct module_info info;
++	int err;
++
++	err = ki-&gt;module_info(&amp;info);
++	if (err)
++		return 0;
++
++	return !strncmp(info.version, IET_VERSION_STRING, sizeof(info.version));
++}
++
+ static void set_non_blocking(int fd)
+ {
+ 	int res = fcntl(fd, F_GETFL);
+@@ -468,22 +480,28 @@
+ 		}
+ 	}
+ 
++	log_init();
++
+ 	if ((nl_fd = nl_open()) &lt; 0) {
+-		perror(&quot;netlink fd&quot;);
++		log_error(&quot;unable to open netlink fd: %m&quot;);
+ 		exit(-1);
+ 	};
+ 
+ 	if ((ctrl_fd = ki-&gt;ctldev_open()) &lt; 0) {
+-		perror(&quot;ctldev fd&quot;);
++		log_error(&quot;unable to open ctldev fd: %m&quot;);
+ 		exit(-1);
+ 	}
+ 
+ 	if ((ipc_fd = ietadm_request_listen()) &lt; 0) {
+-		perror(&quot;ipc fd&quot;);
++		log_error(&quot;unable to open ipc fd: %m&quot;);
+ 		exit(-1);
+ 	}
+ 
+-	log_init();
++	if (!check_version()) {
++		log_error(&quot;kernel module version mismatch!&quot;);
++		exit(-1);
++	}
++
+ 	if (log_daemon) {
+ 		char buf[64];
+ 		pid_t pid;
+@@ -491,12 +509,12 @@
+ 
+ 		fd = open(&quot;/var/run/iscsi_trgt.pid&quot;, O_WRONLY|O_CREAT, 0644);
+ 		if (fd &lt; 0) {
+-			log_error(&quot;unable to create pid file&quot;);
++			log_error(&quot;unable to create pid file: %m&quot;);
+ 			exit(1);
+ 		}
+ 		pid = fork();
+ 		if (pid &lt; 0) {
+-			log_error(&quot;starting daemon failed&quot;);
++			log_error(&quot;error starting daemon: %m&quot;);
+ 			exit(1);
+ 		} else if (pid)
+ 			exit(0);
+@@ -507,7 +525,7 @@
+ 		}
+ 
+ 		if (lockf(fd, F_TLOCK, 0) &lt; 0) {
+-			log_error(&quot;unable to lock pid file&quot;);
++			log_error(&quot;unable to lock pid file: %m&quot;);
+ 			exit(1);
+ 		}
+ 		if (ftruncate(fd, 0) &lt; 0) {
+@@ -533,10 +551,10 @@
+ 		timeout = isns_init(isns, isns_ac);
+ 
+ 	if (gid &amp;&amp; setgid(gid) &lt; 0)
+-		perror(&quot;setgid&quot;);
++		log_error(&quot;unable to setgid: %m&quot;);
+ 
+ 	if (uid &amp;&amp; setuid(uid) &lt; 0)
+-		perror(&quot;setuid&quot;);
++		log_error(&quot;unable to setuid: %m&quot;);
+ 
+ 	event_loop(timeout);
+ 
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/iscsid.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -236,7 +236,6 @@
+ 
+ static void login_security_done(struct connection *conn)
+ {
+-	int err;
+ 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
+ 	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
+ 	struct session *session;
+@@ -247,18 +246,21 @@
+ 	if ((session = session_find_name(conn-&gt;tid, conn-&gt;initiator, req-&gt;sid))) {
+ 		if (!req-&gt;sid.id.tsih) {
+ 			/* do session reinstatement */
+-			session_conns_close(conn-&gt;tid, session-&gt;sid.id64);
+-			session = NULL;
++			if (session_remove(session)) {
++				rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
++				rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
++				conn-&gt;state = STATE_EXIT;
++			}
++			return;
+ 		} else if (req-&gt;sid.id.tsih != session-&gt;sid.id.tsih) {
+ 			/* fail the login */
+ 			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+ 			rsp-&gt;status_detail = ISCSI_STATUS_SESSION_NOT_FOUND;
+ 			conn-&gt;state = STATE_EXIT;
+ 			return;
+-		} else if ((err = conn_test(conn)) == -ENOENT) {
+-			/* do connection reinstatement */
+ 		}
+-		/* add a new connection to the session */
++		/* add connection to existing session */
++		/* reinstatement handled in kernel */
+ 		conn-&gt;session = session;
+ 	} else {
+ 		if (req-&gt;sid.id.tsih) {
+@@ -476,10 +478,18 @@
+ 
+ static void login_finish(struct connection *conn)
+ {
++	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
++
+ 	switch (conn-&gt;session_type) {
+ 	case SESSION_NORMAL:
+-		if (!conn-&gt;session)
+-			session_create(conn);
++		if (!conn-&gt;session) {
++			if (session_create(conn)) {
++				rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
++				rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
++				conn-&gt;state = STATE_EXIT;
++				return;
++			}
++		}
+ 		conn-&gt;sid = conn-&gt;session-&gt;sid;
+ 		break;
+ 	case SESSION_DISCOVERY:
+@@ -711,7 +721,7 @@
+ 	rsp-&gt;status_detail = ISCSI_STATUS_AUTH_FAILED;
+ 	conn-&gt;state = STATE_EXIT;
+ 	return;
+- target_err:
++target_err:
+ 	rsp-&gt;flags = 0;
+ 	rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
+ 	rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/iscsid.h	2010-02-02 19:08:04 UTC (rev 290)
+@@ -201,8 +201,8 @@
+ /* session.c */
+ extern struct session *session_find_name(u32 tid, const char *iname, union iscsi_sid sid);
+ extern struct session *session_find_id(u32 tid, u64 sid);
+-extern void session_create(struct connection *conn);
+-extern void session_remove(struct session *session);
++extern int session_create(struct connection *conn);
++extern int session_remove(struct session *session);
+ 
+ /* target.c */
+ extern struct __qelem targets_list;
+@@ -219,24 +219,23 @@
+ /* ctldev.c */
+ struct iscsi_kernel_interface {
+ 	int (*ctldev_open) (void);
++	int (*module_info) (struct module_info *);
+ 	int (*lunit_create) (u32 tid, u32 lun, char *args);
+ 	int (*lunit_destroy) (u32 tid, u32 lun);
+ 	int (*param_get) (u32, u64, int, struct iscsi_param *);
+ 	int (*param_set) (u32, u64, int, u32, struct iscsi_param *);
+ 	int (*target_create) (u32 *, char *);
+ 	int (*target_destroy) (u32);
++	int (*target_destroy_all) (void);
+ 	int (*session_create) (u32, u64, u32, u32, char *);
+ 	int (*session_destroy) (u32, u64);
++	int (*session_info) (struct session_info *);
+ 	int (*conn_create) (u32, u64, u32, u32, u32, int, u32, u32);
+ 	int (*conn_destroy) (u32 tid, u64 sid, u32 cid);
+ };
+ 
+ extern struct iscsi_kernel_interface *ki;
+ 
+-/* the following functions should be killed */
+-extern int session_conns_close(u32 tid, u64 sid);
+-extern int server_stop(void);
+-
+ /* event.c */
+ extern void handle_iscsi_events(int fd);
+ extern int nl_open(void);
+
+Modified: trunk/usr/message.c
+===================================================================
+--- trunk/usr/message.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/message.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -134,7 +134,9 @@
+ 	case C_SYS_NEW:
+ 		break;
+ 	case C_SYS_DEL:
+-		err = server_stop();
++		err = ki-&gt;target_destroy_all();
++		if (!err)
++			isns_exit();
+ 		break;
+ 	case C_SYS_UPDATE:
+ 	case C_SYS_SHOW:
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/plain.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -513,8 +513,12 @@
+ {
+ 	int err;
+ 
+-	if ((err = ki-&gt;lunit_create(tid, lun, args)) &lt; 0)
++	err = ki-&gt;lunit_create(tid, lun, args);
++	if (err &lt; 0) {
++		log_error(&quot;unable to create logical unit %u in target %u: %d&quot;,
++			lun, tid, errno);
+ 		return err;
++	}
+ 
+ 	if (update)
+ 		;
+@@ -529,7 +533,14 @@
+ 
+ static int plain_lunit_destroy(u32 tid, u32 lun)
+ {
+-	return ki-&gt;lunit_destroy(tid, lun);
++	int err;
++
++	err = ki-&gt;lunit_destroy(tid, lun);
++	if (err &lt; 0)
++		log_error(&quot;unable to delete logical unit %u in target %u: %d&quot;,
++			lun, tid, errno);
++
++	return err;
+ }
+ 
+ static int __plain_param_set(u32 tid, u64 sid, int type,
+@@ -537,8 +548,12 @@
+ {
+ 	int err;
+ 
+-	if ((err = ki-&gt;param_set(tid, sid, type, partial, param)) &lt; 0)
++	err = ki-&gt;param_set(tid, sid, type, partial, param);
++	if (err &lt; 0) {
++		log_error (&quot;unable to set parameter (%d:%u) of session %#&quot; PRIx64 &quot; in target %u: %d&quot;,
++			type, partial, sid, tid, errno);
+ 		return err;
++	}
+ 
+ 	if (update)
+ 		;
+
+Modified: trunk/usr/session.c
+===================================================================
+--- trunk/usr/session.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/session.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -69,74 +69,32 @@
+ 	return NULL;
+ }
+ 
+-static int session_test(u32 t_tid, u64 t_sid)
++int session_exist(u32 t_tid, u64 t_sid)
+ {
+-	FILE *f;
+-	char buf[8192], *p;
+-	u32 tid;
+-	u64 sid;
+-	int err = -ENOENT, find = 0;
++	struct session_info info;
+ 
+-	if ((f = fopen(PROC_SESSION, &quot;r&quot;)) == NULL) {
+-		fprintf(stderr, &quot;Can't open %s\n&quot;, PROC_SESSION);
+-		return -errno;
+-	}
++	info.tid = t_tid;
++	info.sid = t_sid;
+ 
+-	while (fgets(buf, sizeof(buf), f)) {
+-		p = buf;
+-		while (isspace((int) *p))
+-			p++;
+-
+-		if (!strncmp(p, &quot;tid:&quot;, 4)) {
+-			if (sscanf(p, &quot;tid:%u&quot;, &amp;tid) != 1) {
+-				err = -EIO;
+-				goto out;
+-			}
+-			if (tid == t_tid)
+-				find = 1;
+-			else
+-				find = 0;
+-		} else if (!strncmp(p, &quot;sid:&quot;, 4)) {
+-			if (!find)
+-				continue;
+-			if (sscanf(p, &quot;sid:%&quot; SCNu64, &amp;sid) != 1) {
+-				err = -EIO;
+-				goto out;
+-			}
+-
+-			if (sid == t_sid) {
+-				err = 0;
+-				goto out;
+-			}
+-		}
+-	}
+-
+-out:
+-	fclose(f);
+-
+-	return err;
++	return !ki-&gt;session_info(&amp;info);
+ }
+ 
+-void session_create(struct connection *conn)
++int session_create(struct connection *conn)
+ {
+ 	struct session *session;
+ 	static u16 tsih = 1;
++	int err;
+ 
+-	if (!(session = session_alloc(conn-&gt;tid)))
+-		return;
++	session = session_alloc(conn-&gt;tid);
++	if (!session)
++		return -ENOMEM;
+ 
+ 	session-&gt;sid = conn-&gt;sid;
+ 	session-&gt;sid.id.tsih = tsih;
+ 
+-	while (1) {
+-		int err = session_test(conn-&gt;tid, session-&gt;sid.id64);
+-
+-		if (err == -ENOENT)
+-			break;
+-		else if (err &lt; 0)
+-			return;
++	while (session_exist(conn-&gt;tid, session-&gt;sid.id64))
+ 		session-&gt;sid.id.tsih++;
+-	}
++
+ 	tsih = session-&gt;sid.id.tsih + 1;
+ 
+ 	conn-&gt;session = session;
+@@ -144,16 +102,41 @@
+ 
+ 	log_debug(1, &quot;session_create: %#&quot; PRIx64, session-&gt;sid.id64);
+ 
+-	ki-&gt;session_create(conn-&gt;tid, session-&gt;sid.id64, conn-&gt;exp_cmd_sn,
++	err = ki-&gt;session_create(conn-&gt;tid, session-&gt;sid.id64, conn-&gt;exp_cmd_sn,
+ 			   conn-&gt;max_cmd_sn, session-&gt;initiator);
+-	ki-&gt;param_set(conn-&gt;tid, session-&gt;sid.id64, key_session, 0, conn-&gt;session_param);
++	if (err &lt; 0 &amp;&amp; err != -EEXIST) {
++		log_error(&quot;unable to create session %#&quot; PRIx64 &quot; in target %u: %d&quot;,
++			session-&gt;sid.id64, conn-&gt;tid, errno);
++		goto out;
++	}
++
++	err = ki-&gt;param_set(conn-&gt;tid, session-&gt;sid.id64, key_session, 0,
++							conn-&gt;session_param);
++	if (err &lt; 0)
++		log_warning(&quot;unable to set parameters for session %#&quot; PRIx64 &quot; in target %u: %d&quot;,
++			session-&gt;sid.id64, conn-&gt;tid, errno);
++
++	return 0;
++out:
++	conn-&gt;session = NULL;
++	free(session-&gt;initiator);
++	free(session);
++
++	return err;
+ }
+ 
+-void session_remove(struct session *session)
++int session_remove(struct session *session)
+ {
++	int err;
++
+ 	log_debug(1, &quot;session_remove: %#&quot;  PRIx64, session-&gt;sid.id64);
+ 
+-	ki-&gt;session_destroy(session-&gt;target-&gt;tid, session-&gt;sid.id64);
++	err = ki-&gt;session_destroy(session-&gt;target-&gt;tid, session-&gt;sid.id64);
++	if (err &lt; 0 &amp;&amp; err != -ENOENT) {
++		log_error(&quot;unable to delete session %#&quot; PRIx64 &quot; in target %u: %d&quot;,
++			session-&gt;sid.id64, session-&gt;target-&gt;tid, errno);
++		return err;
++	}
+ 
+ 	if (session-&gt;target) {
+ 		remque(&amp;session-&gt;slist);
+@@ -162,4 +145,6 @@
+ 
+ 	free(session-&gt;initiator);
+ 	free(session);
++
++	return 0;
+ }
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2010-02-02 19:07:39 UTC (rev 289)
++++ trunk/usr/target.c	2010-02-02 19:08:04 UTC (rev 290)
+@@ -204,17 +204,17 @@
+ int target_del(u32 tid)
+ {
+ 	struct target *target = target_find_by_id(tid);
+-	int err = ki-&gt;target_destroy(tid);
++	int err;
+ 
+-	if (err &lt; 0 &amp;&amp; errno != ENOENT)
+-		return -errno;
+-	else if (!err &amp;&amp; !target)
+-		/* A leftover kernel object was cleaned up - don't complain. */
+-		return 0;
+-
+ 	if (!target)
+ 		return -ENOENT;
+ 
++	err = ki-&gt;target_destroy(tid);
++	if (err &lt; 0) {
++		log_error(&quot;unable to delete target %u: %d&quot;, tid, errno);
++		return err;
++	}
++
+ 	remque(&amp;target-&gt;tlist);
+ 
+ 	if (!list_empty(&amp;target-&gt;sessions_list)) {
+@@ -246,8 +246,9 @@
+ 	memset(target, 0, sizeof(*target));
+ 	memcpy(target-&gt;name, name, sizeof(target-&gt;name) - 1);
+ 
+-	if ((err = ki-&gt;target_create(tid, name)) &lt; 0) {
+-		log_warning(&quot;can't create a target %d %u\n&quot;, errno, *tid);
++	err = ki-&gt;target_create(tid, name);
++	if (err &lt; 0) {
++		log_warning(&quot;unable create target %u: %d\n&quot;, *tid, errno);
+ 		goto out;
+ 	}
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000201.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[289] trunk
+</A></li>
+	<LI>Next message: <A HREF="000203.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[291] trunk/kernel/iscsi.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#202">[ date ]</a>
+              <a href="thread.html#202">[ thread ]</a>
+              <a href="subject.html#202">[ subject ]</a>
+              <a href="author.html#202">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

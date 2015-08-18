@@ -1,0 +1,389 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r260 - trunk/doc/manpages
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r260%20-%20trunk/doc/manpages&In-Reply-To=%3C200910081832.n98IWY9S016502%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000171.html">
+   <LINK REL="Next"  HREF="000173.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r260 - trunk/doc/manpages</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r260%20-%20trunk/doc/manpages&In-Reply-To=%3C200910081832.n98IWY9S016502%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r260 - trunk/doc/manpages">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 20:32:34 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000171.html">[Iscsitarget-svn] r259 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000173.html">[Iscsitarget-svn] r261 - in trunk: doc/manpages etc usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#172">[ date ]</a>
+              <a href="thread.html#172">[ thread ]</a>
+              <a href="subject.html#172">[ subject ]</a>
+              <a href="author.html#172">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 20:32:34 +0200 (Thu, 08 Oct 2009)
+New Revision: 260
+
+Modified:
+   trunk/doc/manpages/ietd.conf.5
+Log:
+Update ietd.conf manpage
+
+Add descriptions of NOPInterval and NOPTimeout to ietd.conf.5 and
+delete trailing whitespace while at it.
+
+
+Modified: trunk/doc/manpages/ietd.conf.5
+===================================================================
+--- trunk/doc/manpages/ietd.conf.5	2009-10-08 18:32:02 UTC (rev 259)
++++ trunk/doc/manpages/ietd.conf.5	2009-10-08 18:32:34 UTC (rev 260)
+@@ -1,6 +1,6 @@
+ .\&quot; Process this file with
+ .\&quot; groff -man -Tascii ietd.conf.5
+-.\&quot; 
++.\&quot;
+ .TH &quot;IETD.CONF&quot; &quot;5&quot; &quot;27 July 2005&quot; &quot;A. Lehmann, M. Zhang and A. Redlich&quot; &quot;File formats&quot;
+ .SH &quot;NAME&quot;
+ /etc/ietd.conf \- configuration for iSCSI Enterprise Target Daemon
+@@ -15,12 +15,12 @@
+ .P
+ The &quot;Yes&quot; and &quot;No&quot; for parameter values are case sensitive. The parameter names are case insensitive.
+ .P
+-The file consists of a global part and zero or more &quot;Target&quot; stanzas. Everything until the first target definition belongs to the global configuration. 
++The file consists of a global part and zero or more &quot;Target&quot; stanzas. Everything until the first target definition belongs to the global configuration.
+ 
+ Here is an example:
+ 
+ IncomingUser joe secret
+-.br 
++.br
+ OutgoingUser jack secret2
+ 
+ Target iqn.2001\-04.com.example:storage.disk2.sys1.xyz
+@@ -41,6 +41,8 @@
+     DefaultTime2Wait 2
+     DefaultTime2Retain 20
+     MaxOutstandingR2T 8
++    NOPInterval 0
++    NOPTimeout 0
+     DataPDUInOrder Yes
+     DataSequenceInOrder Yes
+     ErrorRecoveryLevel 0
+@@ -48,11 +50,11 @@
+ Stanzas start with the word &quot;Target&quot; and the target name. This name must be a globally unique name, as defined by the iSCSI standard : the &quot;iSCSI Qualified Name&quot;. The daemon brings the targets up in the order listed.
+ .SH &quot;GLOBAL OPTIONS&quot;
+ Global Options are case sensitive.
+-.TP 
++.TP
+ .B [IncomingUser &lt;username&gt; &lt;password&gt;]
+-The 
++The
+ .I &lt;username&gt;
+-and 
++and
+ .I &lt;password&gt;
+ used during discovery sessions to authenticate iSCSI initiators. Several of those can be specified for discovery. If no
+ .B IncomingUser
+@@ -62,13 +64,13 @@
+ .I &lt;password&gt;
+ to be 12 characters long. This is enforced e.g. by MS Initiator.
+ .RE
+-.TP 
++.TP
+ .B [OutgoingUser &lt;username&gt; &lt;password&gt;]
+-The 
++The
+ .I &lt;username&gt;
+-and 
++and
+ .I &lt;password&gt;
+-used during discovery sessions to authenticate the target to initiators. Only one outgoing 
++used during discovery sessions to authenticate the target to initiators. Only one outgoing
+ .I &lt;username&gt;/&lt;password&gt;
+ combination may be specified.
+ .RS
+@@ -76,16 +78,16 @@
+ .I &lt;password&gt;
+ to be 12 characters long. This is enforced e.g. by MS Initiator.
+ .RE
+-.TP 
++.TP
+ .B Target iqn.&lt;yyyy\-mm&gt;.&lt;tld.domain.some.host&gt;[:&lt;identifier&gt;]
+ A target definition and the target name. The targets name (the
+ .B iSCSI Qualified Name
+ ) must be a globally unique name (as defined by the iSCSI standard) and has to start with
+ .I iqn
+-followed by a single dot. The EUI\-64 form is not supported. 
++followed by a single dot. The EUI\-64 form is not supported.
+ .I &lt;yyyy\-mm&gt;
+ is the date (year and month) at which the domain is valid. This has to be followed by a single dot and the reversed domain name.
+-The optional 
++The optional
+ .I &lt;identifier&gt;
+ \- which is freely selectable \- has to be separated by a single colon. For further details please check the iSCSI spec.
+ 
+@@ -94,7 +96,7 @@
+ Target iqn.2004\-07.com.example.host:storage.disk2.sys1.xyz
+ .SH &quot;TARGET OPTIONS&quot;
+ Target options are also case sensitive.
+-.TP 
++.TP
+ .B [IncomingUser &lt;username&gt; &lt;password&gt;]
+ The
+ .I &lt;username&gt;
+@@ -104,46 +106,46 @@
+ .B IncomingUser
+ Option, connections are allowed without authentication. A
+ .I &lt;password&gt;
+-has to be provided, if there is a 
++has to be provided, if there is a
+ .I &lt;username&gt;
+ given. Specifying several different
+ .B IncomingUser
+ accounts is supported.
+-.TP 
++.TP
+ .B [OutgoingUser &lt;username&gt; &lt;password&gt;]
+ The
+ .I &lt;username&gt;
+ and
+ .I &lt;password&gt;
+ used to authenticate this iSCSI target to initiators. Only one
+-.B 
++.B
+ OutgoingUser
+ per target is supported. It may be different from the username and password in section GLOBAL OPTIONS, which is used for discovery. A
+ .I &lt;password&gt;
+-has to be provided, if there is a 
++has to be provided, if there is a
+ .I &lt;username&gt;
+ given.
+-.TP 
++.TP
+ .B Lun &lt;lun&gt; Path=&lt;device&gt;,Type=(fileio|blockio)[,ScsiId=&lt;scsi_id&gt;][,ScsiSN=&lt;scsi_sn&gt;][,IOMode=(wb|ro)] | Sectors=&lt;size&gt;,Type=nullio
+ Parameters after &lt;lun&gt; should not contain any blank space character except the first blank space after &lt;lun&gt; is needed.
+ .br
+- 
++
+ .br
+ This line must occur at least once. The value of
+ .I &lt;lun&gt;
+ can be between 0 and 2^14\-1.
+ .br
+- 
++
+ .br
+ In
+ .I fileio
+-mode (default), it defines a mapping between a &quot;Logical Unit Number&quot; 
++mode (default), it defines a mapping between a &quot;Logical Unit Number&quot;
+ .I &lt;lun&gt;
+ and a given device
+ .I &lt;device&gt;
+ , which can be any block device (including regular block devices like hdX and sdX and virtual block devices like LVM and Software RAID devices) or regular files.
+ .br
+- 
++
+ .br
+ In
+ .I blockio
+@@ -155,7 +157,7 @@
+ This allows for efficient handling of non-aligned sector transfers (virtualized environments) and large block transfers (media servers).
+ This mode works ideally with high-end storage HBAs and for applications that either do not need caching between application and disk or need the large block throughput.
+ .br
+- 
++
+ .br
+ Optionally a
+ .I &lt;scsi_id&gt;
+@@ -168,7 +170,7 @@
+ .I &lt;scsi_sn&gt;
+ must not exceed 16 characters and controls the content VPD 0x80.
+ .br
+- 
++
+ .br
+ By default, LUNs are writable, employing write-through caching. By setting
+ .I IOMode
+@@ -180,7 +182,7 @@
+ .I IOMode
+ &quot;wb&quot; is ignored when employing blockio.
+ .br
+- 
++
+ .br
+ In
+ .I nullio
+@@ -189,18 +191,18 @@
+ and an unnamed virtual device with
+ .I &lt;size&gt;
+ sectors. This is ONLY useful for performance measurement purposes. All writes to this virtual device will be discarded and reads will return random data.
+-.TP 
++.TP
+ .B [Alias &lt;aliasname&gt;]
+-This assigns an optional 
++This assigns an optional
+ .I &lt;aliasname&gt;
+ to the target.
+-.TP 
++.TP
+ .B [HeaderDigest &lt;CRC32C|None&gt;]
+ Optional. If set to &quot;CRC32C&quot; and the initiator is configured accordingly, the integrity of an iSCSI PDU's header segments will be protected by a CRC32C checksum. The default is &quot;None&quot;. Note that header digests are not supported during discovery sessions.
+-.TP 
++.TP
+ .B [DataDigest &lt;CRC32C|None&gt;]
+ Optional. If set to &quot;CRC32C&quot; and the initiator is configured accordingly, the integrity of an iSCSI PDU's data segment will be protected by a CRC32C checksum. The default is &quot;None&quot;. Note that data digests are not supported during discovery sessions.
+-.TP 
++.TP
+ .B [MaxConnections &lt;value&gt;]
+ Optional. The number of connections within a session. Has to be set to &quot;1&quot; (in words: one), which is also the default since MC/S is not supported.
+ .TP 
+@@ -210,15 +212,15 @@
+ bytes unsolicited right after and/or (depending on the setting of
+ .B ImmediateData
+ ) together with the command. Thus setting it to &quot;No&quot; may improve performance.
+-.TP 
++.TP
+ .B [ImmediateData &lt;Yes|No&gt;]
+ Optional. This allows the initiator to append unsolicited data to a command. To achieve better performance, this should be set to &quot;Yes&quot;. The default is &quot;No&quot;.
+-.TP 
++.TP
+ .B [MaxRecvDataSegmentLength &lt;value&gt;]
+-Optional. Sets the maximum data segment length that can be received. The 
++Optional. Sets the maximum data segment length that can be received. The
+ .I &lt;value&gt;
+ should be set to multiples of PAGE_SIZE. Currently the maximum supported value is 64 * PAGE_SIZE, e.g. 262144 if PAGE_SIZE is 4kB. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is 8192.
+-.TP 
++.TP
+ .B [MaxXmitDataSegmentLength &lt;value&gt;]
+ Optional. Sets the maximum data segment length that can be sent. The
+ .I &lt;value&gt;
+@@ -226,15 +228,15 @@
+ .B MaxXmitDataSegmentLength
+ and the
+ .B MaxRecvDataSegmentLength
+-announced by the initiator. The 
++announced by the initiator. The
+ .I &lt;value&gt;
+ should be set to multiples of PAGE_SIZE. Currently the maximum supported value is 64 * PAGE_SIZE, e.g. 262144 if PAGE_SIZE is 4kB. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is 8192.
+-.TP 
++.TP
+ .B [MaxBurstLength &lt;value&gt;]
+-Optional. Sets the maximum amount of either unsolicited or solicited data the initiator may send in a single burst. Any amount of data exceeding this value must be explicitly solicited by the target. The 
++Optional. Sets the maximum amount of either unsolicited or solicited data the initiator may send in a single burst. Any amount of data exceeding this value must be explicitly solicited by the target. The
+ .I &lt;value&gt;
+ should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is 262144.
+-.TP 
++.TP
+ .B [FirstBurstLength &lt;value&gt;]
+ Optional. Sets the amount of unsolicited data the initiator may transmit in the first burst of a transfer either with and/or right after the command, depending on the settings of
+ .B InitialR2T
+@@ -243,30 +245,51 @@
+ .
+ .I &lt;value&gt;
+ should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is 65536.
+-.TP 
++.TP
+ .B [DefaultTime2Wait &lt;value&gt;]
+ Currently not supported.
+-.TP 
++.TP
+ .B [DefaultTime2Retain &lt;value&gt;]
+ Currently not supported.
+-.TP 
++.TP
+ .B [MaxOutstandingR2T &lt;value&gt;]
+ Optional. Controls the maximum number of data transfers the target may request at once, each of up to
+ .B MaxBurstLength
+ bytes. The default is 1.
+-.TP 
++.TP
+ .B [DataPDUInOrder &lt;Yes|No&gt;]
+ Optional. Has to be set to &quot;Yes&quot; \- which is also the default.
+-.TP 
++.TP
+ .B [DataSequenceInOrder &lt;Yes|No&gt;]
+ Optional. Has to be set to &quot;Yes&quot; \- which is also the default.
+-.TP 
++.TP
+ .B [ErrorRecoveryLevel &lt;value&gt;]
+ Optional. Has to be set to &quot;0&quot; (in words: zero), which is also the default.
+-.TP 
++.TP
++.B [NOPInterval &lt;value&gt;]
++Optional. If
++.I value
++is non-zero, the initiator will be &quot;ping&quot;ed during phases of inactivity (i.e. no data transfers) every
++.I value
++seconds to verify the connection is still alive. If the initiator fails to respond within
++.B NOPTimeout
++seconds, the connection will be closed.
++.TP
++.B [NOPTimeout &lt;value&gt;]
++Optional. If a non-zero
++.B NOPInterval
++is used to periodically &quot;ping&quot; the initiator during phases of inactivity (i.e. no data transfers), the initiator must respond within
++.I value
++seconds, otherwise the connection will be closed. If
++.I value
++is set to zero or if it exceeds
++.B NOPInterval
++, it will be set to
++.B NOPInterval.
++.TP
+ .B [Wthreads &lt;value&gt;]
+ Optional. The iSCSI target employs several threads to perform the actual block I/O to the device. Depending on your hardware and your (expected) workload, the number of these threads may be carefully adjusted. The default value of 8 should be sufficient for most purposes.
+-.TP 
++.TP
+ .B [QueuedCommands &lt;value&gt;]
+ Optional. This parameter defines a window of commands an initiator may send and that will be buffered by the target. Depending on your hardware and your (expected) workload, the
+ .I value
+@@ -275,7 +298,7 @@
+ Currently (as of 0.4.11) not all iSCSI target parameters are used. Header and data digests are not supported during discovery sessions.
+ .SH &quot;SEE ALSO&quot;
+ .B ietd (8)
+-.TP 
++.TP
+ You should have a look at
+ .B RFC 3720
+ for all the glory details.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000171.html">[Iscsitarget-svn] r259 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000173.html">[Iscsitarget-svn] r261 - in trunk: doc/manpages etc usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#172">[ date ]</a>
+              <a href="thread.html#172">[ thread ]</a>
+              <a href="subject.html#172">[ subject ]</a>
+              <a href="author.html#172">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

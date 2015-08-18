@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[494] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2013-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B494%5D%20trunk/kernel&In-Reply-To=%3Cmailman.8.1372876497.1388.iscsitarget-svn%40lists.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000404.html">
+   <LINK REL="Next"  HREF="000406.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[494] trunk/kernel</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B494%5D%20trunk/kernel&In-Reply-To=%3Cmailman.8.1372876497.1388.iscsitarget-svn%40lists.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[494] trunk/kernel">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jul  3 20:34:52 CEST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000404.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[493]	trunk/kernel/target_disk.c
+</A></li>
+        <LI>Next message: <A HREF="000406.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[495] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#405">[ date ]</a>
+              <a href="thread.html#405">[ thread ]</a>
+              <a href="subject.html#405">[ subject ]</a>
+              <a href="author.html#405">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 494
+          <A HREF="http://sourceforge.net/p/iscsitarget/code/494">http://sourceforge.net/p/iscsitarget/code/494</A>
+Author:   agr1
+Date:     2013-07-03 18:34:49 +0000 (Wed, 03 Jul 2013)
+Log Message:
+-----------
+Avoid zero sized bio_add_page (blockio) / vfs_{read,write} (fileio) calls
+
+From: Shivaram Upadhyayula &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">shivaram.u at quadstor.com</A>&gt;
+
+Let suppose the total write length for the write same command is 1048576 + 512 (1MB + 512).
+As per the logic the writes are split into two due to the MAX_IO_SIZE limitation of 1MB
+tio pg_cnt will be (1MB / 4096)) == 256
+
+        while (length &gt; 0) {
+                u32 to_write = (u32)min_t(u64, length, MAX_IO_SIZE);
+
+So the first iteration will be to_write == 1M
+The second iteration will be to_write == 512
+target_tio pg_cnt will be 256 as we dont modify that and is required to free up the pages later
+
+Now examining block-io.c make_request
+
+        while (tio_index &lt; tio-&gt;pg_cnt) {
+
+Notice above that for the second iteration we will iterate from 0 to 256 but we need to write only 512 bytes.
+With the 512 byte write, for the first iteration in the below loop
+
+                /* Loop for filling bio */
+                while (tio_index &lt; tio-&gt;pg_cnt) {
+
+                        unsigned int bytes = PAGE_SIZE;
+
+                        if (bytes &gt; size)
+                                bytes = size;
+
+                        if (!bio_add_page(bio, tio-&gt;pvec[tio_index], bytes, 0))
+                                break;
+
+                        size -= bytes;
+                        ppos += bytes;
+
+                        tio_index++;
+
+In the above loop, we add the 512 bytes to the bio in the first iteration itself. In the second iteration of the
+above loops bytes == size == 0 and so on till 256 and in the second iteration we call bio_add_page with size 0.
+
+(redlicha: this was part of another patch and split out to a distinct patch)
+
+Signed-off-by: Shivaram Upadhyayula &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">shivaram.u at quadstor.com</A>&gt;
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/block-io.c
+    trunk/kernel/file-io.c
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2013-07-02 19:33:19 UTC (rev 493)
++++ trunk/kernel/block-io.c	2013-07-03 18:34:49 UTC (rev 494)
+@@ -79,7 +79,7 @@
+ 	init_completion(&amp;tio_work-&gt;tio_complete);
+ 
+ 	/* Main processing loop, allocate and fill all bios */
+-	while (tio_index &lt; tio-&gt;pg_cnt) {
++	while (size &amp;&amp; tio_index &lt; tio-&gt;pg_cnt) {
+ 		bio = bio_alloc(GFP_KERNEL, min(max_pages, BIO_MAX_PAGES));
+ 		if (!bio) {
+ 			err = -ENOMEM;
+@@ -100,7 +100,7 @@
+ 		atomic_inc(&amp;tio_work-&gt;bios_remaining);
+ 
+ 		/* Loop for filling bio */
+-		while (tio_index &lt; tio-&gt;pg_cnt) {
++		while (size &amp;&amp; tio_index &lt; tio-&gt;pg_cnt) {
+ 			unsigned int bytes = PAGE_SIZE;
+ 
+ 			if (bytes &gt; size)
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2013-07-02 19:33:19 UTC (rev 493)
++++ trunk/kernel/file-io.c	2013-07-03 18:34:49 UTC (rev 494)
+@@ -34,7 +34,7 @@
+ 	size = tio-&gt;size;
+ 	ppos = tio-&gt;offset;
+ 
+-	for (i = 0; i &lt; tio-&gt;pg_cnt; i++) {
++	for (i = 0; i &lt; tio-&gt;pg_cnt &amp;&amp; size; i++) {
+ 		page = tio-&gt;pvec[i];
+ 		assert(page);
+ 		buf = page_address(page);
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000404.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[493]	trunk/kernel/target_disk.c
+</A></li>
+	<LI>Next message: <A HREF="000406.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[495] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#405">[ date ]</a>
+              <a href="thread.html#405">[ thread ]</a>
+              <a href="subject.html#405">[ subject ]</a>
+              <a href="author.html#405">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

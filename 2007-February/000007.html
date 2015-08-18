@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r95 - in trunk: doc/manpages kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r95%20-%20in%20trunk%3A%20doc/manpages%20kernel&In-Reply-To=%3C200702090332.l193WUvK006171%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000008.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r95 - in trunk: doc/manpages kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r95%20-%20in%20trunk%3A%20doc/manpages%20kernel&In-Reply-To=%3C200702090332.l193WUvK006171%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r95 - in trunk: doc/manpages kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Fri Feb  9 04:32:30 CET 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000008.html">[Iscsitarget-svn] r96 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7">[ date ]</a>
+              <a href="thread.html#7">[ thread ]</a>
+              <a href="subject.html#7">[ subject ]</a>
+              <a href="author.html#7">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-02-09 04:32:30 +0100 (Fri, 09 Feb 2007)
+New Revision: 95
+
+Modified:
+   trunk/doc/manpages/ietd.conf.5
+   trunk/kernel/Makefile
+   trunk/kernel/iotype.c
+   trunk/kernel/iotype.h
+Log:
+Subject: Re: [Iscsitarget-devel] New block-io module [Merge Ready] [Updated]
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rwalker at medallion.com</A>&gt;
+Date: Thu, 8 Feb 2007 21:32:53 -0500
+
+This module works best for these types of scenarios:
+
+1) Data that is not aligned to 4K sector boundaries which is normally
+found in virtualization environments where operating systems start
+partitions on odd sectors (Windows and it's sector 63).
+
+2) Large block data transfers normally found in database loads/dumps and
+streaming media.
+
+3) Advanced relational database systems that perform their own caching
+which prefer or demand direct i/o access and because of the nature of
+their data access, can actually see worse performance with
+non-discriminate caching.
+
+4) Multiple layers of targets were the secondary/triary layers need to
+have a consistent view of the primary targets in order to preserve data
+integrity which a page cache backed IO type might not provide reliably.
+
+
+
+Modified: trunk/doc/manpages/ietd.conf.5
+===================================================================
+--- trunk/doc/manpages/ietd.conf.5	2007-01-24 12:27:32 UTC (rev 94)
++++ trunk/doc/manpages/ietd.conf.5	2007-02-09 03:32:30 UTC (rev 95)
+@@ -124,25 +124,64 @@
+ .I &lt;username&gt;
+ given.
+ .TP 
+-.B Lun &lt;lun&gt; (Path=&lt;device&gt;[,Type=fileio][,ScsiId=&lt;scsi_id&gt;][,ScsiSN=&lt;scsi_sn&gt;] | Sectors=&lt;size&gt;,Type=nullio)[,IOMode=(wb|ro)]
++.B Lun &lt;lun&gt; Path=&lt;device&gt;,Type=(fileio|blockio)[,ScsiId=&lt;scsi_id&gt;][,ScsiSN=&lt;scsi_sn&gt;][,IOMode=(wb|ro)] | Sectors=&lt;size&gt;,Type=nullio
+ Parameters after &lt;lun&gt; should not contain any blank space character except the first blank space after &lt;lun&gt; is needed.
+ .br
++ 
++.br
++This line must occur at least once. The value of
++.I &lt;lun&gt;
++can be between 0 and 2^14\-1.
++.br
++ 
++.br
+ In
+ .I fileio
+ mode (default), it defines a mapping between a &quot;Logical Unit Number&quot; 
+ .I &lt;lun&gt;
+ and a given device
+ .I &lt;device&gt;
+-, which can be any block device (including regular block devices like hdX and sdX and virtual block devices like LVM and Software RAID devices) or regular files. Optionally a
++, which can be any block device (including regular block devices like hdX and sdX and virtual block devices like LVM and Software RAID devices) or regular files.
++.br
++ 
++.br
++In
++.I blockio
++mode, it defines a mapping between a &quot;Logical Unit Number&quot;
++.I &lt;lun&gt;
++and a given block device
++.I &lt;device&gt;.
++This mode will perform direct block i/o with the device, bypassing page-cache for all operations.
++This allows for efficient handling of non-aligned sector transfers (virtualized environments) and large block transfers (media servers).
++This mode works ideally with high-end storage HBAs and for applications that either do not need caching between application and disk or need the large block throughput.
++.br
++ 
++.br
++Optionally a
+ .I &lt;scsi_id&gt;
+ can be specified to assign a unique ID to the iSCSI volume. This is useful e.g. in conjunction with a multipath\-aware initiator host accessing the same
+ .I &lt;device&gt;
+-through several targets. The
++through several targets.
++The
+ .I &lt;scsi_id&gt;
+ must not exceed 16 characters and controls the content of VPD 0x83. The
+ .I &lt;scsi_sn&gt;
+ must not exceed 16 characters and controls the content VPD 0x80.
+-.br 
++.br
++ 
++.br
++By default, LUNs are writable, employing write-through caching. By setting
++.I IOMode
++to &quot;ro&quot; a LUN can only be accessed read only. Setting
++.I IOMode
++to &quot;wb&quot; will enable write-back caching.
++Please note that this could lead to data loss e.g. in case of power outages, so it is strongly recommended to use an UPS when enabling write-back caching.
++NOTE:
++.I IOMode
++&quot;wb&quot; is ignored when employing blockio.
++.br
++ 
++.br
+ In
+ .I nullio
+ mode, it defines a mapping between a &quot;Logical Unit Number&quot;
+@@ -150,16 +189,6 @@
+ and an unnamed virtual device with
+ .I &lt;size&gt;
+ sectors. This is ONLY useful for performance measurement purposes. All writes to this virtual device will be discarded and reads will return random data.
+-.br
+-By default, LUNs are writable, employing write-through caching. By setting
+-.I IOMode
+-to &quot;ro&quot; a LUN can only be accessed read only. Setting
+-.I IOMode
+-to &quot;wb&quot; will enable write-back caching. Please note that this could lead to data loss e.g. in case of power outages, so it is strongly recommended to use an UPS when enabling write-back caching.
+-.br
+-This line must occur at least once. The value of
+-.I &lt;lun&gt;
+-can be between 0 and 2^14\-1.
+ .TP 
+ .B [Alias &lt;aliasname&gt;]
+ This assigns an optional 
+
+Modified: trunk/kernel/Makefile
+===================================================================
+--- trunk/kernel/Makefile	2007-01-24 12:27:32 UTC (rev 94)
++++ trunk/kernel/Makefile	2007-02-09 03:32:30 UTC (rev 95)
+@@ -12,5 +12,6 @@
+ obj-m		+= iscsi_trgt.o
+ iscsi_trgt-objs	:= tio.o iscsi.o nthread.o wthread.o config.o digest.o \
+ 			conn.o session.o target.o volume.o iotype.o \
+-			file-io.o null-io.o target_disk.o event.o param.o
++			file-io.o null-io.o target_disk.o event.o param.o \
++			block-io.o
+ 
+
+Modified: trunk/kernel/iotype.c
+===================================================================
+--- trunk/kernel/iotype.c	2007-01-24 12:27:32 UTC (rev 94)
++++ trunk/kernel/iotype.c	2007-02-09 03:32:30 UTC (rev 95)
+@@ -78,6 +78,7 @@
+ 
+ struct iotype *iotype_array[] = {
+ 	&amp;fileio,
++	&amp;blockio,
+ 	&amp;nullio,
+ };
+ 
+
+Modified: trunk/kernel/iotype.h
+===================================================================
+--- trunk/kernel/iotype.h	2007-01-24 12:27:32 UTC (rev 94)
++++ trunk/kernel/iotype.h	2007-02-09 03:32:30 UTC (rev 95)
+@@ -21,6 +21,7 @@
+ 
+ extern struct iotype fileio;
+ extern struct iotype nullio;
++extern struct iotype blockio;
+ 
+ extern int iotype_init(void);
+ extern void iotype_exit(void);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000008.html">[Iscsitarget-svn] r96 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7">[ date ]</a>
+              <a href="thread.html#7">[ thread ]</a>
+              <a href="subject.html#7">[ subject ]</a>
+              <a href="author.html#7">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

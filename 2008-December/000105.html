@@ -1,0 +1,459 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r193 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r193%20-%20trunk/usr&In-Reply-To=%3C200812200912.mBK9CWBN027322%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000104.html">
+   <LINK REL="Next"  HREF="000106.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r193 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r193%20-%20trunk/usr&In-Reply-To=%3C200812200912.mBK9CWBN027322%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r193 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Sat Dec 20 10:12:32 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000104.html">[Iscsitarget-svn] r192 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000106.html">[Iscsitarget-svn] r194 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#105">[ date ]</a>
+              <a href="thread.html#105">[ thread ]</a>
+              <a href="subject.html#105">[ subject ]</a>
+              <a href="author.html#105">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-12-20 10:12:32 +0100 (Sat, 20 Dec 2008)
+New Revision: 193
+
+Modified:
+   trunk/usr/conn.c
+   trunk/usr/iscsi_hdr.h
+   trunk/usr/iscsid.c
+   trunk/usr/iscsid.h
+Log:
+Multipart PDU support for discovery sessions
+
+The conn's response buffer is now replaced with a list of buffers and
+all users are updated accordingly. Discovery sessions can make use of
+this mechanism, if the list of targets + addresses does not fit into a
+single text PDU, the initiator may now retrieve subsequent parts.
+
+This also fixes the data segment handling for discovery sessions.
+
+Based on a patch originally provided by Shreyansh Jain &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">shrey.linux at gmail.com</A>&gt;
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/usr/conn.c
+===================================================================
+--- trunk/usr/conn.c	2008-12-20 09:08:03 UTC (rev 192)
++++ trunk/usr/conn.c	2008-12-20 09:12:32 UTC (rev 193)
+@@ -27,6 +27,7 @@
+ 	memset(conn, 0, sizeof(*conn));
+ 	conn-&gt;state = STATE_FREE;
+ 	param_set_defaults(conn-&gt;session_param, session_keys);
++	INIT_LIST_HEAD(&amp;conn-&gt;rsp_buf_list);
+ 
+ 	return conn;
+ }
+@@ -132,6 +133,19 @@
+ 	conn-&gt;rwsize = BHS_SIZE;
+ }
+ 
++void conn_free_rsp_buf_list(struct connection *conn)
++{
++	struct buf_segment *seg, *tmp;
++
++	list_for_each_entry_safe(seg, tmp, &amp;conn-&gt;rsp_buf_list, entry) {
++		list_del(&amp;seg-&gt;entry);
++		free(seg);
++	}
++
++	conn-&gt;rsp.datasize = 0;
++	conn-&gt;rsp.data = NULL;
++}
++
+ void conn_free_pdu(struct connection *conn)
+ {
+ 	conn-&gt;iostate = IOSTATE_FREE;
+@@ -143,8 +157,5 @@
+ 		free(conn-&gt;rsp.ahs);
+ 		conn-&gt;rsp.ahs = NULL;
+ 	}
+-	if (conn-&gt;rsp.data) {
+-		free(conn-&gt;rsp.data);
+-		conn-&gt;rsp.data = NULL;
+-	}
++	conn_free_rsp_buf_list(conn);
+ }
+
+Modified: trunk/usr/iscsi_hdr.h
+===================================================================
+--- trunk/usr/iscsi_hdr.h	2008-12-20 09:08:03 UTC (rev 192)
++++ trunk/usr/iscsi_hdr.h	2008-12-20 09:12:32 UTC (rev 193)
+@@ -132,6 +132,7 @@
+ 	u8  rsvd2[10];
+ } __packed;
+ 
++#define ISCSI_FLG_CONTINUE		0x40
+ #define ISCSI_FLG_FINAL			0x80
+ #define ISCSI_FLG_TRANSIT		0x80
+ #define ISCSI_FLG_CSG_SECURITY		0x00
+@@ -176,6 +177,8 @@
+ #define ISCSI_STATUS_SVC_UNAVAILABLE	0x01
+ #define ISCSI_STATUS_NO_RESOURCES	0x02
+ 
++#define ISCSI_RESERVED_TAG		0xffffffff
++
+ struct iscsi_logout_req_hdr {
+ 	u8  opcode;
+ 	u8  flags;
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2008-12-20 09:08:03 UTC (rev 192)
++++ trunk/usr/iscsid.c	2008-12-20 09:12:32 UTC (rev 193)
+@@ -16,6 +16,14 @@
+ 
+ #include &quot;iscsid.h&quot;
+ 
++static u32 ttt;
++
++static u32 get_next_ttt(struct connection *conn __attribute__((unused)))
++{
++	ttt += 1;
++	return (ttt == ISCSI_RESERVED_TAG) ? ++ttt : ttt;
++}
++
+ static struct iscsi_key login_keys[] = {
+ 	{&quot;InitiatorName&quot;,},
+ 	{&quot;InitiatorAlias&quot;,},
+@@ -81,36 +89,91 @@
+ 	return key;
+ }
+ 
++static struct buf_segment * conn_alloc_buf_segment(struct connection *conn,
++						   size_t sz)
++{
++	struct buf_segment *seg = malloc(sizeof *seg + sz);
++
++	if (seg) {
++		seg-&gt;len = 0;
++		memset(seg-&gt;data, 0x0, sz);
++		list_add_tail(&amp;seg-&gt;entry, &amp;conn-&gt;rsp_buf_list);
++		log_debug(2, &quot;alloc'ed new buf_segment\n&quot;);
++	}
++
++	return seg;
++}
++
++
+ void text_key_add(struct connection *conn, char *key, char *value)
+ {
++	struct buf_segment *seg;
+ 	int keylen = strlen(key);
+ 	int valuelen = strlen(value);
+ 	int len = keylen + valuelen + 2;
+-	char *buffer;
++	int off = 0;
++	int sz = 0;
++	int stage = 0;
++	size_t data_sz;
+ 
+-	if (!conn-&gt;rsp.datasize) {
+-		if (!conn-&gt;rsp_buffer) {
+-			conn-&gt;rsp_buffer = malloc(INCOMING_BUFSIZE);
+-			if (!conn-&gt;rsp_buffer) {
+-				log_error(&quot;Failed to alloc send buffer&quot;);
+-				return;
++	data_sz = (conn-&gt;state == STATE_FULL) ?
++		conn-&gt;session_param[key_max_xmit_data_length].val :
++		INCOMING_BUFSIZE;
++
++	seg = list_empty(&amp;conn-&gt;rsp_buf_list) ? NULL :
++		list_entry(conn-&gt;rsp_buf_list.q_back, struct buf_segment,
++			   entry);
++
++	while (len) {
++		if (!seg || seg-&gt;len == data_sz) {
++			seg = conn_alloc_buf_segment(conn, data_sz);
++			if (!seg) {
++				log_error(&quot;Failed to alloc text buf segment\n&quot;);
++				conn_free_rsp_buf_list(conn);
++				break;
+ 			}
+ 		}
+-		conn-&gt;rsp.data = conn-&gt;rsp_buffer;
+-	}
+-	if (conn-&gt;rsp.datasize + len &gt; INCOMING_BUFSIZE) {
+-		log_warning(&quot;Dropping key (%s=%s)&quot;, key, value);
+-		return;
+-	}
++		switch (stage) {
++		case 0:
++			sz = min_t(int, data_sz - seg-&gt;len, keylen - off);
++			strncpy(seg-&gt;data + seg-&gt;len, key + off, sz);
++			if (sz == data_sz - seg-&gt;len) {
++				off += sz;
++				if (keylen - off == 0) {
++					off = 0;
++					stage++;
++				}
++			} else {
++				off = 0;
++				stage++;
++			}
++			break;
++		case 1:
++			seg-&gt;data[seg-&gt;len] = '=';
++			off = 0;
++			sz = 1;
++			stage++;
++			break;
++		case 2:
++			sz = min_t(int, data_sz - seg-&gt;len, valuelen - off);
++			strncpy(seg-&gt;data + seg-&gt;len, value + off, sz);
++			off += sz;
++			if (valuelen - off == 0) {
++				off = 0;
++				stage++;
++			}
++			break;
++		case 3:
++			seg-&gt;data[seg-&gt;len] = 0;
++			sz = 1;
++			break;
++		}
+ 
+-	buffer = conn-&gt;rsp_buffer;
+-	buffer += conn-&gt;rsp.datasize;
+-	conn-&gt;rsp.datasize += len;
++		log_debug(1, &quot;wrote: %s\n&quot;, seg-&gt;data + seg-&gt;len);
+ 
+-	strcpy(buffer, key);
+-	buffer += keylen;
+-	*buffer++ = '=';
+-	strcpy(buffer, value);
++		seg-&gt;len += sz;
++		len -= sz;
++	}
+ }
+ 
+ static void text_key_add_reject(struct connection *conn, char *key)
+@@ -579,6 +642,17 @@
+ 		rsp-&gt;flags |= nsg | (stay ? 0 : ISCSI_FLG_TRANSIT);
+ 	}
+ 
++	/*
++	 * TODO: support Logical Text Data Segments &gt; INCOMING_BUFSIZE (i.e.
++	 * key=value pairs spanning several PDUs) during login phase
++	 */
++	if (!list_empty(&amp;conn-&gt;rsp_buf_list) &amp;&amp;
++	    !list_length_is_one(&amp;conn-&gt;rsp_buf_list)) {
++		log_error(&quot;Target error: \'key=value\' pairs spanning several &quot;
++			  &quot;Login PDUs are not implemented, yet\n&quot;);
++		goto target_err;
++	}
++
+ 	rsp-&gt;sid = conn-&gt;sid;
+ 	rsp-&gt;stat_sn = cpu_to_be32(conn-&gt;stat_sn++);
+ 	rsp-&gt;exp_cmd_sn = cpu_to_be32(conn-&gt;exp_cmd_sn);
+@@ -597,6 +671,12 @@
+ 	rsp-&gt;status_detail = ISCSI_STATUS_AUTH_FAILED;
+ 	conn-&gt;state = STATE_EXIT;
+ 	return;
++ target_err:
++	rsp-&gt;flags = 0;
++	rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
++	rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
++	conn-&gt;state = STATE_EXIT;
++	return;
+ }
+ 
+ static void text_scan_text(struct connection *conn)
+@@ -650,22 +730,39 @@
+ 
+ 	memset(rsp, 0, BHS_SIZE);
+ 
+-	if (be32_to_cpu(req-&gt;ttt) != 0xffffffff) {
+-		/* reject */;
+-	}
+ 	rsp-&gt;opcode = ISCSI_OP_TEXT_RSP;
+ 	rsp-&gt;itt = req-&gt;itt;
+-	//rsp-&gt;ttt = rsp-&gt;ttt;
+-	rsp-&gt;ttt = 0xffffffff;
+ 	conn-&gt;exp_cmd_sn = be32_to_cpu(req-&gt;cmd_sn);
+ 	if (!(req-&gt;opcode &amp; ISCSI_OP_IMMEDIATE))
+ 		conn-&gt;exp_cmd_sn++;
+ 
+ 	log_debug(1, &quot;Text request: %d&quot;, conn-&gt;state);
+-	text_scan_text(conn);
+ 
+-	if (req-&gt;flags &amp; ISCSI_FLG_FINAL)
++	if (req-&gt;ttt == ISCSI_RESERVED_TAG) {
++		conn_free_rsp_buf_list(conn);
++		text_scan_text(conn);
++		if (!list_empty(&amp;conn-&gt;rsp_buf_list) &amp;&amp;
++		    !list_length_is_one(&amp;conn-&gt;rsp_buf_list))
++			conn-&gt;ttt = get_next_ttt(conn);
++		else
++			conn-&gt;ttt = ISCSI_RESERVED_TAG;
++	} else if (list_empty(&amp;conn-&gt;rsp_buf_list) || conn-&gt;ttt != req-&gt;ttt) {
++		log_error(&quot;Rejecting unexpected text request. TTT recv %#x, &quot;
++			  &quot;expected %#x; %stext segments queued\n&quot;,
++			  req-&gt;ttt, conn-&gt;ttt, list_empty(&amp;conn-&gt;rsp_buf_list) ?
++			  &quot;no &quot; : &quot;&quot;);
++		/*
++		 * Return a malformed text rsp and close the conn for now.
++		 * The proper response would be a Reject instead.
++		 */
++		conn-&gt;ttt = rsp-&gt;ttt = ISCSI_RESERVED_TAG;
++		conn_free_rsp_buf_list(conn);
++		conn-&gt;state = STATE_CLOSE;
++	}
++
++	if (list_length_is_one(&amp;conn-&gt;rsp_buf_list))
+ 		rsp-&gt;flags = ISCSI_FLG_FINAL;
++	rsp-&gt;ttt = conn-&gt;ttt;
+ 
+ 	rsp-&gt;stat_sn = cpu_to_be32(conn-&gt;stat_sn++);
+ 	rsp-&gt;exp_cmd_sn = cpu_to_be32(conn-&gt;exp_cmd_sn);
+@@ -694,10 +791,16 @@
+ 
+ int cmnd_execute(struct connection *conn)
+ {
++	struct buf_segment *seg;
++	struct iscsi_login_rsp_hdr *login_rsp;
++
+ 	switch (conn-&gt;req.bhs.opcode &amp; ISCSI_OPCODE_MASK) {
+ 	case ISCSI_OP_LOGIN_CMD:
+ 		//if conn-&gt;state == STATE_FULL -&gt; reject
+ 		cmnd_exec_login(conn);
++		login_rsp = (struct iscsi_login_rsp_hdr *) &amp;conn-&gt;rsp.bhs;
++		if (login_rsp-&gt;status_class)
++			conn_free_rsp_buf_list(conn);
+ 		break;
+ 	case ISCSI_OP_TEXT_CMD:
+ 		//if conn-&gt;state != STATE_FULL -&gt; reject
+@@ -712,6 +815,17 @@
+ 		return 0;
+ 	}
+ 
++	if (!list_empty(&amp;conn-&gt;rsp_buf_list)) {
++		seg = list_entry(conn-&gt;rsp_buf_list.q_forw,
++				 struct buf_segment, entry);
++		list_del(&amp;seg-&gt;entry);
++		conn-&gt;rsp.datasize = seg-&gt;len;
++		conn-&gt;rsp.data = seg-&gt;data;
++	} else {
++		conn-&gt;rsp.datasize = 0;
++		conn-&gt;rsp.data = NULL;
++	}
++
+ 	conn-&gt;rsp.bhs.ahslength = conn-&gt;rsp.ahssize / 4;
+ 	conn-&gt;rsp.bhs.datalength[0] = conn-&gt;rsp.datasize &gt;&gt; 16;
+ 	conn-&gt;rsp.bhs.datalength[1] = conn-&gt;rsp.datasize &gt;&gt; 8;
+@@ -723,6 +837,13 @@
+ 
+ void cmnd_finish(struct connection *conn)
+ {
++	struct buf_segment *seg;
++
++	if (conn-&gt;rsp.data) {
++		seg = container_of(conn-&gt;rsp.data, struct buf_segment, data);
++		free(seg);
++	}
++
+ 	switch (conn-&gt;state) {
+ 	case STATE_EXIT:
+ 		conn-&gt;state = STATE_CLOSE;
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2008-12-20 09:08:03 UTC (rev 192)
++++ trunk/usr/iscsid.h	2008-12-20 09:12:32 UTC (rev 193)
+@@ -19,6 +19,13 @@
+ 
+ #define PROC_SESSION	&quot;/proc/net/iet/session&quot;
+ 
++struct buf_segment {
++	struct __qelem entry;
++
++	unsigned int len;
++	char data[0];
++};
++
+ struct PDU {
+ 	struct iscsi_hdr bhs;
+ 	void *ahs;
+@@ -54,6 +61,7 @@
+ 	char *initiator;
+ 	union iscsi_sid sid;
+ 	u16 cid;
++
+ 	int session_type;
+ 	int auth_method;
+ 
+@@ -63,11 +71,13 @@
+ 	u32 cmd_sn;
+ 	u32 exp_cmd_sn;
+ 	u32 max_cmd_sn;
++	u32 ttt;
+ 
+ 	struct PDU req;
+ 	void *req_buffer;
+ 	struct PDU rsp;
+-	void *rsp_buffer;
++	struct __qelem rsp_buf_list;
++
+ 	unsigned char *buffer;
+ 	int rwsize;
+ 
+@@ -146,6 +156,7 @@
+ extern void conn_read_pdu(struct connection *conn);
+ extern void conn_write_pdu(struct connection *conn);
+ extern void conn_free_pdu(struct connection *conn);
++extern void conn_free_rsp_buf_list(struct connection *conn);
+ 
+ /* ietd.c */
+ extern uint16_t server_port;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000104.html">[Iscsitarget-svn] r192 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000106.html">[Iscsitarget-svn] r194 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#105">[ date ]</a>
+              <a href="thread.html#105">[ thread ]</a>
+              <a href="subject.html#105">[ subject ]</a>
+              <a href="author.html#105">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

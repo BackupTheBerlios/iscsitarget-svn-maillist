@@ -1,0 +1,337 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r227 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r227%20-%20trunk&In-Reply-To=%3C200909092044.n89KiUt9007791%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000138.html">
+   <LINK REL="Next"  HREF="000140.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r227 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r227%20-%20trunk&In-Reply-To=%3C200909092044.n89KiUt9007791%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r227 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep  9 22:44:30 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000138.html">[Iscsitarget-svn] r226 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000140.html">[Iscsitarget-svn] r228 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#139">[ date ]</a>
+              <a href="thread.html#139">[ thread ]</a>
+              <a href="subject.html#139">[ subject ]</a>
+              <a href="author.html#139">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-09 22:44:30 +0200 (Wed, 09 Sep 2009)
+New Revision: 227
+
+Modified:
+   trunk/iscsitarget.spec
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt; 
+
+iscsitarget.spec dkms/svn build options
+
+This patch to the iscsitarget spec file adds two build options.
+
+1) Setting %dkms will build a noarch dkms kernel module that
+automatically adds itself to dkms, builds itself and installs
+itself. Upon removal it removes all instances of itself. The
+package maintainer will need to perform two rpmbuilds, one
+on the current architecture for the userland code, and the
+other with --target=noarch for the dkms kernel module.
+
+2) Setting %svn will build IET from the current SVN code from
+the repository. It sets the version number to the last checked
+in revision number from the SVN and exports a copy to the
+build directory.
+
+This has been fully tested on RHEL 5.
+
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-09-08 21:23:10 UTC (rev 226)
++++ trunk/iscsitarget.spec	2009-09-09 20:44:30 UTC (rev 227)
+@@ -2,10 +2,26 @@
+ ## Global Package Definitions
+ ##
+ 
+-## Package Definitions
+-# Revision number of the package
++## IET Release
++%define iet_version 0.4.17
++
++## Package Revision
+ %define revision 1
+ 
++## Build Options
++# Build DKMS kernel module
++%define dkms 0
++
++# Build from SVN repository
++%define svn 0
++
++## Package Definitions
++#
++%if %svn
++%define svn_url <A HREF="http://svn.berlios.de/svnroot/repos/iscsitarget/trunk">http://svn.berlios.de/svnroot/repos/iscsitarget/trunk</A>
++%define iet_version %(svn info --non-interactive %{svn_url} | awk '{if ($1 == &quot;Revision:&quot;) {print &quot;svn_r&quot;$2}}')
++%endif
++
+ ## Platform Definitions
+ # Define kernel version information
+ %{!?kernel:	%define kernel %(uname -r)}
+@@ -23,7 +39,7 @@
+ ## Information
+ Summary: iSCSI Enterprise Target
+ Name: iscsitarget
+-Version: 0.4.17
++Version: %{?iet_version: %{iet_version}}
+ Release: %{?revision: %{revision}}
+ License: GPL
+ Group: System Environment/Daemons
+@@ -31,7 +47,10 @@
+ Packager: Iscsitarget Developer [<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">iscsitarget-devel at lists.sourceforge.net</A>]
+ 
+ ## Source files
++%if %svn
++%else
+ Source0: %{name}-%{version}.tar.gz
++%endif
+ 
+ ## Patches
+ 
+@@ -40,7 +59,10 @@
+ 
+ ## Build Requirements
+ BuildRequires: kernel &gt;= 2.6
+-BuildRequires: %{ktype}-devel = %{kver}, gcc, /usr/bin/install, openssl-devel
++BuildRequires: %{ktype}-devel = %{kver}, gcc, make, patch, binutils, /usr/bin/install, openssl-devel
++%if %svn
++BuildRequires: subversion
++%endif
+ 
+ ## Build Definitions
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+@@ -53,11 +75,31 @@
+ ##
+ ## Kernel Module
+ ##
++%if %dkms
++%ifarch noarch
+ %package -n kmod-%{name}
+ 
+ ## Information
+ Summary: iSCSI Enterprise Target kernel module
+ Group: System Environment/Kernel
++Release: %{release}_dkms
++
++## Install Requirements
++Requires: dkms &gt;= 2
++
++## Install Provides
++Provides: kmod-%{name}
++
++## Description
++%description -n kmod-%{name}
++iSCSI Enterprise Target kernel module
++%endif
++%else
++%package -n kmod-%{name}
++
++## Information
++Summary: iSCSI Enterprise Target kernel module
++Group: System Environment/Kernel
+ Release: %{release}_%{krel}
+ 
+ ## Install Requirements
+@@ -69,6 +111,7 @@
+ ## Description
+ %description -n kmod-%{name}
+ iSCSI Enterprise Target kernel module
++%endif
+ 
+ 
+ ##
+@@ -80,22 +123,51 @@
+ 
+ 
+ ## Setup
++%if %svn
++%setup -q -T -c -n %{name}-%{version}
++svn export --force --non-interactive -q %{svn_url} .
++%else
+ %setup -q -n %{name}-%{version}
++%endif
+ 
+ 
++## Patch
++
++
+ ## Build
+ %build
++%ifnarch noarch
++%if %dkms
++%{__make} usr
++%else
+ %{__make} KERNELSRC=/lib/modules/%{kernel}/build
++%endif
++%endif
+ 
+ 
+ ## Installation
+ %install
+ %{__rm} -rf %{buildroot}
++%ifnarch noarch
++%if %dkms
++%{__make} install-usr install-doc install-etc KERNELSRC=/lib/modules/%{kernel}/build DISTDIR=%{buildroot}
++%else
+ %{__make} install-files KERNELSRC=/lib/modules/%{kernel}/build DISTDIR=%{buildroot}
++%endif
+ mkdir -p %{buildroot}/etc/rc.d
+ mv %{buildroot}/etc/init.d %{buildroot}/etc/rc.d
+ rm -rf %{buildroot}/usr/share/doc/iscsitarget
++%endif
++%if %dkms
++%ifarch noarch
++%{__make} distclean
++mkdir -p %{buildroot}/usr/src/%{name}-%{version}
++cp -r COPYING include kernel patches %{buildroot}/usr/src/%{name}-%{version}
++sed -e &quot;s/PACKAGE_VERSION=.*/PACKAGE_VERSION=\&quot;%{version}\&quot;/&quot; dkms.conf &gt;%{buildroot}/usr/src/%{name}-%{version}/dkms.conf
++%endif
++%else
+ rm -f %{buildroot}/lib/modules/%{kernel}/modules.*
++%endif
+ 
+ 
+ ## Cleaning
+@@ -104,37 +176,60 @@
+ 
+ 
+ ## Post-Install Script
++%ifnarch noarch
+ %post
+ /sbin/chkconfig --add iscsi-target
++%endif
+ 
+ 
+ ## Pre-Uninstall Script
++%ifnarch noarch
+ %preun
+ if [ &quot;$1&quot; = 0 ]; then
+     /sbin/service iscsi-target stop &amp;&gt;/dev/null
+     /sbin/chkconfig --del iscsi-target
+ fi
++%endif
+ 
+ 
+ ## Post-Uninstall Script
++%ifnarch noarch
+ %postun
+ if [ &quot;$1&quot; != 0 ]; then
+     /sbin/service iscsi-target condrestart 2&gt;&amp;1 &gt; /dev/null
+ fi
++%endif
+ 
+ 
+ ## Post-Install Script (Kernel Module)
++%if %dkms
++%ifarch noarch
+ %post -n kmod-%{name}
++/usr/sbin/dkms add -m %{name} -v %{version}
++/usr/sbin/dkms build -m %{name} -v %{version}
++/usr/sbin/dkms install -m %{name} -v %{version}
++%endif
++%else
++%post -n kmod-%{name}
+ /sbin/depmod %{kernel} -A
++%endif
+ 
+ 
+ ## Pre-Uninstall Script (Kernel Module)
++%if %dkms
++%ifarch noarch
+ %preun -n kmod-%{name}
++/usr/sbin/dkms remove -m %{name} -v %{version} --all
++%endif
++%else
++%preun -n kmod-%{name}
+ modprobe -r -q --set-version %{kernel} iscsi_trgt
+ /sbin/depmod %{kernel} -A
++%endif
+ 
+ 
+ ## File Catalog
++%ifnarch noarch
+ %files
+ %defattr(-, root, root)
+ %{_sbindir}/*
+@@ -144,15 +239,28 @@
+ %config(noreplace) %{_sysconfdir}/initiators.allow
+ %config(noreplace) %{_sysconfdir}/initiators.deny
+ %doc ChangeLog COPYING README README.vmware
++%endif
+ 
+ 
+ ## File Catalog (Kernel Module)
++%if %dkms
++%ifarch noarch
+ %files -n kmod-%{name}
+ %defattr(-, root, root)
++/usr/src/%{name}-%{version}/*
++%endif
++%else
++%files -n kmod-%{name}
++%defattr(-, root, root)
+ /lib/modules/%{kernel}/kernel/iscsi/iscsi_trgt.ko
++%endif
+ 
+ 
+ %changelog
++* Wed Sep 09 2009 Ross Walker &lt;rswwalker at gmail dot com&gt; - 0.4.17-226
++- Added ability to build directly from subversion repo
++- Added ability to build dkms kernel module
++
+ * Mon Nov 10 2008 Ross Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rswwalker at gmail.com</A>&gt; - 0.4.17-177
+ - Changed kernel-module naming to kmod
+ - Updated versioning
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000138.html">[Iscsitarget-svn] r226 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000140.html">[Iscsitarget-svn] r228 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#139">[ date ]</a>
+              <a href="thread.html#139">[ thread ]</a>
+              <a href="subject.html#139">[ subject ]</a>
+              <a href="author.html#139">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

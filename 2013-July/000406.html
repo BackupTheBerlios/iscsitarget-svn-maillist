@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[495] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2013-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B495%5D%20trunk&In-Reply-To=%3Cmailman.9.1372878624.1388.iscsitarget-svn%40lists.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000405.html">
+   <LINK REL="Next"  HREF="000407.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[495] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B495%5D%20trunk&In-Reply-To=%3Cmailman.9.1372878624.1388.iscsitarget-svn%40lists.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[495] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jul  3 21:10:18 CEST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000405.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[494] trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000407.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[496] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#406">[ date ]</a>
+              <a href="thread.html#406">[ thread ]</a>
+              <a href="subject.html#406">[ subject ]</a>
+              <a href="author.html#406">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 495
+          <A HREF="http://sourceforge.net/p/iscsitarget/code/495">http://sourceforge.net/p/iscsitarget/code/495</A>
+Author:   agr1
+Date:     2013-07-03 19:10:14 +0000 (Wed, 03 Jul 2013)
+Log Message:
+-----------
+Support for 3.7 and 3.8 kernels
+
+Originally from: <A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">themylogin at gmail.com</A>
+<A HREF="https://bugs.launchpad.net/ubuntu/+source/iscsitarget/+bug/1117288">https://bugs.launchpad.net/ubuntu/+source/iscsitarget/+bug/1117288</A>
+
+Signed-off-by: James Page &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">james.page at ubuntu.com</A>&gt;
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/kernel/event.c
+
+Added Paths:
+-----------
+    trunk/patches/compat-3.6.patch
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2013-07-03 18:34:49 UTC (rev 494)
++++ trunk/Makefile	2013-07-03 19:10:14 UTC (rev 495)
+@@ -66,6 +66,10 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++ifeq ($(call kver_lt,3,7,0),1)
++	PATCHES := $(PATCHES) compat-3.6.patch
++endif
++
+ ifeq ($(call kver_le,3,5,0),1)
+ 	PATCHES := $(PATCHES) compat-3.5.patch
+ endif
+
+Modified: trunk/kernel/event.c
+===================================================================
+--- trunk/kernel/event.c	2013-07-03 18:34:49 UTC (rev 494)
++++ trunk/kernel/event.c	2013-07-03 19:10:14 UTC (rev 495)
+@@ -26,7 +26,7 @@
+ 		rlen = NLMSG_ALIGN(nlh-&gt;nlmsg_len);
+ 		if (rlen &gt; skb-&gt;len)
+ 			rlen = skb-&gt;len;
+-		ietd_pid = NETLINK_CB(skb).pid;
++		ietd_pid = NETLINK_CB(skb).portid;
+ 		WARN_ON(ietd_pid == 0);
+ 		if (nlh-&gt;nlmsg_flags &amp; NLM_F_ACK)
+ 			netlink_ack(skb, nlh, 0);
+@@ -78,7 +78,6 @@
+ 
+ 	nl = netlink_kernel_create(&amp;init_net,
+ 				   NETLINK_IET,
+-				   THIS_MODULE,
+ 				   &amp;cfg);
+ 	if (!nl)
+ 		return -ENOMEM;
+
+Added: trunk/patches/compat-3.6.patch
+===================================================================
+--- trunk/patches/compat-3.6.patch	                        (rev 0)
++++ trunk/patches/compat-3.6.patch	2013-07-03 19:10:14 UTC (rev 495)
+@@ -0,0 +1,21 @@
++diff --git b/kernel/event.c a/kernel/event.c
++index ef4adcb..024c1be 100644
++--- b/kernel/event.c
+++++ a/kernel/event.c
++@@ -26,7 +26,7 @@ static void event_recv_skb(struct sk_buff *skb)
++ 		rlen = NLMSG_ALIGN(nlh-&gt;nlmsg_len);
++ 		if (rlen &gt; skb-&gt;len)
++ 			rlen = skb-&gt;len;
++-		ietd_pid = NETLINK_CB(skb).portid;
+++		ietd_pid = NETLINK_CB(skb).pid;
++ 		WARN_ON(ietd_pid == 0);
++ 		if (nlh-&gt;nlmsg_flags &amp; NLM_F_ACK)
++ 			netlink_ack(skb, nlh, 0);
++@@ -78,6 +78,7 @@ int event_init(void)
++ 
++ 	nl = netlink_kernel_create(&amp;init_net,
++ 				   NETLINK_IET,
+++				   THIS_MODULE,
++ 				   &amp;cfg);
++ 	if (!nl)
++ 		return -ENOMEM;
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000405.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[494] trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000407.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[496] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#406">[ date ]</a>
+              <a href="thread.html#406">[ thread ]</a>
+              <a href="subject.html#406">[ subject ]</a>
+              <a href="author.html#406">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

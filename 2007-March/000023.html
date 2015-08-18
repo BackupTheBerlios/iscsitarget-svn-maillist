@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r111 - trunk/patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r111%20-%20trunk/patches&In-Reply-To=%3C200703221414.l2MEEVg4007734%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000022.html">
+   <LINK REL="Next"  HREF="000024.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r111 - trunk/patches</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r111%20-%20trunk/patches&In-Reply-To=%3C200703221414.l2MEEVg4007734%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r111 - trunk/patches">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Mar 22 15:14:31 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000022.html">[Iscsitarget-svn] r110 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000024.html">[Iscsitarget-svn] r112 - trunk/include
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23">[ date ]</a>
+              <a href="thread.html#23">[ thread ]</a>
+              <a href="subject.html#23">[ subject ]</a>
+              <a href="author.html#23">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-03-22 15:14:31 +0100 (Thu, 22 Mar 2007)
+New Revision: 111
+
+Added:
+   trunk/patches/compat-rhel4.patch
+Log:
+I forgot to add the new file in the previous commit.
+
+
+Added: trunk/patches/compat-rhel4.patch
+===================================================================
+--- trunk/patches/compat-rhel4.patch	2007-03-22 14:10:56 UTC (rev 110)
++++ trunk/patches/compat-rhel4.patch	2007-03-22 14:14:31 UTC (rev 111)
+@@ -0,0 +1,39 @@
++--- kernel/config.c
+++++ kernel/config.c
++@@ -216,7 +216,7 @@ static int add_target(unsigned long ptr)
++ 	return err;
++ }
++ 
++-static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+++static int ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
++ {
++ 	struct iscsi_target *target = NULL;
++ 	long err;
++@@ -311,6 +315,5 @@ done:
++ 
++ struct file_operations ctr_fops = {
++ 	.owner		= THIS_MODULE,
++-	.unlocked_ioctl	= ioctl,
++-	.compat_ioctl	= ioctl,
+++	.ioctl		= ioctl,
++ };
++--- kernel/event.c
+++++ kernel/event.c
++@@ -71,7 +72,7 @@ static int notify(void *data, int len, i
++ 	if (!(skb = alloc_skb(NLMSG_SPACE(len), gfp_mask)))
++ 		return -ENOMEM;
++ 
++-	nlh = __nlmsg_put(skb, ietd_pid, seq++, NLMSG_DONE, len - sizeof(*nlh), 0);
+++	nlh = __nlmsg_put(skb, ietd_pid, seq++, NLMSG_DONE, len - sizeof(*nlh));
++ 
++ 	memcpy(NLMSG_DATA(nlh), data, len);
++ 
++@@ -95,7 +100,7 @@ int event_send(u32 tid, u64 sid, u32 cid
++ 
++ int event_init(void)
++ {
++-	nl = netlink_kernel_create(NETLINK_IET, 1, event_recv, THIS_MODULE);
+++	nl = netlink_kernel_create(NETLINK_IET, event_recv);
++ 	if (!nl)
++ 		return -ENOMEM;
++ 	else
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000022.html">[Iscsitarget-svn] r110 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000024.html">[Iscsitarget-svn] r112 - trunk/include
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23">[ date ]</a>
+              <a href="thread.html#23">[ thread ]</a>
+              <a href="subject.html#23">[ subject ]</a>
+              <a href="author.html#23">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

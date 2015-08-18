@@ -1,0 +1,99 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[313] trunk/kernel/param.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B313%5D%20trunk/kernel/param.c&In-Reply-To=%3CE1NzybQ-00035T-Qe%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000224.html">
+   <LINK REL="Next"  HREF="000226.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[313] trunk/kernel/param.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B313%5D%20trunk/kernel/param.c&In-Reply-To=%3CE1NzybQ-00035T-Qe%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[313] trunk/kernel/param.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Apr  8 22:45:28 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000224.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[312] trunk/kernel/iscsi.c
+</A></li>
+        <LI>Next message: <A HREF="000226.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[314] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#225">[ date ]</a>
+              <a href="thread.html#225">[ thread ]</a>
+              <a href="subject.html#225">[ subject ]</a>
+              <a href="author.html#225">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 313
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=313&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=313&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-08 20:45:28 +0000 (Thu, 08 Apr 2010)
+
+Log Message:
+-----------
+This patch, combined with the data-out patch, allows IET to
+handle multiple connections per session.
+
+Since session and connection reinstatement is properly handled
+now, and with the data-out race condition handled, IET is now
+fully capable of handling multiple connections per session.
+
+Tested on RHEL5 with MS initiator.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/param.c
+
+Modified: trunk/kernel/param.c
+===================================================================
+--- trunk/kernel/param.c	2010-04-08 20:44:00 UTC (rev 312)
++++ trunk/kernel/param.c	2010-04-08 20:45:28 UTC (rev 313)
+@@ -43,7 +43,7 @@
+ {
+ 	u32 *iparam = info-&gt;session_param;
+ 
+-	CHECK_PARAM(info, iparam, max_connections, 1, 1);
++	CHECK_PARAM(info, iparam, max_connections, 1, 65535);
+ 	CHECK_PARAM(info, iparam, max_recv_data_length, 512,
+ 		    (u32) ((ISCSI_CONN_IOV_MAX - 1) * PAGE_CACHE_SIZE));
+ 	CHECK_PARAM(info, iparam, max_xmit_data_length, 512,
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000224.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[312] trunk/kernel/iscsi.c
+</A></li>
+	<LI>Next message: <A HREF="000226.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[314] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#225">[ date ]</a>
+              <a href="thread.html#225">[ thread ]</a>
+              <a href="subject.html#225">[ subject ]</a>
+              <a href="author.html#225">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

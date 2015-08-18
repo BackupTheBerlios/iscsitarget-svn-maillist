@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r191 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r191%20-%20trunk/usr&In-Reply-To=%3C200812200906.mBK96V7r025969%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000102.html">
+   <LINK REL="Next"  HREF="000104.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r191 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r191%20-%20trunk/usr&In-Reply-To=%3C200812200906.mBK96V7r025969%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r191 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Sat Dec 20 10:06:31 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000102.html">[Iscsitarget-svn] r190 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000104.html">[Iscsitarget-svn] r192 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#103">[ date ]</a>
+              <a href="thread.html#103">[ thread ]</a>
+              <a href="subject.html#103">[ subject ]</a>
+              <a href="author.html#103">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-12-20 10:06:31 +0100 (Sat, 20 Dec 2008)
+New Revision: 191
+
+Modified:
+   trunk/usr/iscsid.c
+   trunk/usr/iscsid.h
+Log:
+ Cleanups
+
+- remove unused connection-&gt;pad
+- refactor cmnd_execute()
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2008-12-20 08:44:09 UTC (rev 190)
++++ trunk/usr/iscsid.c	2008-12-20 09:06:31 UTC (rev 191)
+@@ -694,43 +694,31 @@
+ 
+ int cmnd_execute(struct connection *conn)
+ {
+-	int res = 1;
+-
+ 	switch (conn-&gt;req.bhs.opcode &amp; ISCSI_OPCODE_MASK) {
+ 	case ISCSI_OP_LOGIN_CMD:
+ 		//if conn-&gt;state == STATE_FULL -&gt; reject
+ 		cmnd_exec_login(conn);
+-		conn-&gt;rsp.bhs.ahslength = conn-&gt;rsp.ahssize / 4;
+-		conn-&gt;rsp.bhs.datalength[0] = conn-&gt;rsp.datasize &gt;&gt; 16;
+-		conn-&gt;rsp.bhs.datalength[1] = conn-&gt;rsp.datasize &gt;&gt; 8;
+-		conn-&gt;rsp.bhs.datalength[2] = conn-&gt;rsp.datasize;
+-		log_pdu(2, &amp;conn-&gt;rsp);
+ 		break;
+ 	case ISCSI_OP_TEXT_CMD:
+ 		//if conn-&gt;state != STATE_FULL -&gt; reject
+ 		cmnd_exec_text(conn);
+-		conn-&gt;rsp.bhs.ahslength = conn-&gt;rsp.ahssize / 4;
+-		conn-&gt;rsp.bhs.datalength[0] = conn-&gt;rsp.datasize &gt;&gt; 16;
+-		conn-&gt;rsp.bhs.datalength[1] = conn-&gt;rsp.datasize &gt;&gt; 8;
+-		conn-&gt;rsp.bhs.datalength[2] = conn-&gt;rsp.datasize;
+-		log_pdu(2, &amp;conn-&gt;rsp);
+ 		break;
+ 	case ISCSI_OP_LOGOUT_CMD:
+ 		//if conn-&gt;state != STATE_FULL -&gt; reject
+ 		cmnd_exec_logout(conn);
+-		conn-&gt;rsp.bhs.ahslength = conn-&gt;rsp.ahssize / 4;
+-		conn-&gt;rsp.bhs.datalength[0] = conn-&gt;rsp.datasize &gt;&gt; 16;
+-		conn-&gt;rsp.bhs.datalength[1] = conn-&gt;rsp.datasize &gt;&gt; 8;
+-		conn-&gt;rsp.bhs.datalength[2] = conn-&gt;rsp.datasize;
+-		log_pdu(2, &amp;conn-&gt;rsp);
+ 		break;
+ 	default:
+ 		//reject
+-		res = 0;
+-		break;
++		return 0;
+ 	}
+ 
+-	return res;
++	conn-&gt;rsp.bhs.ahslength = conn-&gt;rsp.ahssize / 4;
++	conn-&gt;rsp.bhs.datalength[0] = conn-&gt;rsp.datasize &gt;&gt; 16;
++	conn-&gt;rsp.bhs.datalength[1] = conn-&gt;rsp.datasize &gt;&gt; 8;
++	conn-&gt;rsp.bhs.datalength[2] = conn-&gt;rsp.datasize;
++	log_pdu(2, &amp;conn-&gt;rsp);
++
++	return 1;
+ }
+ 
+ void cmnd_finish(struct connection *conn)
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2008-12-20 08:44:09 UTC (rev 190)
++++ trunk/usr/iscsid.h	2008-12-20 09:06:31 UTC (rev 191)
+@@ -54,7 +54,6 @@
+ 	char *initiator;
+ 	union iscsi_sid sid;
+ 	u16 cid;
+-	u16 pad;
+ 	int session_type;
+ 	int auth_method;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000102.html">[Iscsitarget-svn] r190 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000104.html">[Iscsitarget-svn] r192 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#103">[ date ]</a>
+              <a href="thread.html#103">[ thread ]</a>
+              <a href="subject.html#103">[ subject ]</a>
+              <a href="author.html#103">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

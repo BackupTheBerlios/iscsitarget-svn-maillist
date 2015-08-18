@@ -1,0 +1,108 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[465] trunk/usr/types.h
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B465%5D%20trunk/usr/types.h&In-Reply-To=%3CE1R5d5I-00019A-G0%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000375.html">
+   <LINK REL="Next"  HREF="000377.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[465] trunk/usr/types.h</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B465%5D%20trunk/usr/types.h&In-Reply-To=%3CE1R5d5I-00019A-G0%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[465] trunk/usr/types.h">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Mon Sep 19 14:36:28 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000375.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[464]	trunk/kernel/persist.c
+</A></li>
+        <LI>Next message: <A HREF="000377.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[466]	trunk/kernel/persist.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#376">[ date ]</a>
+              <a href="thread.html#376">[ thread ]</a>
+              <a href="subject.html#376">[ subject ]</a>
+              <a href="author.html#376">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 465
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=465&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=465&amp;view=rev</A>
+Author:   agr1
+Date:     2011-09-19 12:36:28 +0000 (Mon, 19 Sep 2011)
+Log Message:
+-----------
+Add cpu_to_be64 and be64_to_cpu helpers to usr/types.h
+
+Modified Paths:
+--------------
+    trunk/usr/types.h
+
+Modified: trunk/usr/types.h
+===================================================================
+--- trunk/usr/types.h	2011-09-19 12:36:12 UTC (rev 464)
++++ trunk/usr/types.h	2011-09-19 12:36:28 UTC (rev 465)
+@@ -14,6 +14,7 @@
+ #include &lt;inttypes.h&gt;
+ 
+ #if __BYTE_ORDER == __BIG_ENDIAN
++
+ #define cpu_to_le16(x)		bswap_16(x)
+ #define le16_to_cpu(x)		bswap_16(x)
+ #define cpu_to_le32(x)		bswap_32(x)
+@@ -22,6 +23,9 @@
+ #define be16_to_cpu(x)		(x)
+ #define cpu_to_be32(x)		(x)
+ #define be32_to_cpu(x)		(x)
++#define cpu_to_be64(x)		(x)
++#define be64_to_cpu(x)		(x)
++
+ #elif __BYTE_ORDER == __LITTLE_ENDIAN
+ #define cpu_to_le16(x)		(x)
+ #define le16_to_cpu(x)		(x)
+@@ -31,6 +35,9 @@
+ #define be16_to_cpu(x)		bswap_16(x)
+ #define cpu_to_be32(x)		bswap_32(x)
+ #define be32_to_cpu(x)		bswap_32(x)
++#define cpu_to_be64(x)		bswap_64(x)
++#define be64_to_cpu(x)		bswap_64(x)
++
+ #else
+ #error &quot;unknown endianess!&quot;
+ #endif
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000375.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[464]	trunk/kernel/persist.c
+</A></li>
+	<LI>Next message: <A HREF="000377.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[466]	trunk/kernel/persist.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#376">[ date ]</a>
+              <a href="thread.html#376">[ thread ]</a>
+              <a href="subject.html#376">[ subject ]</a>
+              <a href="author.html#376">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

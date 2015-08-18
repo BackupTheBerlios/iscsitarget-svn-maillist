@@ -1,0 +1,98 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r195 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r195%20-%20trunk/usr&In-Reply-To=%3C200901021302.n02D2YpP023501%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000108.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r195 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r195%20-%20trunk/usr&In-Reply-To=%3C200901021302.n02D2YpP023501%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r195 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Fri Jan  2 14:02:34 CET 2009</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000108.html">[Iscsitarget-svn] r196 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#107">[ date ]</a>
+              <a href="thread.html#107">[ thread ]</a>
+              <a href="subject.html#107">[ subject ]</a>
+              <a href="author.html#107">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-01-02 14:02:34 +0100 (Fri, 02 Jan 2009)
+New Revision: 195
+
+Modified:
+   trunk/usr/ietd.c
+Log:
+From: Lars Ellenberg &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">lars.ellenberg at linbit.com</A>&gt;
+
+Ignore SIGPIPE in ietd
+
+Otherwise we would die in some later write() during the event_loop
+instead of getting EPIPE!
+
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2008-12-20 09:14:29 UTC (rev 194)
++++ trunk/usr/ietd.c	2009-01-02 13:02:34 UTC (rev 195)
+@@ -13,6 +13,7 @@
+ #include &lt;unistd.h&gt;
+ #include &lt;getopt.h&gt;
+ #include &lt;netdb.h&gt;
++#include &lt;signal.h&gt;
+ 
+ #include &lt;sys/poll.h&gt;
+ #include &lt;sys/socket.h&gt;
+@@ -434,6 +435,10 @@
+ 	char *isns = NULL;
+ 	int isns_ac = 0;
+ 
++	/* otherwise we would die in some later write() during the event_loop
++	 * instead of getting EPIPE! */
++	signal(SIGPIPE, SIG_IGN);
++
+ 	while ((ch = getopt_long(argc, argv, &quot;c:fd:s:u:g:a:p:vh&quot;, long_options, &amp;longindex)) &gt;= 0) {
+ 		switch (ch) {
+ 		case 'c':
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000108.html">[Iscsitarget-svn] r196 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#107">[ date ]</a>
+              <a href="thread.html#107">[ thread ]</a>
+              <a href="subject.html#107">[ subject ]</a>
+              <a href="author.html#107">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,314 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r251 - in trunk: . include
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r251%20-%20in%20trunk%3A%20.%20include&In-Reply-To=%3C200910051819.n95IJZ3a004844%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000162.html">
+   <LINK REL="Next"  HREF="000164.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r251 - in trunk: . include</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r251%20-%20in%20trunk%3A%20.%20include&In-Reply-To=%3C200910051819.n95IJZ3a004844%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r251 - in trunk: . include">agr at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct  5 20:19:35 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000162.html">[Iscsitarget-svn] r250 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000164.html">[Iscsitarget-svn] r252 - tags
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#163">[ date ]</a>
+              <a href="thread.html#163">[ thread ]</a>
+              <a href="subject.html#163">[ subject ]</a>
+              <a href="author.html#163">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-05 20:19:34 +0200 (Mon, 05 Oct 2009)
+New Revision: 251
+
+Modified:
+   trunk/ChangeLog
+   trunk/Makefile
+   trunk/dkms.conf
+   trunk/include/iet_u.h
+   trunk/iscsitarget.spec
+Log:
+* include RELEASE_NOTES in documentation in Makefile, dkms.conf and
+iscsitarget.spec (fixes the previous commit);
+* update version strings
+* update ChangeLog
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2009-10-05 18:16:59 UTC (rev 250)
++++ trunk/ChangeLog	2009-10-05 18:19:34 UTC (rev 251)
+@@ -1,3 +1,66 @@
++Summary of changes from v0.4.17 to v1.4.18
++=================================
++Lars Ellenberg
++  o improve IETs procfs support to allow a larger number of targets
++  o compatibility fix for 2.6.28 (independently also provided by Francois
++    Micaux)
++  o ignore SIGPIPE in ietd
++  o allow cleanup of stale targets in the kernel module
++
++Andreas Florath
++  o support for a global worker threadpool instead of per target pools
++    (configurable via the worker_thread_pool_size module parameter)
++
++Arne Redlich
++  o compatibility fixes for 2.6.30, 2.6.29
++  o in cooperation with Xie Gang: Unit Attention support (thanks to Stefan
++    Rubner for spotting a bug)
++  o in cooperation with Shreyansh Jain: support for splitting text messages into
++    several PDUs, allowing more targets to be reported during discovery
++    (thanks to Cheng Rengquan for bugfixes)
++  o clean up all connections, sessions and targets in the kernel module if the
++    daemon is gone
++  o rework sense data handling, plugging memleaks
++  o fix valgrind warnings of uses of uninitialized variables
++  o support for Reject PDUs (thanks to FUJITA Tomonori for a bugfix)
++  o fix SERVICE ACTION IN: IET only supports READ CAPACITY 16, return sense data
++    for all others
++  o allow READ CAPACITY even if a LU is RESERVEd
++  o iSNS: report the actual target port instead of the default iSCSI port
++  o fix list corruption if target thread creation fails
++  o fix stopping of threads that have never been awakened before
++  o fix CHAP account handling bugs
++  o fix netlink socket cleanup
++  o code cleanups
++
++Cheng Renquan
++  o remove superfluous linefeed from debug messages
++  o enable runtime switching of debug levels for the kernel module and
++    provide description for the module's debug flags parameter
++
++sdrb
++  o return proper status class in case of login failures
++
++Ross S. W. Walker
++  o support more than one portal per target during discovery, and allow
++    configuration of the presented portals using targets.allow - previously only
++    the incoming interface was reported (thanks to David Shirley for
++    reporting a bug)
++  o deprecate initiators.allow
++  o regex based filtering in initiators.allow and targets.allow
++  o move config files to /etc/iet
++  o add version and author info and description to kernel module
++  o fix debug log levels
++  o fix ietd.conf permissions
++  o move kernel module to /lib/modules/&lt;kver&gt;/extra where it belongs
++  o improve init scripts, using common names and functions across distributions
++  o improve usage comments in ietd.conf
++  o specfile to build RPMs, including weak module support
++  o DKMS support
++
++Ming Zhang
++  o Use the LU's sector size in the format mode page instead of defaulting to 512
++
+ Summary of changes from v0.4.16 to v0.4.17
+ =================================
+ 
+@@ -38,7 +101,7 @@
+   o add checking on return value of ISCSI_PARAM_GET
+   o 2.6.22, 2.6.23 and 2.6.24 compile fixes
+   o add conn-&gt;rwsize check
+-  o avoid potential NULL-ptr dereferences in rx and tx buffer 
++  o avoid potential NULL-ptr dereferences in rx and tx buffer
+   o fix the shell syntax in init scripts
+ 
+ Dave Jiang
+@@ -81,7 +144,7 @@
+   o rewritten iSNS code, many iSNS fixes.
+   o added iSNS SCN support.
+   o IPv6 fixes to userspace.
+-  
++
+ Ming Zhang
+   o Fix the READ_* commands error handling bug.
+   o fix the mode sense response.
+@@ -108,14 +171,14 @@
+ Summary of changes from v0.4.12 to v0.4.13
+ =================================
+ Arne Redlich
+-  o patch to avoid digest calculation for PDUs whose data has been skipped 
++  o patch to avoid digest calculation for PDUs whose data has been skipped
+   already for various reasons.
+   o Correct a bug managing non-default MaxRxDSL.
+   o added to ietadm ability to show target parameters.
+   o add on the workaround to AIX initiator MaxCmdSN bug.
+ 
+ FUJITA Tomonori
+-  o added to ietadm ability to show the iSCSI parameters for an established 
++  o added to ietadm ability to show the iSCSI parameters for an established
+   session.
+ 
+ Ming Zhang
+@@ -123,15 +186,15 @@
+   way to conform to the RFC.
+   o workaround to AIX initiator MaxCmdSN bug.
+   o Fixed socket() return value judgment.
+-  
++
+ Bastiaan Bakker
+   o add 'condrestart' command to the RedHat initscript.
+ 
+ Robert Whitehead
+-  o correct the bug that prevents iet to start if there isn't 
++  o correct the bug that prevents iet to start if there isn't
+   an /etc/ietd.conf file.
+-  
+ 
++
+ Summary of changes from v0.4.11 to v0.4.12
+ =================================
+ 
+@@ -293,7 +356,7 @@
+ 
+ Summary of changes from v0.3.8 to v0.4.0
+ =================================
+-	
++
+ Arne Redlich
+   o iSNS bug fix.
+ 
+@@ -309,7 +372,7 @@
+ 
+ Summary of changes from v0.3.7 to v0.3.8
+ =================================
+-	
++
+ Arne Redlich
+   o Fix ietadm global option bug.
+ 
+@@ -320,7 +383,7 @@
+ 
+ Summary of changes from v0.3.6 to v0.3.7
+ =================================
+-	
++
+ Arne Redlich
+   o Fix target_alloc_pages().
+ 
+@@ -330,7 +393,7 @@
+ 
+ Summary of changes from v0.3.5 to v0.3.6
+ =================================
+-	
++
+ Arne Redlich
+   o Fix bugs about rejecting PDUs.
+ 
+@@ -342,7 +405,7 @@
+ 
+ Summary of changes from v0.3.4 to v0.3.5
+ =================================
+-	
++
+ Arne Redlich
+   o Fix ietd security hole.
+   o Fix REPORT LUN bug.
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2009-10-05 18:16:59 UTC (rev 250)
++++ trunk/Makefile	2009-10-05 18:19:34 UTC (rev 251)
+@@ -133,7 +133,7 @@
+ 	MANDIR := /usr/share/man
+ endif
+ 
+-DOCS:= ChangeLog COPYING README README.vmware
++DOCS:= ChangeLog COPYING RELEASE_NOTES README README.vmware README.initiators
+ 
+ ifeq ($(DOCDIR),)
+ 	DOCDIR := /usr/share/doc/iscsitarget
+
+Modified: trunk/dkms.conf
+===================================================================
+--- trunk/dkms.conf	2009-10-05 18:16:59 UTC (rev 250)
++++ trunk/dkms.conf	2009-10-05 18:19:34 UTC (rev 251)
+@@ -3,7 +3,7 @@
+ #
+ 
+ PACKAGE_NAME=&quot;iscsitarget&quot;
+-PACKAGE_VERSION=&quot;0.4.17&quot;
++PACKAGE_VERSION=&quot;1.4.18&quot;
+ MOD_PATH=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}
+ 
+ BUILT_MODULE_NAME=&quot;iscsi_trgt&quot;
+
+Modified: trunk/include/iet_u.h
+===================================================================
+--- trunk/include/iet_u.h	2009-10-05 18:16:59 UTC (rev 250)
++++ trunk/include/iet_u.h	2009-10-05 18:19:34 UTC (rev 251)
+@@ -1,7 +1,7 @@
+ #ifndef _IET_U_H
+ #define _IET_U_H
+ 
+-#define IET_VERSION_STRING	&quot;0.4.17&quot;
++#define IET_VERSION_STRING	&quot;1.4.18&quot;
+ 
+ /* The maximum length of 223 bytes in the RFC. */
+ #define ISCSI_NAME_LEN	256
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-10-05 18:16:59 UTC (rev 250)
++++ trunk/iscsitarget.spec	2009-10-05 18:19:34 UTC (rev 251)
+@@ -3,7 +3,7 @@
+ ##
+ 
+ ## IET Release
+-%define iet_version 0.4.17
++%define iet_version 1.4.18
+ 
+ ## Package Revision
+ %define revision 1
+@@ -308,7 +308,7 @@
+ %config(noreplace) %{_sysconfdir}/iet/ietd.conf
+ %config(noreplace) %{_sysconfdir}/iet/initiators.allow
+ %config(noreplace) %{_sysconfdir}/iet/targets.allow
+-%doc ChangeLog COPYING README README.vmware README.initiators
++%doc ChangeLog COPYING RELEASE_NOTES README README.vmware README.initiators
+ %endif
+ 
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000162.html">[Iscsitarget-svn] r250 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000164.html">[Iscsitarget-svn] r252 - tags
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#163">[ date ]</a>
+              <a href="thread.html#163">[ thread ]</a>
+              <a href="subject.html#163">[ subject ]</a>
+              <a href="author.html#163">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

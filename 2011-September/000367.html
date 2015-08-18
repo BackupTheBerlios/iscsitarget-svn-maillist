@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[454]	branches/1.4.20/Makefile
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B454%5D%0A%09branches/1.4.20/Makefile&In-Reply-To=%3CE1Qzoke-0000m5-Lg%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000366.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[454]	branches/1.4.20/Makefile</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B454%5D%0A%09branches/1.4.20/Makefile&In-Reply-To=%3CE1Qzoke-0000m5-Lg%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[454]	branches/1.4.20/Makefile">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sat Sep  3 13:51:08 CEST 2011</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000366.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[455] trunk/Makefile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#367">[ date ]</a>
+              <a href="thread.html#367">[ thread ]</a>
+              <a href="subject.html#367">[ subject ]</a>
+              <a href="author.html#367">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 454
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=454&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=454&amp;view=rev</A>
+Author:   agr1
+Date:     2011-09-03 11:51:08 +0000 (Sat, 03 Sep 2011)
+Log Message:
+-----------
+Makefile changes to support 3.x kernels
+
+This patch was provided by Leho Kraav
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    branches/1.4.20/Makefile
+
+Modified: branches/1.4.20/Makefile
+===================================================================
+--- branches/1.4.20/Makefile	2011-05-26 18:23:01 UTC (rev 453)
++++ branches/1.4.20/Makefile	2011-09-03 11:51:08 UTC (rev 454)
+@@ -40,15 +40,23 @@
+ KREV := $(shell echo $(KVER) | \
+ 	sed -e 's/^[0-9][0-9]*\.[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/')
+ 
+-kver_eq = $(shell [ $(KMAJ)$(KMIN)$(KREV) -eq $(1)$(2)$(3) ] &amp;&amp; \
++kver_eq = $(shell [ $(KMAJ) -eq $(1) -a $(KMIN) -eq $(2) -a $(KREV) -eq $(3) ] &amp;&amp; \
+ 	echo 1 || echo 0)
+-kver_lt = $(shell [ $(KMAJ)$(KMIN)$(KREV) -lt $(1)$(2)$(3) ] &amp;&amp; \
++kver_lt = $(shell [ $(KMAJ) -lt $(1) -o \
++	$(KMAJ) -eq $(1) -a $(KMIN) -lt $(2) -o \
++        $(KMAJ) -eq $(1) -a $(KMIN) -eq $(2) -a $(KREV) -lt $(3) ] &amp;&amp; \
+ 	echo 1 || echo 0)
+-kver_le = $(shell [ $(KMAJ)$(KMIN)$(KREV) -le $(1)$(2)$(3) ] &amp;&amp; \
++kver_le = $(shell [ $(KMAJ) -lt $(1) -o \
++        $(KMAJ) -eq $(1) -a $(KMIN) -lt $(2) -o \
++        $(KMAJ) -eq $(1) -a $(KMIN) -eq $(2) -a $(KREV) -le $(3) ] &amp;&amp; \
+ 	echo 1 || echo 0)
+-kver_gt = $(shell [ $(KMAJ)$(KMIN)$(KREV) -gt $(1)$(2)$(3) ] &amp;&amp; \
++kver_gt = $(shell [ ( $(KMAJ) -gt $(1) ) -o \
++        $(KMAJ) -eq $(1) -a $(KMIN) -gt $(2) -o \
++        $(KMAJ) -eq $(1) -a $(KMIN) -eq $(2) -a $(KREV) -gt $(3) ] &amp;&amp; \
+ 	echo 1 || echo 0)
+-kver_ge = $(shell [ $(KMAJ)$(KMIN)$(KREV) -ge $(1)$(2)$(3) ] &amp;&amp; \
++kver_ge = $(shell [ ( $(KMAJ) -gt $(1) ) -o \
++        $(KMAJ) -eq $(1) -a $(KMIN) -gt $(2) -o \
++        $(KMAJ) -eq $(1) -a $(KMIN) -eq $(2) -a $(KREV) -ge $(3) ] &amp;&amp; \
+ 	echo 1 || echo 0)
+ kver_lk = $(shell [ `echo $(KVER) | egrep $(1)` ] &amp;&amp; echo 1 || echo 0)
+ 
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000366.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[455] trunk/Makefile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#367">[ date ]</a>
+              <a href="thread.html#367">[ thread ]</a>
+              <a href="subject.html#367">[ subject ]</a>
+              <a href="author.html#367">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

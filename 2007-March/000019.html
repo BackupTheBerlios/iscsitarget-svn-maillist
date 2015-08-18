@@ -1,0 +1,362 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r107 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r107%20-%20trunk&In-Reply-To=%3C200703220303.l2M33S5d014050%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000018.html">
+   <LINK REL="Next"  HREF="000020.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r107 - trunk</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r107%20-%20trunk&In-Reply-To=%3C200703220303.l2M33S5d014050%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r107 - trunk">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Mar 22 04:03:28 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000018.html">[Iscsitarget-svn] r106 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000020.html">[Iscsitarget-svn] r108 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19">[ date ]</a>
+              <a href="thread.html#19">[ thread ]</a>
+              <a href="subject.html#19">[ subject ]</a>
+              <a href="author.html#19">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-03-22 04:03:26 +0100 (Thu, 22 Mar 2007)
+New Revision: 107
+
+Modified:
+   trunk/Makefile
+Log:
+Subject: Updated makefile with auto patching
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rwalker at medallion.com</A>&gt;
+Date: Wed, 21 Mar 2007 13:01:12 -0400
+
+1) The Makefile will properly determine the version of the current target
+kernel source and automatically apply any patches defined for that kernel
+version at make time. It will also detect if the target kernel version has
+changed and if any patches have been applied to un-apply them and if any
+patches exist for the new target to apply those. It provides two targets
+'patch' and 'unpatch' that are listed as dependencies to all code targets.
+There is also a helper target called 'integ_check' which makes sure that if
+any patches are applied they are relevant to the current target kernel and
+if not to 'unpatch' the code before patching or compiling.
+
+2) The Makefile now properly installs all relevant executables, config
+files, man pages and shared documentation. It will not install on top of any
+existing config files.
+
+3) The Makefile now properly uninstalls all relevant executables, man pages
+and shared documentation. It will not uninstall any existing config files.
+
+4) The Makefile now provides a 'distclean' function that will unapply any
+previously applied patches and remove any compiled executables as well as
+remove any backup files or rejects 'patch' may have left behind.
+
+5) Makefile action targets named after their respective sub-directories,
+for example 'usr' for userland code, 'kernel' for kernel code, 'doc' for
+documentation etc to make it easier to guess target names.
+
+The process for adding patches to the code base is fairly straight forward
+there are two Makefile macros that handle the version checking, kver_le, for
+kernel version less-than-or-equal-to and kver_ge for kernel version
+greater-than-or-equal-to. These macros take a kernel version as the tuple
+&lt;major&gt;,&lt;minor&gt;,&lt;revision&gt; (patch level isn't checked yet) and returns a
+'1' if true. So for example to check whether the current kernel target
+version is between 2.6.14 and 2.6.18 inclusive the Makefile section
+would look something like:
+
+ifeq ($(call kver_ge,2,6,14),1)
+	ifeq($(call kver_le,2,6,18),1)
+		PATCHES := $(PATCHES) compat-2.6.14-2.6.18.patch
+	endif
+endif
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2007-03-11 23:00:36 UTC (rev 106)
++++ trunk/Makefile	2007-03-22 03:03:26 UTC (rev 107)
+@@ -15,36 +15,228 @@
+ 	KSRC ?= /lib/modules/$(shell uname -r)/build
+ endif
+ 
+-all: progs mods
++ifneq ($(wildcard $(KSRC)/include/linux/utsrelease.h),)
++	VERSION_FILE := $(KSRC)/include/linux/utsrelease.h
++else
++	VERSION_FILE := $(KSRC)/include/linux/version.h
++endif
+ 
+-include compat.mk
++KVER := $(shell $(CC) $(CFLAGS) -E -dM $(VERSION_FILE) | \
++	grep UTS_RELEASE | awk '{ print $$3 }' | sed 's/\&quot;//g')
+ 
+-mods: check_kernel_compat
+-	$(MAKE) -C $(KSRC) SUBDIRS=$(shell pwd)/kernel modules
++KMOD := /lib/modules/$(KVER)/kernel
+ 
+-progs:
++KMAJ := $(shell echo $(KVER) | \
++	sed -e 's/^\([0-9][0-9]*\)\.[0-9][0-9]*\.[0-9][0-9]*.*/\1/')
++KMIN := $(shell echo $(KVER) | \
++	sed -e 's/^[0-9][0-9]*\.\([0-9][0-9]*\)\.[0-9][0-9]*.*/\1/')
++KREV := $(shell echo $(KVER) | \
++	sed -e 's/^[0-9][0-9]*\.[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/')
++
++kver_eq = $(shell [ $(KMAJ)$(KMIN)$(KREV) -eq $(1)$(2)$(3) ] &amp;&amp; \
++	echo 1 || echo 0)
++kver_lt = $(shell [ $(KMAJ)$(KMIN)$(KREV) -lt $(1)$(2)$(3) ] &amp;&amp; \
++	echo 1 || echo 0)
++kver_le = $(shell [ $(KMAJ)$(KMIN)$(KREV) -le $(1)$(2)$(3) ] &amp;&amp; \
++	echo 1 || echo 0)
++kver_gt = $(shell [ $(KMAJ)$(KMIN)$(KREV) -gt $(1)$(2)$(3) ] &amp;&amp; \
++	echo 1 || echo 0)
++kver_ge = $(shell [ $(KMAJ)$(KMIN)$(KREV) -ge $(1)$(2)$(3) ] &amp;&amp; \
++	echo 1 || echo 0)
++kver_lk = $(shell [ `echo $(KVER) | egrep $(1)` ] &amp;&amp; echo 1 || echo 0)
++
++#
++# Please when adding patch sets start with the latest to the earliest
++# the idea behind this is that by properly patching the latest code
++# base first the earlier patche sets will not need to be modified.
++#
++
++ifeq ($(call kver_le,2,6,18),1)
++	PATCHES := $(PATCHES) compat-2.6.14-2.6.18.patch
++endif
++
++ifeq ($(call kver_lt,2,6,14),1)
++	UNSUPPORTED := true
++endif
++
++MANPAGES:= ietadm.8 ietd.8 ietd.conf.5
++
++ifeq ($(MANDIR),)
++	MANPATH := $(shell (manpath 2&gt;/dev/null || \
++		echo $MANPATH) | sed 's/:/ /g')
++	ifneq ($(MANPATH),)
++		test_dir = $(findstring $(dir), $(MANPATH))
++	else
++		test_dir = $(shell [ -e $(dir) ] &amp;&amp; echo $(dir))
++	endif
++	MANDIR := /usr/share/man /usr/man
++	MANDIR := $(foreach dir, $(MANDIR), $(test_dir))
++	MANDIR := $(firstword $(MANDIR))
++endif
++
++ifeq ($(MANDIR),)
++	MANDIR := /usr/share/man
++endif
++
++DOCS:= ChangeLog COPYING README README.vmware
++
++ifeq ($(DOCDIR),)
++	DOCDIR := /usr/share/doc/iscsitarget
++endif
++
++all: usr kernel
++
++usr: patch
+ 	$(MAKE) -C usr
+ 
+-install: kernel/iscsi_trgt.ko usr/ietd usr/ietadm
++kernel: patch
++	$(MAKE) -C $(KSRC) SUBDIRS=$(shell pwd)/kernel modules
++
++patch: $(UNSUPPORTED) integ_check $(PATCHES)
++
++$(UNSUPPORTED):
++	@echo &quot;Sorry, your kernel version and/or distribution is currently&quot;
++	@echo &quot;not supported.&quot;
++	@echo &quot;&quot;
++	@echo &quot;Please read the README file for information on how you can&quot;
++	@echo &quot;contribute compatibility/bug fixes to the IET project.&quot;
++	@exit 1
++
++integ_check:
++	@if [ -e .patched.* -a ! -e .patched.$(KVER) ]; then \
++		$(MAKE) unpatch; \
++	fi
++
++$(PATCHES): .patched.$(KVER)
++
++.patched.$(KVER):
++	@set -e; \
++	if [ ! -e .patched.* ]; then \
++		for p in $(PATCHES); do \
++			echo &quot;Applying Patch $$p&quot;; \
++			patch -p0 &lt; patches/$$p; \
++			echo $$p &gt;&gt;.patched.$(KVER); \
++		done; \
++	fi
++
++unpatch:
++	@set -e; \
++	if [ -e .patched.* ]; then \
++		for p in `cat .patched.*`; do \
++			reverse=&quot;$$p $$reverse&quot;; \
++		done; \
++		for r in $$reverse; do \
++			echo &quot;Reversing patch $$r&quot;; \
++			patch -p0 -R &lt; patches/$$r; \
++		done; \
++		rm -f .patched.*; \
++	fi
++
++install: install-kernel install-usr install-etc install-doc
++
++install-kernel: kernel/iscsi_trgt.ko
++	@install -vD kernel/iscsi_trgt.ko \
++		$(DISTDIR)$(INSTALL_MOD_PATH)$(KMOD)/iscsi/iscsi_trgt.ko
++	-depmod -aq
++
++install-usr: usr/ietd usr/ietadm
+ 	@install -vD usr/ietd $(DISTDIR)/usr/sbin/ietd
+ 	@install -vD usr/ietadm $(DISTDIR)/usr/sbin/ietadm
+-	if [ -f /etc/debian_version ]; then \
+-		install -vD -m 755 etc/initd/initd.debian $(DISTDIR)/etc/init.d/iscsi-target; \
++
++install-etc: install-initd
++	@if [ ! -e /etc/ietd.conf ]; then \
++		install -vD -m 644 etc/ietd.conf \
++			$(DISTDIR)/etc/ietd.conf; \
++	fi
++	@if [ ! -e /etc/initiators.allow ]; then \
++		install -vD -m 644 etc/initiators.allow \
++			$(DISTDIR)/etc/initiators.allow; \
++	fi
++	@if [ ! -e /etc/initiators.deny ]; then \
++		install -vD -m 644 etc/initiators.deny \
++			$(DISTDIR)/etc/initiators.deny; \
++	fi
++
++install-initd:
++	@if [ -f /etc/debian_version ]; then \
++		install -vD -m 755 etc/initd/initd.debian \
++			$(DISTDIR)/etc/init.d/iscsi-target; \
+ 	elif [ -f /etc/redhat-release ]; then \
+-		install -vD -m 755 etc/initd/initd.redhat $(DISTDIR)/etc/init.d/iscsi-target; \
++		install -vD -m 755 etc/initd/initd.redhat \
++			$(DISTDIR)/etc/init.d/iscsi-target; \
+ 	elif [ -f /etc/gentoo-release ]; then \
+-		install -vD -m 755 etc/initd/initd.gentoo $(DISTDIR)/etc/init.d/iscsi-target; \
++		install -vD -m 755 etc/initd/initd.gentoo \
++			$(DISTDIR)/etc/init.d/iscsi-target; \
+ 	elif [ -f /etc/slackware-version ]; then \
+-		install -vD -m 755 etc/initd/initd $(DISTDIR)/etc/rc.d/iscsi-target; \
++		install -vD -m 755 etc/initd/initd \
++			$(DISTDIR)/etc/rc.d/iscsi-target; \
+ 	else \
+-		install -vD -m 755 etc/initd/initd $(DISTDIR)/etc/init.d/iscsi-target; \
++		install -vD -m 755 etc/initd/initd \
++			$(DISTDIR)/etc/init.d/iscsi-target; \
+ 	fi
+-	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KSRC)/include/linux/version.h $(KSRC)/include/linux/utsrelease.h 2&gt;/dev/null`; \
+-	install -vD kernel/iscsi_trgt.ko \
+-	$(DISTDIR)$(INSTALL_MOD_PATH)/lib/modules/$$KERNELRELEASE/kernel/iscsi/iscsi_trgt.ko
++
++install-doc: install-man
++	@ok=true; for f in $(DOCS) ; \
++		do [ -e $$f ] || \
++			{ echo $$f missing ; ok=false; } ; \
++	done ; $$ok
++	@set -e; for f in $(DOCS) ; do \
++		install -v -D -m 644 $$f \
++			$(DISTDIR)$(DOCDIR)/$$f ; \
++	done
++
++install-man:
++	@ok=true; for f in $(MANPAGES) ; \
++		do [ -e doc/manpages/$$f ] || \
++			{ echo doc/manpages/$$f missing ; ok=false; } ; \
++	done ; $$ok
++	@set -e; for f in $(MANPAGES) ; do \
++		s=$${f##*.}; \
++		install -v -D -m 644 doc/manpages/$$f \
++			$(DISTDIR)$(MANDIR)/man$$s/$$f ; \
++	done
++
++uninstall: uninstall-kernel uninstall-usr uninstall-etc uninstall-doc
++
++uninstall-kernel:
++	rm -f $(DISTDIR)$(INSTALL_MOD_PATH)$(KMOD)/iscsi/iscsi_trgt.ko
+ 	-depmod -aq
+ 
++uninstall-usr:
++	@rm -f $(DISTDIR)/usr/sbin/ietd
++	@rm -f $(DISTDIR)/usr/sbin/ietadm
++
++uninstall-etc: uninstall-initd
++
++uninstall-initd:
++	if [ -f /etc/debian_version ]; then \
++		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++	elif [ -f /etc/redhat-release ]; then \
++		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++	elif [ -f /etc/gentoo-release ]; then \
++		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++	elif [ -f /etc/slackware-version ]; then \
++		rm -f $(DISTDIR)/etc/rc.d/iscsi-target; \
++	else \
++		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++	fi
++
++uninstall-doc: uninstall-man
++	rm -rf $(DISTDIR)$(DOCDIR)
++
++uninstall-man:
++	set -e; for f in $(MANPAGES) ; do \
++		s=$${f##*.}; \
++		rm -f $(DISTDIR)$(MANDIR)/man$$s/$$f ; \
++	done
++
+ clean:
+ 	$(MAKE) -C usr clean
+ 	$(MAKE) -C $(KSRC) SUBDIRS=$(shell pwd)/kernel clean
+ 
++distclean: unpatch clean
++	find . -name \*.orig -exec rm -f \{\} \;
++	find . -name \*.rej -exec rm -f \{\} \;
++	find . -name \*~ -exec rm -f \{\} \;
++	find . -name Module.symvers -exec rm -f \{\} \;
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000018.html">[Iscsitarget-svn] r106 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000020.html">[Iscsitarget-svn] r108 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19">[ date ]</a>
+              <a href="thread.html#19">[ thread ]</a>
+              <a href="subject.html#19">[ subject ]</a>
+              <a href="author.html#19">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

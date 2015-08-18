@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[425] trunk/patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B425%5D%20trunk/patches&In-Reply-To=%3CE1Q1Lvd-0002Iq-Jg%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000336.html">
+   <LINK REL="Next"  HREF="000338.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[425] trunk/patches</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B425%5D%20trunk/patches&In-Reply-To=%3CE1Q1Lvd-0002Iq-Jg%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[425] trunk/patches">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Sun Mar 20 17:56:33 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000336.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[424]	branches/1.4.20/kernel/target.c
+</A></li>
+        <LI>Next message: <A HREF="000338.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[426]	branches/1.4.20/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#337">[ date ]</a>
+              <a href="thread.html#337">[ thread ]</a>
+              <a href="subject.html#337">[ subject ]</a>
+              <a href="author.html#337">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 425
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=425&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=425&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-20 16:56:33 +0000 (Sun, 20 Mar 2011)
+
+Log Message:
+-----------
+Fixed patch offsets.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/patches/compat-2.6.14-2.6.18.patch
+    trunk/patches/compat-2.6.19-2.6.21.patch
+    trunk/patches/compat-2.6.22.patch
+    trunk/patches/compat-2.6.30.patch
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2011-03-20 16:55:57 UTC (rev 424)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2011-03-20 16:56:33 UTC (rev 425)
+@@ -2,7 +2,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.h	(revision 105)
+ +++ 2/kernel/iscsi.h	(working copy)
+-@@ -261,8 +261,8 @@ struct iscsi_conn {
++@@ -262,8 +262,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+  
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2011-03-20 16:55:57 UTC (rev 424)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2011-03-20 16:56:33 UTC (rev 425)
+@@ -16,7 +16,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(working copy)
+ +++ 2/kernel/iscsi.c	(revision 137)
+-@@ -1925,7 +1925,8 @@ static int iscsi_init(void)
++@@ -1938,7 +1938,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+ 
+
+Modified: trunk/patches/compat-2.6.22.patch
+===================================================================
+--- trunk/patches/compat-2.6.22.patch	2011-03-20 16:55:57 UTC (rev 424)
++++ trunk/patches/compat-2.6.22.patch	2011-03-20 16:56:33 UTC (rev 425)
+@@ -53,7 +53,7 @@
+ ===================================================================
+ --- a/kernel/target.c	(revision 205)
+ +++ b/kernel/target.c	(working copy)
+-@@ -7,6 +7,7 @@
++@@ -9,6 +9,7 @@
+  #include &quot;iscsi.h&quot;
+  #include &quot;digest.h&quot;
+  #include &quot;iscsi_dbg.h&quot;
+
+Modified: trunk/patches/compat-2.6.30.patch
+===================================================================
+--- trunk/patches/compat-2.6.30.patch	2011-03-20 16:55:57 UTC (rev 424)
++++ trunk/patches/compat-2.6.30.patch	2011-03-20 16:56:33 UTC (rev 425)
+@@ -7,8 +7,8 @@
+ -		unsigned bsz = bdev_logical_block_size(bio_data-&gt;bdev);
+ +		unsigned bsz = bdev_hardsect_size(bio_data-&gt;bdev);
+  		if (!volume-&gt;blk_shift)
+- 			volume-&gt;blk_shift = ilog2(bsz);
+- 		else if (volume-&gt;blk_shift &lt; ilog2(bsz)) {
++ 			volume-&gt;blk_shift = blksize_bits(bsz);
++ 		else if (volume-&gt;blk_shift &lt; blksize_bits(bsz)) {
+ --- ioc/kernel/wthread.c	2011-01-13 15:09:41.000000000 -0500
+ +++ ioc/kernel/wthread.c	2011-01-13 15:10:19.000000000 -0500
+ @@ -68,7 +68,7 @@ static int worker_thread(void *arg)
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000336.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[424]	branches/1.4.20/kernel/target.c
+</A></li>
+	<LI>Next message: <A HREF="000338.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[426]	branches/1.4.20/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#337">[ date ]</a>
+              <a href="thread.html#337">[ thread ]</a>
+              <a href="subject.html#337">[ subject ]</a>
+              <a href="author.html#337">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

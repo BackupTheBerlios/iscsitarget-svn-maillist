@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[421] trunk/usr/target.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B421%5D%20trunk/usr/target.c&In-Reply-To=%3CE1Q1LtB-0002FA-7O%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000332.html">
+   <LINK REL="Next"  HREF="000334.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[421] trunk/usr/target.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B421%5D%20trunk/usr/target.c&In-Reply-To=%3CE1Q1LtB-0002FA-7O%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[421] trunk/usr/target.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Sun Mar 20 17:54:01 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000332.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[420] branches/1.4.20
+</A></li>
+        <LI>Next message: <A HREF="000334.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[422]	branches/1.4.20/usr/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#333">[ date ]</a>
+              <a href="thread.html#333">[ thread ]</a>
+              <a href="subject.html#333">[ subject ]</a>
+              <a href="author.html#333">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 421
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=421&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=421&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-20 16:54:00 +0000 (Sun, 20 Mar 2011)
+
+Log Message:
+-----------
+Fixed strsep usage.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/usr/target.c
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2011-03-16 22:00:56 UTC (rev 420)
++++ trunk/usr/target.c	2011-03-20 16:54:00 UTC (rev 421)
+@@ -79,7 +79,7 @@
+ 	char taddr[NI_MAXHOST + NI_MAXSERV + 5];
+ 
+ 	/* strip ipv6 zone id */
+-	strsep(&amp;addr, &quot;%&quot;);
++	addr = strsep(&amp;addr, &quot;%&quot;);
+ 
+ 	snprintf(taddr, sizeof(taddr),
+ 		(family == AF_INET) ? &quot;%s:%d,1&quot; : &quot;[%s]:%d,1&quot;,
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000332.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[420] branches/1.4.20
+</A></li>
+	<LI>Next message: <A HREF="000334.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[422]	branches/1.4.20/usr/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#333">[ date ]</a>
+              <a href="thread.html#333">[ thread ]</a>
+              <a href="subject.html#333">[ subject ]</a>
+              <a href="author.html#333">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

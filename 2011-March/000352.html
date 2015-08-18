@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[440] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B440%5D%20trunk/kernel&In-Reply-To=%3CE1Q5L6s-0006Iq-Qc%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000351.html">
+   <LINK REL="Next"  HREF="000353.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[440] trunk/kernel</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B440%5D%20trunk/kernel&In-Reply-To=%3CE1Q5L6s-0006Iq-Qc%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[440] trunk/kernel">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Mar 31 18:52:38 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000351.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[439] branches/1.4.20/usr
+</A></li>
+        <LI>Next message: <A HREF="000353.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[441]	branches/1.4.20/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#352">[ date ]</a>
+              <a href="thread.html#352">[ thread ]</a>
+              <a href="subject.html#352">[ subject ]</a>
+              <a href="author.html#352">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 440
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=440&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=440&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-31 16:52:38 +0000 (Thu, 31 Mar 2011)
+
+Log Message:
+-----------
+Through iSCSI conformance tests it was found that IET currently
+doesn't support zero length EDTL, SPDTL and data segments.
+
+This fix bypasses do_send_data_rsp() if EDTL or SPDTL is zero so
+only the SCSI response is sent, cmnd_recv_pdu() returns success
+for zero length data segments, tio_read/write short circuits zero
+length read and write operations in case io types don't support
+them.
+
+Compile tested on CentOS5
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/iscsi.c
+    trunk/kernel/tio.c
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2011-03-31 16:41:51 UTC (rev 439)
++++ trunk/kernel/iscsi.c	2011-03-31 16:52:38 UTC (rev 440)
+@@ -384,10 +384,14 @@
+ void send_data_rsp(struct iscsi_cmnd *req, void (*func)(struct iscsi_cmnd *))
+ {
+ 	struct iscsi_cmnd *rsp;
++	u32 datasize = 0;
+ 
+ 	func(req);
+ 
+-	if (req-&gt;status == SAM_STAT_GOOD)
++	if (req-&gt;tio)
++		datasize = min(req-&gt;tio-&gt;size, cmnd_read_size(req));
++ 
++	if (req-&gt;status == SAM_STAT_GOOD &amp;&amp; datasize)
+ 		do_send_data_rsp(req);
+ 	else {
+ 		rsp = create_scsi_rsp(req);
+@@ -695,6 +699,9 @@
+ 	dprintk(D_GENERIC, &quot;%p %u,%u\n&quot;, tio, offset, size);
+ 	offset += tio-&gt;offset;
+ 
++	if (!size)
++		return 0;
++
+ 	if (!(offset &lt; tio-&gt;offset + tio-&gt;size) ||
+ 	    !(offset + size &lt;= tio-&gt;offset + tio-&gt;size)) {
+ 		eprintk(&quot;%u %u %u %u&quot;, offset, size, tio-&gt;offset, tio-&gt;size);
+
+Modified: trunk/kernel/tio.c
+===================================================================
+--- trunk/kernel/tio.c	2011-03-31 16:41:51 UTC (rev 439)
++++ trunk/kernel/tio.c	2011-03-31 16:52:38 UTC (rev 440)
+@@ -91,6 +91,8 @@
+ {
+ 	struct iotype *iot = lu-&gt;iotype;
+ 	assert(iot);
++	if (!tio-&gt;size)
++		return 0;
+ 	return iot-&gt;make_request ? iot-&gt;make_request(lu, tio, READ) : 0;
+ }
+ 
+@@ -98,6 +100,8 @@
+ {
+ 	struct iotype *iot = lu-&gt;iotype;
+ 	assert(iot);
++	if (!tio-&gt;size)
++		return 0;
+ 	return iot-&gt;make_request ? iot-&gt;make_request(lu, tio, WRITE) : 0;
+ }
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000351.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[439] branches/1.4.20/usr
+</A></li>
+	<LI>Next message: <A HREF="000353.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[441]	branches/1.4.20/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#352">[ date ]</a>
+              <a href="thread.html#352">[ thread ]</a>
+              <a href="subject.html#352">[ subject ]</a>
+              <a href="author.html#352">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

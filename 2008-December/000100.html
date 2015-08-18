@@ -1,0 +1,100 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r188 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r188%20-%20trunk/kernel&In-Reply-To=%3C200812200825.mBK8PD0C015228%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000099.html">
+   <LINK REL="Next"  HREF="000101.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r188 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r188%20-%20trunk/kernel&In-Reply-To=%3C200812200825.mBK8PD0C015228%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r188 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Sat Dec 20 09:25:13 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000099.html">[Iscsitarget-svn] r187 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000101.html">[Iscsitarget-svn] r189 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#100">[ date ]</a>
+              <a href="thread.html#100">[ thread ]</a>
+              <a href="subject.html#100">[ subject ]</a>
+              <a href="author.html#100">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-12-20 09:25:13 +0100 (Sat, 20 Dec 2008)
+New Revision: 188
+
+Modified:
+   trunk/kernel/target.c
+Log:
+Fix list corruption if target thread creation fails
+
+Add a newly created target to the list of targets only after it is
+fully up and running. This avoids a list corruption in case {n,w}thread
+creation fails.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2008-12-20 08:24:06 UTC (rev 187)
++++ trunk/kernel/target.c	2008-12-20 08:25:13 UTC (rev 188)
+@@ -151,8 +151,6 @@
+ 
+ 	atomic_set(&amp;target-&gt;nr_volumes, 0);
+ 
+-	list_add(&amp;target-&gt;t_list, &amp;target_list);
+-
+ 	nthread_init(target);
+ 	wthread_init(target);
+ 
+@@ -161,6 +159,8 @@
+ 		goto out;
+ 	}
+ 
++	list_add(&amp;target-&gt;t_list, &amp;target_list);
++
+ 	return 0;
+ out:
+ 	kfree(target);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000099.html">[Iscsitarget-svn] r187 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000101.html">[Iscsitarget-svn] r189 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#100">[ date ]</a>
+              <a href="thread.html#100">[ thread ]</a>
+              <a href="subject.html#100">[ subject ]</a>
+              <a href="author.html#100">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,97 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[288] trunk/kernel/iscsi.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B288%5D%20trunk/kernel/iscsi.c&In-Reply-To=%3CE1NZokF-0006VL-Ag%40dn4whf1.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000200.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[288] trunk/kernel/iscsi.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B288%5D%20trunk/kernel/iscsi.c&In-Reply-To=%3CE1NZokF-0006VL-Ag%40dn4whf1.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[288] trunk/kernel/iscsi.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Jan 26 17:58:27 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000200.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[287]	trunk/iscsitarget.spec
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#199">[ date ]</a>
+              <a href="thread.html#199">[ thread ]</a>
+              <a href="subject.html#199">[ subject ]</a>
+              <a href="author.html#199">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 288
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=288&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=288&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-01-26 16:58:26 +0000 (Tue, 26 Jan 2010)
+
+Log Message:
+-----------
+This patch fixes a bug in cmnd_abort() where the luns being
+compared weren't run through translate_lun() first to convert the
+BE array of u16s to a u32 value.
+
+Thanks go to Jonathan Kelley [<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jkelley at vm-labs.com</A>] for finding it.
+
+Compile tested on CentOS5
+
+-Ross
+
+Modified Paths:
+--------------
+    trunk/kernel/iscsi.c
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2010-01-26 16:49:26 UTC (rev 287)
++++ trunk/kernel/iscsi.c	2010-01-26 16:58:26 UTC (rev 288)
+@@ -1173,7 +1173,8 @@
+ 	if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_TASK_MGT_MSG)
+ 		return ISCSI_RESPONSE_FUNCTION_REJECTED;
+ 
+-	if (cmnd_hdr(cmnd)-&gt;lun != req_hdr-&gt;lun)
++	if (translate_lun(cmnd_hdr(cmnd)-&gt;lun) !=
++						translate_lun(req_hdr-&gt;lun))
+ 		return ISCSI_RESPONSE_FUNCTION_REJECTED;
+ 
+ 	if (cmnd-&gt;conn &amp;&amp; test_bit(CONN_ACTIVE, &amp;cmnd-&gt;conn-&gt;state)) {
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000200.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[287]	trunk/iscsitarget.spec
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#199">[ date ]</a>
+              <a href="thread.html#199">[ thread ]</a>
+              <a href="subject.html#199">[ subject ]</a>
+              <a href="author.html#199">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

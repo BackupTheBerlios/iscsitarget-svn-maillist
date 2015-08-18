@@ -1,0 +1,112 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r247 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r247%20-%20trunk&In-Reply-To=%3C200909281901.n8SJ1i2B002721%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000158.html">
+   <LINK REL="Next"  HREF="000160.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r247 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r247%20-%20trunk&In-Reply-To=%3C200909281901.n8SJ1i2B002721%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r247 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 28 21:01:44 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000158.html">[Iscsitarget-svn] r246 - trunk/patches
+</A></li>
+        <LI>Next message: <A HREF="000160.html">[Iscsitarget-svn] r248 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#159">[ date ]</a>
+              <a href="thread.html#159">[ thread ]</a>
+              <a href="subject.html#159">[ subject ]</a>
+              <a href="author.html#159">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-28 21:01:40 +0200 (Mon, 28 Sep 2009)
+New Revision: 247
+
+Modified:
+   trunk/iscsitarget.spec
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+iscsitarget.spec bug fix
+
+Through some more testing I uncovered a bug in the version
+dependencies in iscsitarget.spec.
+
+This fix should solidify the spec file.
+
+Tested on RHEL5.
+
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-09-28 19:00:01 UTC (rev 246)
++++ trunk/iscsitarget.spec	2009-09-28 19:01:40 UTC (rev 247)
+@@ -77,7 +77,7 @@
+ ## Patches
+ 
+ ## Install Requirements
+-Requires: kmod-%{name} = %{?epoch:%{epoch}:}%{version}-%{release}
++Requires: kmod-%{name} = %{version}
+ 
+ ## Build Requirements
+ BuildRequires: kernel &gt;= 2.6
+@@ -111,7 +111,7 @@
+ Requires: dkms &gt;= 2
+ 
+ ## Install Provides
+-Provides: kmod-%{name} = %{?epoch:%{epoch}:}%{version}-%{release}
++Provides: kmod-%{name} = %{version}
+ 
+ ## Description
+ %description -n kmod-%{name}
+@@ -138,7 +138,7 @@
+ 
+ ## Install Provides
+ Provides: kernel-modules = %{kver}
+-Provides: kmod-%{name} = %{?epoch:%{epoch}:}%{version}-%{release}
++Provides: kmod-%{name} = %{version}
+ 
+ ## Description
+ %description -n kmod-%{name}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000158.html">[Iscsitarget-svn] r246 - trunk/patches
+</A></li>
+	<LI>Next message: <A HREF="000160.html">[Iscsitarget-svn] r248 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#159">[ date ]</a>
+              <a href="thread.html#159">[ thread ]</a>
+              <a href="subject.html#159">[ subject ]</a>
+              <a href="author.html#159">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

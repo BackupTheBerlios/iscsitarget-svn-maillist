@@ -1,0 +1,107 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r150 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r150%20-%20trunk&In-Reply-To=%3C200803180639.m2I6dKYv023516%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000061.html">
+   <LINK REL="Next"  HREF="000063.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r150 - trunk</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r150%20-%20trunk&In-Reply-To=%3C200803180639.m2I6dKYv023516%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r150 - trunk">tomo at mail.berlios.de
+       </A><BR>
+    <I>Tue Mar 18 07:39:20 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000061.html">[Iscsitarget-svn] r149 - trunk/include
+</A></li>
+        <LI>Next message: <A HREF="000063.html">[Iscsitarget-svn] r151 - tags
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62">[ date ]</a>
+              <a href="thread.html#62">[ thread ]</a>
+              <a href="subject.html#62">[ subject ]</a>
+              <a href="author.html#62">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2008-03-18 07:39:19 +0100 (Tue, 18 Mar 2008)
+New Revision: 150
+
+Modified:
+   trunk/ChangeLog
+Log:
+update the ChangeLog file.
+
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2008-03-18 06:08:12 UTC (rev 149)
++++ trunk/ChangeLog	2008-03-18 06:39:19 UTC (rev 150)
+@@ -1,3 +1,29 @@
++Summary of changes from v0.4.15 to v0.4.16
++=================================
++
++Arne Redlich
++  o fix overzealous assert() in digest_data()
++  o add checking on return value of ISCSI_PARAM_GET
++  o 2.6.22, 2.6.23 and 2.6.24 compile fixes
++  o add conn-&gt;rwsize check
++  o avoid potential NULL-ptr dereferences in rx and tx buffer 
++  o fix the shell syntax in init scripts
++
++Dave Jiang
++  o fix digest endieness on LE archs
++
++FUJITA Tomonori
++  o fix SPARC alignement issues (based on a patch from <A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">joel.bertrand at systella.fr</A>)
++
++Ross S. W. Walker
++  o fix DISTDIR in Makefile for /etc install
++  o add support to nullio for volumes &gt; 2TB
++  o remove init.d memory size adjustment
++  o add error code reporting to blockio_open_path
++  o blockio gen_scsiid bug fix
++  o add verbosity to kernel output and task management
++
++
+ Summary of changes from v0.4.14 to v0.4.15
+ =================================
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000061.html">[Iscsitarget-svn] r149 - trunk/include
+</A></li>
+	<LI>Next message: <A HREF="000063.html">[Iscsitarget-svn] r151 - tags
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62">[ date ]</a>
+              <a href="thread.html#62">[ thread ]</a>
+              <a href="subject.html#62">[ subject ]</a>
+              <a href="author.html#62">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

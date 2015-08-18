@@ -1,0 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[350]	branches/1.4.20/iscsitarget.spec
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B350%5D%0A%09branches/1.4.20/iscsitarget.spec&In-Reply-To=%3CE1OTirm-0007zk-JN%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000263.html">
+   <LINK REL="Next"  HREF="000253.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[350]	branches/1.4.20/iscsitarget.spec</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B350%5D%0A%09branches/1.4.20/iscsitarget.spec&In-Reply-To=%3CE1OTirm-0007zk-JN%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[350]	branches/1.4.20/iscsitarget.spec">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jun 30 00:01:18 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000263.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[349] trunk/kernel/ua.c
+</A></li>
+        <LI>Next message: <A HREF="000253.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[351]	trunk/iscsitarget.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#252">[ date ]</a>
+              <a href="thread.html#252">[ thread ]</a>
+              <a href="subject.html#252">[ subject ]</a>
+              <a href="author.html#252">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 350
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=350&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=350&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-06-29 22:01:18 +0000 (Tue, 29 Jun 2010)
+
+Log Message:
+-----------
+RPM spec file updated to fix some SLES compatibility issues,
+support for tagged builds added and some fixes to handle builds
+of earlier versions.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/iscsitarget.spec
+
+Modified: branches/1.4.20/iscsitarget.spec
+===================================================================
+--- branches/1.4.20/iscsitarget.spec	2010-06-29 22:00:42 UTC (rev 349)
++++ branches/1.4.20/iscsitarget.spec	2010-06-29 22:01:18 UTC (rev 350)
+@@ -3,7 +3,7 @@
+ ##
+ 
+ ## IET Release
+-%define iet_version 1.4.20.1
++%define iet_version 1.4.20.2
+ 
+ ## Package Revision
+ %define revision 1
+@@ -24,15 +24,15 @@
+ # Build from SVN repository
+ %define svn 0
+ %define svn_rev HEAD
+-%define svn_url <A HREF="https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget/trunk">https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget/trunk</A>
++%define svn_repo <A HREF="https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget">https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget</A>
+ 
+ ## Platform Definitions (you shouldn't need to modify these)
+ # Determine distribution
+-%define is_suse		%(test -e /etc/SuSE-release &amp;&amp; echo 1 || echo 0)
+-%define is_fedora	%(test -e /etc/fedora-release &amp;&amp; echo 1 || echo 0)
+-%define is_redhat	%(test -e /etc/redhat-release &amp;&amp; echo 1 || echo 0)
+-%define is_mandrake	%(test -e /etc/mandrake-release &amp;&amp; echo 1 || echo 0)
+-%define is_mandriva	%(test -e /etc/mandriva-release &amp;&amp; echo 1 || echo 0)
++%define is_suse		!%(test -e /etc/SuSE-release; echo $?)
++%define is_fedora	!%(test -e /etc/fedora-release; echo $?)
++%define is_redhat	!%(test -e /etc/redhat-release; echo $?)
++%define is_mandrake	!%(test -e /etc/mandrake-release; echo $?)
++%define is_mandriva	!%(test -e /etc/mandriva-release; echo $?)
+ 
+ # Define kernel version information
+ %{!?kernel:	%define kernel %(uname -r)}
+@@ -42,7 +42,6 @@
+ %define ktype	%(echo kernel-%{kernel} | sed -e 's/%{kver}//' -e 's/--/-/' -e 's/-$//')
+ 
+ %define moddir  /lib/modules/%{kernel}
+-%define module	%{moddir}/extra/iscsi/iscsi_trgt.ko
+ 
+ # Set location of tools
+ %{!?__chkconfig:	%define __chkconfig	/sbin/chkconfig}
+@@ -60,12 +59,17 @@
+ 
+ # Subversion build information
+ %if %svn
+-%define iet_version %(%{__svn} info -r %{svn_rev} --non-interactive %{svn_url} | awk '{if ($1 == &quot;Revision:&quot;) {print &quot;svn_r&quot;$2}}')
++%if !%(test &quot;%{iet_version}&quot; = &quot;trunk&quot;; echo $?)
++%define svn_url %{svn_repo}/trunk
++%define svn_ver %(%{__svn} info -r %{svn_rev} --non-interactive %{svn_url} | awk '{if ($1 == &quot;Revision:&quot;) {print &quot;r&quot;$2}}')
++%else
++%define svn_url %{svn_repo}/tags/%{iet_version}
+ %endif
++%endif
+ 
+ # Build weak module (KABI Tracking) on platforms that support it
+ %if %weak
+-%define weak %(test -x %{__weak_modules} &amp;&amp; echo 1 || echo 0)
++%define weak !%(test -x %{__weak_modules}; echo $?)
+ %endif
+ 
+ # Basic regex filters for unwanted dependencies (used for weak modules)
+@@ -89,7 +93,7 @@
+ ## Information
+ Summary: iSCSI Enterprise Target
+ Name: iscsitarget
+-Version: %{iet_version}
++Version: %{?svn_ver: %{iet_version}_%{svn_ver}}%{!?svn_ver: %{iet_version}}
+ Release: %{?revision: %{revision}}%{!?revision: 1}
+ License: GPL
+ Group: System Environment/Daemons
+@@ -102,7 +106,7 @@
+ %endif
+ 
+ ## Patches
+-#Patch0: %{name}-example.p
++#Patch0: %{name}-%{version}-example.p
+ 
+ ## Install Requirements
+ Requires: %{name}-kmod = %{version}
+@@ -223,7 +227,7 @@
+ %if %dkms
+ %{__make} usr
+ %else
+-%{__make} KERNELSRC=/lib/modules/%{kernel}/build
++%{__make}
+ %endif
+ %endif
+ 
+@@ -234,16 +238,31 @@
+ 
+ %ifnarch noarch
+ %if %dkms
+-%{__make} install-usr install-doc install-etc KERNELSRC=/lib/modules/%{kernel}/build DISTDIR=%{buildroot}
++%{__make} install-usr install-doc install-etc DISTDIR=%{buildroot} DESTDIR=%{buildroot}
+ %else
+-%{__make} install-files KERNELSRC=/lib/modules/%{kernel}/build DISTDIR=%{buildroot}
++%{__make} install-usr install-doc install-etc install-kernel DISTDIR=%{buildroot} DESTDIR=%{buildroot}
+ %{__rm} -f %{buildroot}/lib/modules/%{kernel}/modules.*
++%if !%(test -d %{buildroot}%{moddir}/extra/iscsi; echo $?)
++%define module	%{moddir}/extra/iscsi/iscsi_trgt.ko
++%else
++%define module	%{moddir}/kernel/iscsi/iscsi_trgt.ko
+ %endif
++%endif
+ %if %is_redhat || %is_fedora
+-%{__mkdir} -p %{buildroot}/etc/rc.d
+-%{__mv} %{buildroot}/etc/init.d %{buildroot}/etc/rc.d
++if [ -d %{buildroot}/etc/init.d ]; then
++	%{__mkdir} %{buildroot}/etc/rc.d
++	%{__mv} %{buildroot}/etc/init.d %{buildroot}/etc/rc.d
++fi
+ %endif
+-%{__rm} -rf %{buildroot}/usr/share/doc/iscsitarget
++%if !%(test -d %{buildroot}/etc/iet; echo $?)
++%define ietd_conf %{_sysconfdir}/iet/ietd.conf
++%define initiators_allow %{_sysconfdir}/iet/initiators.allow
++%define targets_allow %{_sysconfdir}/iet/targets.allow
++%else
++%define ietd_conf %{_sysconfdir}/ietd.conf
++%define initiators_allow %{_sysconfdir}/initiators.allow
++%define targets_allow %{_sysconfdir}/initiators.deny
++%endif
+ %elseif %dkms
+ %{__mkdir} -p %{buildroot}/usr/src/%{name}-%{version}
+ %{__cp} -r COPYING dkms.conf include kernel patches %{buildroot}/usr/src/%{name}-%{version}
+@@ -253,7 +272,7 @@
+ # Ugly hack to filter out unwanted dependencies
+ %if %weak
+ %global _use_internal_dependency_generator 0
+-%if %(test -n &quot;%{pro_filter}&quot; &amp;&amp; echo 1 || echo 0)
++%if !%(test -n &quot;%{pro_filter}&quot;; echo $?)
+ %define iet_provides %{_tmppath}/iet_provides-%{user}
+ %{__cat} &lt;&lt; EOF &gt; %{iet_provides}
+ %{__find_provides} &quot;\$@&quot; | %{__grep} -v %{pro_filter}
+@@ -262,7 +281,7 @@
+ %{__chmod} 755 %{iet_provides}
+ %define __find_provides %{iet_provides}
+ %endif
+-%if %(test -n &quot;%{req_filter}&quot; &amp;&amp; echo 1 || echo 0)
++%if !%(test -n &quot;%{req_filter}&quot;; echo $?)
+ %define iet_requires %{_tmppath}/iet_requires-%{user}
+ %{__cat} &lt;&lt; EOF &gt; %{iet_requires}
+ %{__find_requires} &quot;\$@&quot; | %{__grep} -v %{req_filter}
+@@ -273,6 +292,7 @@
+ %endif
+ %endif
+ 
++
+ ## Cleaning
+ %clean
+ %{__rm} -rf %{buildroot}
+@@ -363,13 +383,13 @@
+ %ifnarch noarch
+ %files
+ %defattr(-, root, root)
+-%{_sbindir}/*
+-%{_mandir}/man?/*
+-%{_initrddir}/*
+-%config(noreplace) %{_sysconfdir}/iet/ietd.conf
+-%config(noreplace) %{_sysconfdir}/iet/initiators.allow
+-%config(noreplace) %{_sysconfdir}/iet/targets.allow
+-%doc ChangeLog COPYING RELEASE_NOTES README README.vmware README.initiators
++%{_sbindir}
++%{_mandir}/man?
++%{_initrddir}
++%config(noreplace) %{ietd_conf}
++%config(noreplace) %{initiators_allow}
++%config(noreplace) %{targets_allow}
++%doc %{_docdir}
+ %endif
+ 
+ 
+@@ -378,7 +398,7 @@
+ %ifarch noarch
+ %files -n dkms-%{name}
+ %defattr(-, root, root)
+-/usr/src/%{name}-%{version}/*
++/usr/src/%{name}-%{version}
+ %endif
+ %else
+ %files -n kmod-%{name}
+@@ -388,6 +408,12 @@
+ 
+ 
+ %changelog
++* Tue May 11 2010 Ross Walker &lt;rswwalker at gmail dot com&gt; - 1.4.20.2
++- fixed recursive KERNELSRC define problem on SLES
++- updated SVN building to handle tagged builds 
++- updated iet_version for next release
++- fixed install and file catalogs to work with previous versions
++
+ * Tue Mar 30 2010 Ross Walker &lt;rswwalker at gmail dot com&gt; - 1.4.20
+ - Changed DKMS module name to dkms-iscsitarget from kmod-iscsitarget
+ - Added Provides: kernel-modules to DKMS module so multiple versions can
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000263.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[349] trunk/kernel/ua.c
+</A></li>
+	<LI>Next message: <A HREF="000253.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[351]	trunk/iscsitarget.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#252">[ date ]</a>
+              <a href="thread.html#252">[ thread ]</a>
+              <a href="subject.html#252">[ subject ]</a>
+              <a href="author.html#252">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

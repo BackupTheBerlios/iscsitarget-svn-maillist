@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[342]	branches/1.4.20/etc/initd
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B342%5D%0A%09branches/1.4.20/etc/initd&In-Reply-To=%3CE1OTio4-0007tV-7E%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000260.html">
+   <LINK REL="Next"  HREF="000264.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[342]	branches/1.4.20/etc/initd</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B342%5D%0A%09branches/1.4.20/etc/initd&In-Reply-To=%3CE1OTio4-0007tV-7E%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[342]	branches/1.4.20/etc/initd">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Jun 29 23:57:28 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000260.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[341] trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000264.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[343] trunk/etc/initd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#269">[ date ]</a>
+              <a href="thread.html#269">[ thread ]</a>
+              <a href="subject.html#269">[ subject ]</a>
+              <a href="author.html#269">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 342
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=342&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=342&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-06-29 21:57:27 +0000 (Tue, 29 Jun 2010)
+
+Log Message:
+-----------
+With kernel cleanup on ietd close there no longer exists a need
+to unload the kernel module on ietd restart.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/etc/initd/initd
+    branches/1.4.20/etc/initd/initd.debian
+    branches/1.4.20/etc/initd/initd.gentoo
+    branches/1.4.20/etc/initd/initd.redhat
+
+Modified: branches/1.4.20/etc/initd/initd
+===================================================================
+--- branches/1.4.20/etc/initd/initd	2010-06-29 21:56:22 UTC (rev 341)
++++ branches/1.4.20/etc/initd/initd	2010-06-29 21:57:27 UTC (rev 342)
+@@ -21,7 +21,6 @@
+ {
+ 	ietadm --op delete
+ 	killall ietd
+-	modprobe -r iscsi_trgt
+ }
+ 
+ case &quot;$1&quot; in
+
+Modified: branches/1.4.20/etc/initd/initd.debian
+===================================================================
+--- branches/1.4.20/etc/initd/initd.debian	2010-06-29 21:56:22 UTC (rev 341)
++++ branches/1.4.20/etc/initd/initd.debian	2010-06-29 21:57:27 UTC (rev 342)
+@@ -38,7 +38,6 @@
+ 	ietadm --op delete
+ 	start-stop-daemon --stop --exec $DAEMON --pidfile $PIDFILE
+ 	rm -f $PIDFILE
+-	modprobe -r iscsi_trgt
+ 	log_end_msg $?
+ }
+ 
+
+Modified: branches/1.4.20/etc/initd/initd.gentoo
+===================================================================
+--- branches/1.4.20/etc/initd/initd.gentoo	2010-06-29 21:56:22 UTC (rev 341)
++++ branches/1.4.20/etc/initd/initd.gentoo	2010-06-29 21:57:27 UTC (rev 342)
+@@ -27,7 +27,6 @@
+ 	ietadm --op delete
+ 	start-stop-daemon --stop --exec /usr/sbin/ietd --pidfile /var/run/iscsi_trgt.pid
+ 	rm -f /var/run/iscsi_trgt.pid
+-	modprobe -r iscsi_trgt
+ 	eend $?
+ }
+ 
+
+Modified: branches/1.4.20/etc/initd/initd.redhat
+===================================================================
+--- branches/1.4.20/etc/initd/initd.redhat	2010-06-29 21:56:22 UTC (rev 341)
++++ branches/1.4.20/etc/initd/initd.redhat	2010-06-29 21:57:27 UTC (rev 342)
+@@ -45,7 +45,6 @@
+ 	echo -n &quot;Stopping iSCSI Target: &quot;
+ 	ietadm --op delete
+ 	killall ietd
+-	modprobe -r iscsi_trgt
+ 	RETVAL=$?
+ 	if [ $RETVAL -eq 0 ]; then
+ 		echo_success
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000260.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[341] trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000264.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[343] trunk/etc/initd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#269">[ date ]</a>
+              <a href="thread.html#269">[ thread ]</a>
+              <a href="subject.html#269">[ subject ]</a>
+              <a href="author.html#269">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

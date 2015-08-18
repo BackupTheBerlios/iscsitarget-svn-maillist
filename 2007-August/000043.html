@@ -1,0 +1,106 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r131 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-August/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r131%20-%20trunk/usr&In-Reply-To=%3C200708140407.l7E47AbH016579%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000044.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r131 - trunk/usr</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r131%20-%20trunk/usr&In-Reply-To=%3C200708140407.l7E47AbH016579%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r131 - trunk/usr">tomo at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug 14 06:07:10 CEST 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000044.html">[Iscsitarget-svn] r132 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#43">[ date ]</a>
+              <a href="thread.html#43">[ thread ]</a>
+              <a href="subject.html#43">[ subject ]</a>
+              <a href="author.html#43">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-08-14 06:07:09 +0200 (Tue, 14 Aug 2007)
+New Revision: 131
+
+Modified:
+   trunk/usr/ietd.c
+Log:
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Subject: add conn-&gt;rwsize check
+Date: Fri, 10 Aug 2007 13:54:44 +0200
+
+IET does not enforce the 8k PDU limit during login phase, i.e. it'll
+happily try to read a PDU larger than that into an 8k receive buffer.
+
+Problem pointed out by <A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jdelamarche at maje.biz</A>
+
+
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2007-07-29 07:18:02 UTC (rev 130)
++++ trunk/usr/ietd.c	2007-08-14 04:07:09 UTC (rev 131)
+@@ -307,6 +307,15 @@
+ 							      (conn-&gt;req.bhs.datalength[1] &lt;&lt; 8) +
+ 							      conn-&gt;req.bhs.datalength[2]);
+ 					conn-&gt;rwsize = (conn-&gt;req.ahssize + conn-&gt;req.datasize + 3) &amp; -4;
++					if (conn-&gt;rwsize &gt; INCOMING_BUFSIZE) {
++						log_warning(&quot;Recv PDU with &quot;
++							    &quot;invalid size %d &quot;
++							    &quot;(max: %d)&quot;,
++							    conn-&gt;rwsize,
++							    INCOMING_BUFSIZE);
++						conn-&gt;state = STATE_CLOSE;
++						goto conn_close;
++					}
+ 					if (conn-&gt;rwsize) {
+ 						if (!conn-&gt;req_buffer)
+ 							conn-&gt;req_buffer = malloc(INCOMING_BUFSIZE);
+@@ -396,6 +405,7 @@
+ 				exit(1);
+ 			}
+ 
++		conn_close:
+ 			if (conn-&gt;state == STATE_CLOSE) {
+ 				log_debug(0, &quot;connection closed&quot;);
+ 				conn_free_pdu(conn);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000044.html">[Iscsitarget-svn] r132 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#43">[ date ]</a>
+              <a href="thread.html#43">[ thread ]</a>
+              <a href="subject.html#43">[ subject ]</a>
+              <a href="author.html#43">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

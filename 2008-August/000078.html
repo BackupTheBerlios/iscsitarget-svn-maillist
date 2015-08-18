@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r166 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r166%20-%20trunk/usr&In-Reply-To=%3C200808261859.m7QIxCbb013890%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000077.html">
+   <LINK REL="Next"  HREF="000079.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r166 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r166%20-%20trunk/usr&In-Reply-To=%3C200808261859.m7QIxCbb013890%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r166 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug 26 20:59:13 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000077.html">[Iscsitarget-svn] r165 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000079.html">[Iscsitarget-svn] r167 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#78">[ date ]</a>
+              <a href="thread.html#78">[ thread ]</a>
+              <a href="subject.html#78">[ subject ]</a>
+              <a href="author.html#78">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-08-26 20:59:12 +0200 (Tue, 26 Aug 2008)
+New Revision: 166
+
+Modified:
+   trunk/usr/config.h
+   trunk/usr/message.c
+   trunk/usr/plain.c
+Log:
+ietd: add support to retrieve a list of CHAP accounts
+
+Implement C_ACCT_LIST ietadm request handling in ietd.
+
+
+Modified: trunk/usr/config.h
+===================================================================
+--- trunk/usr/config.h	2008-08-26 18:58:18 UTC (rev 165)
++++ trunk/usr/config.h	2008-08-26 18:59:12 UTC (rev 166)
+@@ -14,6 +14,7 @@
+ 	int (*account_add) (u32, int, char *, char *);
+ 	int (*account_del) (u32, int, char *);
+ 	int (*account_query) (u32, int, char *, char *);
++	int (*account_list) (u32, int, u32 *, u32 *, char *, size_t);
+ 	int (*initiator_access) (u32, int);
+ };
+ 
+
+Modified: trunk/usr/message.c
+===================================================================
+--- trunk/usr/message.c	2008-08-26 18:58:18 UTC (rev 165)
++++ trunk/usr/message.c	2008-08-26 18:59:12 UTC (rev 166)
+@@ -110,6 +110,20 @@
+ 					req-&gt;u.acnt.u.user.name);
+ 		break;
+ 	case C_ACCT_LIST:
++		*rsp_data = malloc(req-&gt;u.acnt.u.list.alloc_len);
++		if (!*rsp_data) {
++			err = -ENOMEM;
++			break;
++		}
++
++		*rsp_data_sz = req-&gt;u.acnt.u.list.alloc_len;
++		memset(*rsp_data, 0x0, *rsp_data_sz);
++
++		err = cops-&gt;account_list(req-&gt;tid, req-&gt;u.acnt.auth_dir,
++					 &amp;req-&gt;u.acnt.u.list.count,
++					 &amp;req-&gt;u.acnt.u.list.overflow,
++					 *rsp_data, *rsp_data_sz);
++		break;
+ 	case C_ACCT_UPDATE:
+ 		break;
+ 	case C_ACCT_SHOW:
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2008-08-26 18:58:18 UTC (rev 165)
++++ trunk/usr/plain.c	2008-08-26 18:59:12 UTC (rev 166)
+@@ -156,6 +156,30 @@
+ 	return 0;
+ }
+ 
++static int plain_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
++			      char *buf, size_t buf_sz)
++{
++	struct __qelem *list = account_list_get(tid, dir);
++	struct user *user;
++
++	*cnt = *overflow = 0;
++
++	if (!list)
++		return -ENOENT;
++
++	list_for_each_entry(user, list, ulist) {
++		if (buf_sz &gt;= ISCSI_NAME_LEN) {
++			strncpy(buf, user-&gt;name, ISCSI_NAME_LEN);
++			buf_sz -= ISCSI_NAME_LEN;
++			buf += ISCSI_NAME_LEN;
++			*cnt += 1;
++		} else
++			*overflow += 1;
++	}
++
++	return 0;
++}
++
+ static void account_destroy(struct user *user)
+ {
+ 	if (!user)
+@@ -617,5 +641,6 @@
+ 	.account_add		= plain_account_add,
+ 	.account_del		= plain_account_del,
+ 	.account_query		= plain_account_query,
++	.account_list		= plain_account_list,
+ 	.initiator_access	= plain_initiator_access,
+ };
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000077.html">[Iscsitarget-svn] r165 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000079.html">[Iscsitarget-svn] r167 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#78">[ date ]</a>
+              <a href="thread.html#78">[ thread ]</a>
+              <a href="subject.html#78">[ subject ]</a>
+              <a href="author.html#78">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

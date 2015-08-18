@@ -1,0 +1,113 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r106 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r106%20-%20trunk/kernel&In-Reply-To=%3C200703112300.l2BN0aAL022383%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000019.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r106 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r106%20-%20trunk/kernel&In-Reply-To=%3C200703112300.l2BN0aAL022383%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r106 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Mar 12 00:00:36 CET 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000019.html">[Iscsitarget-svn] r107 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18">[ date ]</a>
+              <a href="thread.html#18">[ thread ]</a>
+              <a href="subject.html#18">[ subject ]</a>
+              <a href="author.html#18">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-03-12 00:00:36 +0100 (Mon, 12 Mar 2007)
+New Revision: 106
+
+Modified:
+   trunk/kernel/conn.c
+   trunk/kernel/nthread.c
+Log:
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Date: Sun, 11 Mar 2007 17:56:42 +0100
+Subject: Re: [Iscsitarget-devel] Kernel backtrace, inconsistent lock state
+
+should be used write_lock/unlock_bh instead of write_lock/unlock there.
+
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2007-02-27 23:10:00 UTC (rev 105)
++++ trunk/kernel/conn.c	2007-03-11 23:00:36 UTC (rev 106)
+@@ -108,13 +108,13 @@
+ 	conn-&gt;sock = SOCKET_I(conn-&gt;file-&gt;f_dentry-&gt;d_inode);
+ 	conn-&gt;sock-&gt;sk-&gt;sk_user_data = conn;
+ 
+-	write_lock(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
++	write_lock_bh(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
+ 	target-&gt;nthread_info.old_state_change = conn-&gt;sock-&gt;sk-&gt;sk_state_change;
+ 	conn-&gt;sock-&gt;sk-&gt;sk_state_change = iet_state_change;
+ 
+ 	target-&gt;nthread_info.old_data_ready = conn-&gt;sock-&gt;sk-&gt;sk_data_ready;
+ 	conn-&gt;sock-&gt;sk-&gt;sk_data_ready = iet_data_ready;
+-	write_unlock(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
++	write_unlock_bh(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
+ 
+ 	oldfs = get_fs();
+ 	set_fs(get_ds());
+
+Modified: trunk/kernel/nthread.c
+===================================================================
+--- trunk/kernel/nthread.c	2007-02-27 23:10:00 UTC (rev 105)
++++ trunk/kernel/nthread.c	2007-03-11 23:00:36 UTC (rev 106)
+@@ -580,10 +580,10 @@
+ 
+ 	conn-&gt;sock-&gt;ops-&gt;shutdown(conn-&gt;sock, 2);
+ 
+-	write_lock(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
++	write_lock_bh(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
+ 	conn-&gt;sock-&gt;sk-&gt;sk_state_change = session-&gt;target-&gt;nthread_info.old_state_change;
+ 	conn-&gt;sock-&gt;sk-&gt;sk_data_ready = session-&gt;target-&gt;nthread_info.old_data_ready;
+-	write_unlock(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
++	write_unlock_bh(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
+ 
+ 	fput(conn-&gt;file);
+ 	conn-&gt;file = NULL;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000019.html">[Iscsitarget-svn] r107 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18">[ date ]</a>
+              <a href="thread.html#18">[ thread ]</a>
+              <a href="subject.html#18">[ subject ]</a>
+              <a href="author.html#18">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

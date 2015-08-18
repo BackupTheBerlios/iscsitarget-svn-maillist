@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r139 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r139%20-%20trunk/kernel&In-Reply-To=%3C200711010415.lA14FKu6008853%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000052.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r139 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r139%20-%20trunk/kernel&In-Reply-To=%3C200711010415.lA14FKu6008853%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r139 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Nov  1 05:15:20 CET 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000052.html">[Iscsitarget-svn] r140 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#51">[ date ]</a>
+              <a href="thread.html#51">[ thread ]</a>
+              <a href="subject.html#51">[ subject ]</a>
+              <a href="author.html#51">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-11-01 05:15:18 +0100 (Thu, 01 Nov 2007)
+New Revision: 139
+
+Modified:
+   trunk/kernel/iscsi.c
+   trunk/kernel/target_disk.c
+Log:
+Fix SPARC alignement issues
+
+Based on a report and patch from <A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">joel.bertrand at systella.fr</A>
+
+
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2007-09-20 23:26:20 UTC (rev 138)
++++ trunk/kernel/iscsi.c	2007-11-01 04:15:18 UTC (rev 139)
+@@ -726,13 +726,16 @@
+ 	case READ_10:
+ 	case WRITE_10:
+ 	case WRITE_VERIFY:
+-		*off = be32_to_cpu(*(u32 *)&amp;cmd[2]);
++		*off = cmd[2] &lt;&lt; 24 | cmd[3] &lt;&lt; 16 | cmd[4] &lt;&lt; 8 | cmd[5];
+ 		*len = (cmd[7] &lt;&lt; 8) + cmd[8];
+ 		break;
+ 	case READ_16:
+ 	case WRITE_16:
+-		*off = be64_to_cpu(*(u64 *)&amp;cmd[2]);
+-		*len = be32_to_cpu(*(u32 *)&amp;cmd[10]);
++		*off = (u64)cmd[2] &lt;&lt; 56 | (u64)cmd[3] &lt;&lt; 48 |
++			(u64)cmd[4] &lt;&lt; 40 | (u64)cmd[5] &lt;&lt; 32 |
++			(u64)cmd[6] &lt;&lt; 24 | (u64)cmd[7] &lt;&lt; 16 |
++			(u64)cmd[8] &lt;&lt; 8 | (u64)cmd[9];
++		*len = cmd[10] &lt;&lt; 24 | cmd[11] &lt;&lt; 16 | cmd[12] &lt;&lt; 8 | cmd[13];
+ 		break;
+ 	default:
+ 		BUG();
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2007-09-20 23:26:20 UTC (rev 138)
++++ trunk/kernel/target_disk.c	2007-11-01 04:15:18 UTC (rev 139)
+@@ -66,13 +66,15 @@
+ 	unsigned char geo_m_pg[] = {0x04, 0x16, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00,
+ 				    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 				    0x00, 0x00, 0x00, 0x00, 0x3a, 0x98, 0x00, 0x00};
+-	u32 ncyl, *p;
++	u32 ncyl;
++	u32 n;
+ 
+ 	/* assume 0xff heads, 15krpm. */
+ 	memcpy(ptr, geo_m_pg, sizeof(geo_m_pg));
+ 	ncyl = sec &gt;&gt; 14; /* 256 * 64 */
+-	p = (u32 *)(ptr + 1);
+-	*p = *p | cpu_to_be32(ncyl);
++	memcpy(&amp;n, ptr+1, sizeof(u32));
++	n = n | cpu_to_be32(ncyl);
++	memcpy(ptr+1, &amp;n, sizeof(u32));
+ 	return sizeof(geo_m_pg);
+ }
+ 
+@@ -249,7 +251,8 @@
+ 	struct iet_volume *lun;
+ 	int rest, idx = 0;
+ 
+-	size = be32_to_cpu(*(u32 *)&amp;req-&gt;scb[6]);
++	size = req-&gt;scb[6] &lt;&lt; 24 | req-&gt;scb[7] &lt;&lt; 16 | req-&gt;scb[8] &lt;&lt; 8 |
++		req-&gt;scb[9];
+ 	if (size &lt; 16)
+ 		return -1;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000052.html">[Iscsitarget-svn] r140 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#51">[ date ]</a>
+              <a href="thread.html#51">[ thread ]</a>
+              <a href="subject.html#51">[ subject ]</a>
+              <a href="author.html#51">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

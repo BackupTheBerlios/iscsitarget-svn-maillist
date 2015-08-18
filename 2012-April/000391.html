@@ -1,0 +1,268 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[480] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B480%5D%20trunk/kernel&In-Reply-To=%3CE1SJs2O-0004mI-A6%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000390.html">
+   <LINK REL="Next"  HREF="000392.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[480] trunk/kernel</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B480%5D%20trunk/kernel&In-Reply-To=%3CE1SJs2O-0004mI-A6%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[480] trunk/kernel">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Mon Apr 16 21:56:36 CEST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000390.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[479] trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000392.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[481]	trunk/kernel/file-io.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#391">[ date ]</a>
+              <a href="thread.html#391">[ thread ]</a>
+              <a href="subject.html#391">[ subject ]</a>
+              <a href="author.html#391">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 480
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=480&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=480&amp;view=rev</A>
+Author:   agr1
+Date:     2012-04-16 19:56:35 +0000 (Mon, 16 Apr 2012)
+Log Message:
+-----------
+Implement WRITE_SAME_16(0x93)
+
+WRITE_SAME_16 provides 1 block of data and iscsi target writes
+the same data to the offset and length specified.
+
+If length is 0, the target should write to end of media.
+
+This change is tested with ESXi5 lazy eager zero disk.
+
+Signed-off-by: Yucong Sun &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sunyucong at gmail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/iscsi.c
+    trunk/kernel/iscsi_dbg.h
+    trunk/kernel/target_disk.c
+    trunk/kernel/volume.c
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2012-04-16 19:48:34 UTC (rev 479)
++++ trunk/kernel/iscsi.c	2012-04-16 19:56:35 UTC (rev 480)
+@@ -773,6 +773,7 @@
+ 		break;
+ 	case READ_16:
+ 	case WRITE_16:
++	case WRITE_SAME_16:
+ 		*off = (u64)cmd[2] &lt;&lt; 56 | (u64)cmd[3] &lt;&lt; 48 |
+ 			(u64)cmd[4] &lt;&lt; 40 | (u64)cmd[5] &lt;&lt; 32 |
+ 			(u64)cmd[6] &lt;&lt; 24 | (u64)cmd[7] &lt;&lt; 16 |
+@@ -1035,6 +1036,7 @@
+ 	case WRITE_10:
+ 	case WRITE_16:
+ 	case WRITE_VERIFY:
++	case WRITE_SAME_16:
+ 	{
+ 		struct iscsi_sess_param *param = &amp;conn-&gt;session-&gt;param;
+ 		loff_t offset;
+@@ -1063,12 +1065,39 @@
+ 			eprintk(&quot;Verification is ignored %x\n&quot;, cmnd_itt(req));
+ 
+ 		set_offset_and_length(req-&gt;lun, req_hdr-&gt;scb, &amp;offset, &amp;length);
+-		if (cmnd_write_size(req) != length)
+-			eprintk(&quot;%x %u %u\n&quot;, cmnd_itt(req), cmnd_write_size(req), length);
+ 
+-		req-&gt;tio = tio_alloc(get_pgcnt(length));
+-		tio_set(req-&gt;tio, length, offset);
++		if (req_hdr-&gt;scb[0] == WRITE_SAME_16) {
++			dprintk(D_VAAI, &quot;WRITE_SAME_16: D: %u L:%u O:%llu\n&quot;,
++				cmnd_write_size(req), length, offset);
+ 
++			if (unlikely(cmnd_write_size(req) &gt; PAGE_CACHE_SIZE)) {
++				eprintk(&quot;WRITE_SAME data is bigger than page size&quot;
++					&quot;, this is unsupported: D:%u P:%lu\n&quot;,
++					cmnd_write_size(req), PAGE_CACHE_SIZE);
++				goto error;
++			}
++
++			if (unlikely(length % cmnd_write_size(req) != 0)) {
++				eprintk(&quot;WRITE_SAME data size error: L:%u D:%u\n&quot;,
++					length, cmnd_write_size(req));
++				goto error;
++			}
++
++			if (unlikely((req_hdr-&gt;scb[1] &amp; 0x06) != 0))
++				eprintk(&quot;WRITE_SAME LB/PBDATA ignored: %x\n&quot;,
++					req_hdr-&gt;scb[1]);
++
++			req-&gt;tio = tio_alloc(1);
++			tio_set(req-&gt;tio, length, offset);
++		} else {
++			if (unlikely(cmnd_write_size(req) != length))
++				eprintk(&quot;%x %u %u\n&quot;,
++					cmnd_itt(req), cmnd_write_size(req),
++					length);
++			req-&gt;tio = tio_alloc(get_pgcnt(length));
++			tio_set(req-&gt;tio, length, offset);
++		}
++
+ 		if (req-&gt;pdu.datasize) {
+ 			if (cmnd_recv_pdu(conn, req-&gt;tio, 0, req-&gt;pdu.datasize) &lt; 0)
+ 				assert(0);
+
+Modified: trunk/kernel/iscsi_dbg.h
+===================================================================
+--- trunk/kernel/iscsi_dbg.h	2012-04-16 19:48:34 UTC (rev 479)
++++ trunk/kernel/iscsi_dbg.h	2012-04-16 19:56:35 UTC (rev 480)
+@@ -12,6 +12,7 @@
+ #define D_IOMODE	(1UL &lt;&lt; 8)
+ #define D_UAC           (1UL &lt;&lt; 9)
+ #define D_PR            (1UL &lt;&lt; 10)
++#define D_VAAI		(1UL &lt;&lt; 11)
+ 
+ #define D_DATA		(D_READ | D_WRITE)
+ 
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2012-04-16 19:48:34 UTC (rev 479)
++++ trunk/kernel/target_disk.c	2012-04-16 19:56:35 UTC (rev 480)
+@@ -408,6 +408,74 @@
+ 		iscsi_cmnd_set_sense(cmnd, MEDIUM_ERROR, 0x03, 0x0);
+ }
+ 
++static void build_write_same_response(struct iscsi_cmnd *cmnd) {
++	int err;
++	struct tio *target_tio;
++	struct iet_volume *lu = cmnd-&gt;lun;
++	struct tio_iterator iter;
++	u32 MAX_IO_SIZE = 1 &lt;&lt; 30; /* 1MByte */
++	u32 length, medium_length;
++	loff_t offset;
++	u8 *data_addr;
++	u32 data_size;
++
++	length = cmnd-&gt;tio-&gt;size;
++	medium_length = (u32)((loff_t) lu-&gt;blk_cnt &lt;&lt; lu-&gt;blk_shift);
++	offset = cmnd-&gt;tio-&gt;offset;
++
++	data_addr = page_address(cmnd-&gt;tio-&gt;pvec[0]);
++	data_size = be32_to_cpu(cmnd_hdr(cmnd)-&gt;data_length);
++
++	/* When length = 0, it means we need to write to the end. */
++	if (length == 0) {
++		length = medium_length - offset + 1;
++		dprintk(D_VAAI,
++			&quot;write to end, calculated length = %u\n&quot;, length);
++	}
++
++	if (length + offset &gt; medium_length) {
++		/* Write out of boundary, Invalid Field in CDB */
++		iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x24, 0x0);
++		return;
++	}
++
++	list_del_init(&amp;cmnd-&gt;list);
++
++	/* Fill target_tio with data from request, because it's all
++	   same data, we can just reuse it later with differnt offset. */
++	target_tio = tio_alloc(get_pgcnt(min_t(u32, length, MAX_IO_SIZE)));
++	tio_get(target_tio);
++
++	tio_init_iterator(target_tio, &amp;iter);
++	while(iter.pg_idx &lt; target_tio-&gt;pg_cnt) {
++		tio_add_data(&amp;iter, data_addr, data_size);
++	}
++
++	while (length &gt; 0) {
++		u32 to_write = min_t(u32, length, MAX_IO_SIZE);
++		tio_set(target_tio, to_write, offset);
++
++		/* submit to IO layer */
++		err = tio_write(lu, target_tio);
++		if (!err &amp;&amp; !LUWCache(lu))
++			err = tio_sync(lu, target_tio);
++
++		if (err) {
++			/* Medium Error/Write Fault */
++			iscsi_cmnd_set_sense(cmnd, MEDIUM_ERROR, 0x03, 0x0);
++			break;
++		}
++
++		length -= to_write;
++		offset += to_write;
++		dprintk(D_VAAI,
++			&quot;Committed %u bytes, %u left, offset %llu\n&quot;,
++			to_write, length, offset);
++	}
++
++	tio_put(target_tio);
++}
++
+ static void build_sync_cache_response(struct iscsi_cmnd *cmnd)
+ {
+ 	assert(cmnd-&gt;lun);
+@@ -550,6 +618,9 @@
+ 	case WRITE_VERIFY:
+ 		send_scsi_rsp(cmnd, build_write_response);
+ 		break;
++	case WRITE_SAME_16:
++		send_scsi_rsp(cmnd, build_write_same_response);
++		break;
+ 	case SYNCHRONIZE_CACHE:
+ 		send_scsi_rsp(cmnd, build_sync_cache_response);
+ 		break;
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2012-04-16 19:48:34 UTC (rev 479)
++++ trunk/kernel/volume.c	2012-04-16 19:56:35 UTC (rev 480)
+@@ -446,6 +446,7 @@
+ 	case WRITE_10:
+ 	case WRITE_12:
+ 	case WRITE_16:
++	case WRITE_SAME_16:
+ 	case WRITE_VERIFY:
+ 	case SYNCHRONIZE_CACHE:
+ 		if (write_excl || excl_access)
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000390.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[479] trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000392.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[481]	trunk/kernel/file-io.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#391">[ date ]</a>
+              <a href="thread.html#391">[ thread ]</a>
+              <a href="subject.html#391">[ subject ]</a>
+              <a href="author.html#391">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

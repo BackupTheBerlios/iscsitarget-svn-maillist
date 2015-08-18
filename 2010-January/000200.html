@@ -1,0 +1,95 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[287]	trunk/iscsitarget.spec
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B287%5D%0A%09trunk/iscsitarget.spec&In-Reply-To=%3CE1NZobX-0006AV-AE%40dn4whf1.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000198.html">
+   <LINK REL="Next"  HREF="000199.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[287]	trunk/iscsitarget.spec</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B287%5D%0A%09trunk/iscsitarget.spec&In-Reply-To=%3CE1NZobX-0006AV-AE%40dn4whf1.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[287]	trunk/iscsitarget.spec">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Jan 26 17:49:27 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000198.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[286] trunk/Makefile
+</A></li>
+        <LI>Next message: <A HREF="000199.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[288] trunk/kernel/iscsi.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#200">[ date ]</a>
+              <a href="thread.html#200">[ thread ]</a>
+              <a href="subject.html#200">[ subject ]</a>
+              <a href="author.html#200">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 287
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=287&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=287&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-01-26 16:49:26 +0000 (Tue, 26 Jan 2010)
+
+Log Message:
+-----------
+
+Update RPM spec file filter for unreferenced kernel functions.
+
+Tested on CentOS5
+
+-Ross
+
+Modified Paths:
+--------------
+    trunk/iscsitarget.spec
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2010-01-26 16:44:22 UTC (rev 286)
++++ trunk/iscsitarget.spec	2010-01-26 16:49:26 UTC (rev 287)
+@@ -64,7 +64,7 @@
+ %if %weak
+ %define pro_filter &quot;&quot;
+ %if %is_redhat
+-%define req_filter &quot;\\(fsync_bdev\\|sync_page_range\\)&quot;
++%define req_filter &quot;\\(fsync_bdev\\|sync_page_range\\|vfs_write\\|get_io_context\\|copy_io_context\\|put_io_context\\)&quot;
+ %else
+ %define req_filter &quot;&quot;
+ %endif
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000198.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[286] trunk/Makefile
+</A></li>
+	<LI>Next message: <A HREF="000199.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[288] trunk/kernel/iscsi.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#200">[ date ]</a>
+              <a href="thread.html#200">[ thread ]</a>
+              <a href="subject.html#200">[ subject ]</a>
+              <a href="author.html#200">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

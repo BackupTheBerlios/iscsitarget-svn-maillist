@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[309] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B309%5D%20trunk&In-Reply-To=%3CE1NwfrP-0006Rc-DE%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000220.html">
+   <LINK REL="Next"  HREF="000222.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[309] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B309%5D%20trunk&In-Reply-To=%3CE1NwfrP-0006Rc-DE%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[309] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Mar 30 20:08:19 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000220.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[308]	trunk/kernel/nthread.c
+</A></li>
+        <LI>Next message: <A HREF="000222.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[310] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#221">[ date ]</a>
+              <a href="thread.html#221">[ thread ]</a>
+              <a href="subject.html#221">[ subject ]</a>
+              <a href="author.html#221">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 309
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=309&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=309&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-03-30 18:08:19 +0000 (Tue, 30 Mar 2010)
+
+Log Message:
+-----------
+Remove the ioctl call to delete all targets.
+
+With the kernel deleting all targets itself when ietd dies there
+is no need to keep this around any longer, especially since the
+earlier ioctl patches added a semaphore around the kernel's
+ioctl calls and the target delete all call, eliminating the race
+condition that existed where ietd might start trying to add
+configuration while the kernel module was removing configuration.
+
+A nice side-effect of this is that initiators will be able to
+re-connect on a restart of ietd because there was a race condition
+between ietd clearing the kernel configuration and initiators
+attempting to reconnect that caused them to fail.
+
+The 'ietadm --op delete' still exists in the initd files for
+iSNS deregistration which will probably be incorporated into ietd
+iSNS registration in a later patch.
+
+Tested on RHEL5 against MS initiator.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/include/iet_u.h
+    trunk/kernel/config.c
+    trunk/usr/ctldev.c
+    trunk/usr/iscsid.h
+    trunk/usr/message.c
+
+Modified: trunk/include/iet_u.h
+===================================================================
+--- trunk/include/iet_u.h	2010-03-30 18:03:02 UTC (rev 308)
++++ trunk/include/iet_u.h	2010-03-30 18:08:19 UTC (rev 309)
+@@ -138,7 +138,6 @@
+ #define GET_MODULE_INFO _IOW('i', 20, struct module_info)
+ #define ADD_TARGET _IOWR('i', 21, struct target_info)
+ #define DEL_TARGET _IOW('i', 22, struct target_info)
+-#define DEL_TARGET_ALL _IO('i', 23)
+ #define ADD_VOLUME _IOW('i', 24, struct volume_info)
+ #define DEL_VOLUME _IOW('i', 25, struct volume_info)
+ #define ADD_SESSION _IOW('i', 26, struct session_info)
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2010-03-30 18:03:02 UTC (rev 308)
++++ trunk/kernel/config.c	2010-03-30 18:08:19 UTC (rev 309)
+@@ -267,11 +267,6 @@
+ 		goto done;
+ 	}
+ 
+-	if (cmd == DEL_TARGET_ALL) {
+-		target_del_all();
+-		goto done;
+-	}
+-
+ 	if (cmd == ADD_TARGET) {
+ 		err = add_target(arg);
+ 		goto done;
+
+Modified: trunk/usr/ctldev.c
+===================================================================
+--- trunk/usr/ctldev.c	2010-03-30 18:03:02 UTC (rev 308)
++++ trunk/usr/ctldev.c	2010-03-30 18:08:19 UTC (rev 309)
+@@ -115,15 +115,6 @@
+ 	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+-static inline int iscsi_target_destroy_all(void)
+-{
+-	int err;
+-
+-	err = ioctl(ctrl_fd, DEL_TARGET_ALL, NULL);
+-
+-	return (err &lt; 0) ? -errno : 0;
+-}
+-
+ static int iscsi_lunit_create(u32 tid, u32 lun, char *args)
+ {
+ 	struct volume_info info;
+@@ -313,7 +304,6 @@
+ 	.param_set = iscsi_param_set,
+ 	.target_create = iscsi_target_create,
+ 	.target_destroy = iscsi_target_destroy,
+-	.target_destroy_all = iscsi_target_destroy_all,
+ 	.session_create = iscsi_session_create,
+ 	.session_destroy = iscsi_session_destroy,
+ 	.session_info = iscsi_session_info,
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2010-03-30 18:03:02 UTC (rev 308)
++++ trunk/usr/iscsid.h	2010-03-30 18:08:19 UTC (rev 309)
+@@ -255,7 +255,6 @@
+ 	int (*param_set) (u32, u64, int, u32, struct iscsi_param *);
+ 	int (*target_create) (u32 *, char *);
+ 	int (*target_destroy) (u32);
+-	int (*target_destroy_all) (void);
+ 	int (*session_create) (u32, u64, u32, u32, char *);
+ 	int (*session_destroy) (u32, u64);
+ 	int (*session_info) (struct session_info *);
+
+Modified: trunk/usr/message.c
+===================================================================
+--- trunk/usr/message.c	2010-03-30 18:03:02 UTC (rev 308)
++++ trunk/usr/message.c	2010-03-30 18:08:19 UTC (rev 309)
+@@ -159,7 +159,6 @@
+ 	case C_SYS_NEW:
+ 		break;
+ 	case C_SYS_DEL:
+-		err = ki-&gt;target_destroy_all();
+ 		if (!err)
+ 			isns_exit();
+ 		break;
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000220.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[308]	trunk/kernel/nthread.c
+</A></li>
+	<LI>Next message: <A HREF="000222.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[310] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#221">[ date ]</a>
+              <a href="thread.html#221">[ thread ]</a>
+              <a href="subject.html#221">[ subject ]</a>
+              <a href="author.html#221">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

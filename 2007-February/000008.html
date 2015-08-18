@@ -1,0 +1,463 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r96 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r96%20-%20trunk/kernel&In-Reply-To=%3C200702090333.l193XZlF006206%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000007.html">
+   <LINK REL="Next"  HREF="000009.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r96 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r96%20-%20trunk/kernel&In-Reply-To=%3C200702090333.l193XZlF006206%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r96 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Fri Feb  9 04:33:35 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000007.html">[Iscsitarget-svn] r95 - in trunk: doc/manpages kernel
+</A></li>
+        <LI>Next message: <A HREF="000009.html">[Iscsitarget-svn] r97 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8">[ date ]</a>
+              <a href="thread.html#8">[ thread ]</a>
+              <a href="subject.html#8">[ subject ]</a>
+              <a href="author.html#8">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-02-09 04:33:35 +0100 (Fri, 09 Feb 2007)
+New Revision: 96
+
+Added:
+   trunk/kernel/block-io.c
+Log:
+Opps, forgot to add kernel/block-io.c in the previous commit.
+
+
+Added: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2007-02-09 03:32:30 UTC (rev 95)
++++ trunk/kernel/block-io.c	2007-02-09 03:33:35 UTC (rev 96)
+@@ -0,0 +1,386 @@
++/*
++ * Target device block I/O.
++ *
++ * Based on file I/O driver from FUJITA Tomonori
++ * (C) 2004 - 2005 FUJITA Tomonori &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">tomof at acm.org</A>&gt;
++ * (C) 2006 Andre Brinkmann &lt;brinkman at hni dot upb dot de&gt;
++ * (C) 2007 Ross Walker &lt;rswwalker at hotmail dot com&gt;
++ * (C) 2007 Ming Zhang &lt;blackmagic02881 at gmail dot com&gt;
++ * This code is licenced under the GPL.
++ */
++
++#include &lt;linux/parser.h&gt;
++#include &lt;linux/blkdev.h&gt;
++#include &lt;linux/buffer_head.h&gt;
++#include &lt;linux/version.h&gt;
++#include &lt;linux/kernel.h&gt;
++#include &lt;linux/proc_fs.h&gt;
++#include &lt;linux/genhd.h&gt;
++#include &lt;linux/fs.h&gt;
++#include &lt;linux/stat.h&gt;
++#include &lt;linux/ctype.h&gt;
++#include &lt;linux/delay.h&gt;
++
++#include &quot;iscsi.h&quot;
++#include &quot;iscsi_dbg.h&quot;
++#include &quot;iotype.h&quot;
++
++struct blockio_data {
++	char *path;
++	struct block_device *bdev;
++};
++
++struct tio_work {
++	atomic_t error;
++	atomic_t bios_remaining;
++	struct completion tio_complete;
++};
++
++static int
++blockio_bio_endio(struct bio *bio, unsigned int bytes_done, int error)
++{
++	struct tio_work *tio_work = bio-&gt;bi_private;
++
++	/* Ignore partials */
++	if (bio-&gt;bi_size)
++		return 1;
++
++	error = test_bit(BIO_UPTODATE, &amp;bio-&gt;bi_flags) ? error : -EIO;
++
++	if (error)
++		atomic_set(&amp;tio_work-&gt;error, error);
++
++	/* If last bio signal completion */
++	if (atomic_dec_and_test(&amp;tio_work-&gt;bios_remaining))
++		complete(&amp;tio_work-&gt;tio_complete);
++
++	bio_put(bio);
++
++	return 0;
++}
++
++/*
++ * Blockio_make_request(): The function translates an iscsi-request into
++ * a number of requests to the corresponding block device.
++ */
++static int
++blockio_make_request(struct iet_volume *volume, struct tio *tio, int rw)
++{
++	struct blockio_data *bio_data = (struct blockio_data *) volume-&gt;private;
++	struct request_queue *bdev_q = bdev_get_queue(bio_data-&gt;bdev);
++	struct tio_work *tio_work;
++	struct bio *tio_bio = NULL, *bio = NULL, *biotail = NULL;
++
++	u32 offset = tio-&gt;offset;
++	u32 size = tio-&gt;size;
++	u32 tio_index = 0;
++
++	int max_pages = 1;
++	int err = 0;
++
++	loff_t ppos = ((loff_t) tio-&gt;idx &lt;&lt; PAGE_SHIFT) + offset;
++
++	/* Calculate max_pages for bio_alloc (memory saver) */
++	if (bdev_q)
++		max_pages = bio_get_nr_vecs(bio_data-&gt;bdev);
++
++	tio_work = kzalloc(sizeof (*tio_work), GFP_KERNEL);
++	if (!tio_work)
++		return -ENOMEM;
++
++	atomic_set(&amp;tio_work-&gt;error, 0);
++	atomic_set(&amp;tio_work-&gt;bios_remaining, 0);
++	init_completion(&amp;tio_work-&gt;tio_complete);
++
++	/* Main processing loop, allocate and fill all bios */
++	while (tio_index &lt; tio-&gt;pg_cnt) {
++		bio = bio_alloc(GFP_KERNEL, min(max_pages, BIO_MAX_PAGES));
++		if (!bio) {
++			err = -ENOMEM;
++			goto out;
++		}
++
++		bio-&gt;bi_sector = ppos &gt;&gt; volume-&gt;blk_shift;
++		bio-&gt;bi_bdev = bio_data-&gt;bdev;
++		bio-&gt;bi_end_io = (bio_end_io_t *) blockio_bio_endio;
++		bio-&gt;bi_private = tio_work;
++
++		if (tio_bio)
++			biotail = biotail-&gt;bi_next = bio;
++		else
++			tio_bio = biotail = bio;
++
++		atomic_inc(&amp;tio_work-&gt;bios_remaining);
++
++		/* Loop for filling bio */
++		while (tio_index &lt; tio-&gt;pg_cnt) {
++			unsigned int bytes = PAGE_SIZE - offset;
++
++			if (bytes &gt; size)
++				bytes = size;
++
++			if (!bio_add_page(bio, tio-&gt;pvec[tio_index], bytes, offset))
++				break;
++
++			size -= bytes;
++			ppos += bytes;
++
++			offset = 0;
++
++			tio_index++;
++		}
++	}
++
++	/* Walk the list, submitting bios 1 by 1 */
++	while (tio_bio) {
++		bio = tio_bio;
++		tio_bio = tio_bio-&gt;bi_next;
++		bio-&gt;bi_next = NULL;
++
++		submit_bio(rw, bio);
++	}
++
++	if (bdev_q &amp;&amp; bdev_q-&gt;unplug_fn)
++		bdev_q-&gt;unplug_fn(bdev_q);
++
++	wait_for_completion(&amp;tio_work-&gt;tio_complete);
++
++	err = atomic_read(&amp;tio_work-&gt;error);
++
++	kfree(tio_work);
++
++	return err;
++out:
++	while (tio_bio) {
++		bio = tio_bio;
++		tio_bio = tio_bio-&gt;bi_next;
++
++		bio_put(bio);
++	}
++
++	kfree(tio_work);
++
++	return err;
++}
++
++static int
++blockio_open_path(struct iet_volume *volume, const char *path)
++{
++	struct blockio_data *bio_data = (struct blockio_data *) volume-&gt;private;
++	struct block_device *bdev;
++	int flags = LUReadonly(volume) ? MS_RDONLY : 0;
++	int err = 0;
++
++	bio_data-&gt;path = kstrdup(path, GFP_KERNEL);
++	if (!bio_data-&gt;path)
++		return -ENOMEM;
++
++	bdev = open_bdev_excl(path, flags, THIS_MODULE);
++	if (IS_ERR(bdev)) {
++		err = PTR_ERR (bdev);
++		eprintk(&quot;Can't open device %s \n&quot;, path);
++		bio_data-&gt;bdev = NULL;
++	} else {
++		bio_data-&gt;bdev = bdev;
++		fsync_bdev(bio_data-&gt;bdev);
++	}
++
++	return err;
++}
++
++static int
++set_scsiid(struct iet_volume *volume, const char *id)
++{
++	size_t len;
++
++	if ((len = strlen(id)) &gt; SCSI_ID_LEN - VENDOR_ID_LEN) {
++		eprintk(&quot;SCSI ID too long, %lu provided, %u max \n&quot;,
++			(unsigned long) len, SCSI_ID_LEN - VENDOR_ID_LEN);
++		return -EINVAL;
++	}
++
++	memcpy(volume-&gt;scsi_id + VENDOR_ID_LEN, id, len);
++
++	return 0;
++}
++
++static void
++gen_scsiid(struct iet_volume *volume, struct inode *inode)
++{
++	int i;
++	u32 *p;
++
++	strlcpy(volume-&gt;scsi_id, VENDOR_ID, VENDOR_ID_LEN);
++
++	for (i = VENDOR_ID_LEN; i &lt; SCSI_ID_LEN; i++)
++		if (volume-&gt;scsi_id[i])
++			return;
++
++	/* If a scsi id doesn't exist generate a 16 byte one:
++	 * Bytes   1-4: target type
++	 * Bytes   5-8: target id
++	 * Bytes  9-12: inode number
++	 * Bytes 13-16: device type
++	 */
++	p = (u32 *) (volume-&gt;scsi_id + VENDOR_ID_LEN);
++	*(p + 0) = volume-&gt;target-&gt;trgt_param.target_type;
++	*(p + 1) = volume-&gt;target-&gt;tid;
++	*(p + 2) = (unsigned int) inode-&gt;i_ino;
++	*(p + 3) = (unsigned int) inode-&gt;i_sb-&gt;s_dev;
++}
++
++static int
++set_scsisn(struct iet_volume *volume, const char *sn)
++{
++	size_t len;
++
++	if ((len = strlen(sn)) &gt; SCSI_SN_LEN) {
++		eprintk(&quot;SCSI SN too long, %lu provided, %u max \n&quot;,
++			(unsigned long) len, SCSI_SN_LEN);
++		return -EINVAL;
++	}
++
++	memcpy(volume-&gt;scsi_sn, sn, len);
++
++	return 0;
++}
++
++/* Create an enumeration of our accepted actions */
++enum
++{
++	Opt_scsiid, Opt_scsisn, Opt_path, Opt_ignore, Opt_err,
++};
++
++/* Create a match table using our action enums and their matching options */
++static match_table_t tokens = {
++	{Opt_scsiid, &quot;ScsiId=%s&quot;},
++	{Opt_scsisn, &quot;ScsiSN=%s&quot;},
++	{Opt_path, &quot;Path=%s&quot;},
++	{Opt_ignore, &quot;Type=%s&quot;},
++	{Opt_ignore, &quot;IOMode=%s&quot;},
++	{Opt_err, NULL},
++};
++
++static int
++parse_blockio_params (struct iet_volume *volume, char *params)
++{
++	int err = 0;
++	char *p, *q;
++
++	/* Loop through parameters separated by commas, look up our
++	 * parameter in match table, return enumeration and arguments
++	 * select case based on the returned enum and run the action */
++	while ((p = strsep(&amp;params, &quot;,&quot;)) != NULL) {
++		substring_t args[MAX_OPT_ARGS];
++		int token;
++		if (!*p)
++			continue;
++		token = match_token(p, tokens, args);
++		switch (token) {
++		case Opt_scsiid:
++			if (!(q = match_strdup(&amp;args[0]))) {
++				err = -ENOMEM;
++				goto out;
++			}
++			err = set_scsiid(volume, q);
++			kfree(q);
++			if (err &lt; 0)
++				goto out;
++			break;
++		case Opt_scsisn:
++			if (!(q = match_strdup(&amp;args[0]))) {
++				err = -ENOMEM;
++				goto out;
++			}
++			err = set_scsisn(volume, q);
++			kfree(q);
++			if (err &lt; 0)
++				goto out;
++			break;
++		case Opt_path:
++			if (!(q = match_strdup(&amp;args[0]))) {
++				err = -ENOMEM;
++				goto out;
++			}
++			err = blockio_open_path(volume, q);
++			kfree(q);
++			if (err &lt; 0)
++				goto out;
++			break;
++		case Opt_ignore:
++			break;
++		default:
++			eprintk(&quot;Bad option %s for Lun %u on Target %s \n&quot;,
++				p, volume-&gt;lun, volume-&gt;target-&gt;name);
++			return -EINVAL;
++		}
++	}
++
++  out:
++	return err;
++}
++
++static void
++blockio_detach(struct iet_volume *volume)
++{
++	struct blockio_data *bio_data = (struct blockio_data *) volume-&gt;private;
++
++	if (bio_data-&gt;bdev)
++		close_bdev_excl(bio_data-&gt;bdev);
++
++	kfree(volume-&gt;private);
++}
++
++static int
++blockio_attach (struct iet_volume *volume, char *args)
++{
++	struct blockio_data *bio_data;
++	int err = 0;
++
++	if (volume-&gt;private) {
++		eprintk(&quot;Lun %u already attached on Target %s \n&quot;,
++			volume-&gt;lun, volume-&gt;target-&gt;name);
++		return -EBUSY;
++	}
++
++	bio_data = kzalloc(sizeof (*bio_data), GFP_KERNEL);
++	if (!bio_data)
++		return -ENOMEM;
++
++	volume-&gt;private = bio_data;
++
++	if ((err = parse_blockio_params(volume, args)) &lt; 0) {
++		eprintk(&quot;Error attaching Lun %u to Target %s \n&quot;,
++			volume-&gt;lun, volume-&gt;target-&gt;name);
++		goto out;
++	}
++
++	/* Assign a vendor id, generate scsi id if none exists */
++	gen_scsiid(volume, bio_data-&gt;bdev-&gt;bd_inode);
++
++	volume-&gt;blk_shift = SECTOR_SIZE_BITS;
++	volume-&gt;blk_cnt = bio_data-&gt;bdev-&gt;bd_inode-&gt;i_size &gt;&gt; volume-&gt;blk_shift;
++
++  out:
++	if (err &lt; 0)
++		blockio_detach(volume);
++
++	return err;
++}
++
++static void
++blockio_show(struct iet_volume *volume, struct seq_file *seq)
++{
++	struct blockio_data *bio_data = (struct blockio_data *) volume-&gt;private;
++
++	/* Used to display blockio volume info in /proc/net/iet/volumes */
++	seq_printf(seq, &quot; path:%s\n&quot;, bio_data-&gt;path);
++}
++
++struct iotype blockio = {
++	.name = &quot;blockio&quot;,
++	.attach = blockio_attach,
++	.make_request = blockio_make_request,
++	.detach = blockio_detach,
++	.show = blockio_show,
++};
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000007.html">[Iscsitarget-svn] r95 - in trunk: doc/manpages kernel
+</A></li>
+	<LI>Next message: <A HREF="000009.html">[Iscsitarget-svn] r97 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8">[ date ]</a>
+              <a href="thread.html#8">[ thread ]</a>
+              <a href="subject.html#8">[ subject ]</a>
+              <a href="author.html#8">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

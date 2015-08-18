@@ -1,0 +1,99 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[474] trunk/usr/iscsid.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B474%5D%20trunk/usr/iscsid.c&In-Reply-To=%3CE1SEIXd-0002Sd-Ir%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000384.html">
+   <LINK REL="Next"  HREF="000386.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[474] trunk/usr/iscsid.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B474%5D%20trunk/usr/iscsid.c&In-Reply-To=%3CE1SEIXd-0002Sd-Ir%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[474] trunk/usr/iscsid.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr  1 13:01:49 CEST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000384.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[473] trunk/usr/plain.c
+</A></li>
+        <LI>Next message: <A HREF="000386.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[475] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#385">[ date ]</a>
+              <a href="thread.html#385">[ thread ]</a>
+              <a href="subject.html#385">[ subject ]</a>
+              <a href="author.html#385">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 474
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=474&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=474&amp;view=rev</A>
+Author:   agr1
+Date:     2012-04-01 11:01:49 +0000 (Sun, 01 Apr 2012)
+Log Message:
+-----------
+Don't look at the InitiatorAlias during login as it's unused anyway
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/usr/iscsid.c
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2012-04-01 11:01:32 UTC (rev 473)
++++ trunk/usr/iscsid.c	2012-04-01 11:01:49 UTC (rev 474)
+@@ -386,7 +386,7 @@
+ 	struct iscsi_login_req_hdr *req =
+ 				(struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
+ 
+-	char *name, *alias, *session_type, *target_name;
++	char *name, *session_type, *target_name;
+ 	struct sockaddr_storage ss;
+ 	socklen_t slen = sizeof(struct sockaddr_storage);
+ 
+@@ -405,7 +405,6 @@
+ 		return;
+ 	}
+ 	conn-&gt;initiator = strdup(name);
+-	alias = text_key_find(conn, &quot;InitiatorAlias&quot;);
+ 	session_type = text_key_find(conn, &quot;SessionType&quot;);
+ 	target_name = text_key_find(conn, &quot;TargetName&quot;);
+ 
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000384.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[473] trunk/usr/plain.c
+</A></li>
+	<LI>Next message: <A HREF="000386.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[475] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#385">[ date ]</a>
+              <a href="thread.html#385">[ thread ]</a>
+              <a href="subject.html#385">[ subject ]</a>
+              <a href="author.html#385">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[486] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B486%5D%20trunk&In-Reply-To=%3CE1TTG5t-0001PP-Ab%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000398.html">
+   <LINK REL="Next"  HREF="000397.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[486] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B486%5D%20trunk&In-Reply-To=%3CE1TTG5t-0001PP-Ab%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[486] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Tue Oct 30 18:59:17 CET 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000398.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[485] trunk
+</A></li>
+        <LI>Next message: <A HREF="000397.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[487]	trunk/kernel/digest.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#396">[ date ]</a>
+              <a href="thread.html#396">[ thread ]</a>
+              <a href="subject.html#396">[ subject ]</a>
+              <a href="author.html#396">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 486
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=486&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=486&amp;view=rev</A>
+Author:   agr1
+Date:     2012-10-30 17:59:16 +0000 (Tue, 30 Oct 2012)
+Log Message:
+-----------
+Fix compilation against linux 3.6
+
+Merely compile tested.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/kernel/event.c
+
+Added Paths:
+-----------
+    trunk/patches/compat-3.5.patch
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2012-10-30 17:58:54 UTC (rev 485)
++++ trunk/Makefile	2012-10-30 17:59:16 UTC (rev 486)
+@@ -66,6 +66,10 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++ifeq ($(call kver_le,3,5,0),1)
++	PATCHES := $(PATCHES) compat-3.5.patch
++endif
++
+ ifeq ($(call kver_le,3,4,0),1)
+ 	PATCHES := $(PATCHES) compat-3.2-3.4.patch
+ endif
+
+Modified: trunk/kernel/event.c
+===================================================================
+--- trunk/kernel/event.c	2012-10-30 17:58:54 UTC (rev 485)
++++ trunk/kernel/event.c	2012-10-30 17:59:16 UTC (rev 486)
+@@ -68,8 +68,17 @@
+ 
+ int event_init(void)
+ {
+-	nl = netlink_kernel_create(&amp;init_net, NETLINK_IET, 1, event_recv_skb,
+-				   NULL, THIS_MODULE);
++	struct netlink_kernel_cfg cfg = {
++		.groups = 1,
++		.input = event_recv_skb,
++		.cb_mutex = NULL,
++		.bind = NULL,
++	};
++
++	nl = netlink_kernel_create(&amp;init_net,
++				   NETLINK_IET,
++				   THIS_MODULE,
++				   &amp;cfg);
+ 	if (!nl)
+ 		return -ENOMEM;
+ 	else
+
+Added: trunk/patches/compat-3.5.patch
+===================================================================
+--- trunk/patches/compat-3.5.patch	                        (rev 0)
++++ trunk/patches/compat-3.5.patch	2012-10-30 17:59:16 UTC (rev 486)
+@@ -0,0 +1,24 @@
++diff --git b/kernel/event.c a/kernel/event.c
++index 1c5f3a4..0266101 100644
++--- b/kernel/event.c
+++++ a/kernel/event.c
++@@ -68,17 +68,8 @@ int event_send(u32 tid, u64 sid, u32 cid, u32 state, int atomic)
++ 
++ int event_init(void)
++ {
++-	struct netlink_kernel_cfg cfg = {
++-		.groups = 1,
++-		.input = event_recv_skb,
++-		.cb_mutex = NULL,
++-		.bind = NULL,
++-	};
++-
++-	nl = netlink_kernel_create(&amp;init_net,
++-				   NETLINK_IET,
++-				   THIS_MODULE,
++-				   &amp;cfg);
+++	nl = netlink_kernel_create(&amp;init_net, NETLINK_IET, 1, event_recv_skb,
+++				   NULL, THIS_MODULE);
++ 	if (!nl)
++ 		return -ENOMEM;
++ 	else
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000398.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[485] trunk
+</A></li>
+	<LI>Next message: <A HREF="000397.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[487]	trunk/kernel/digest.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#396">[ date ]</a>
+              <a href="thread.html#396">[ thread ]</a>
+              <a href="subject.html#396">[ subject ]</a>
+              <a href="author.html#396">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

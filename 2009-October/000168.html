@@ -1,0 +1,227 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r256 - in trunk: kernel usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r256%20-%20in%20trunk%3A%20kernel%20usr&In-Reply-To=%3C200910081829.n98ITIZ2016087%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000167.html">
+   <LINK REL="Next"  HREF="000169.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r256 - in trunk: kernel usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r256%20-%20in%20trunk%3A%20kernel%20usr&In-Reply-To=%3C200910081829.n98ITIZ2016087%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r256 - in trunk: kernel usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 20:29:18 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000167.html">[Iscsitarget-svn] r255 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000169.html">[Iscsitarget-svn] r257 - in trunk: include kernel usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#168">[ date ]</a>
+              <a href="thread.html#168">[ thread ]</a>
+              <a href="subject.html#168">[ subject ]</a>
+              <a href="author.html#168">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 20:29:17 +0200 (Thu, 08 Oct 2009)
+New Revision: 256
+
+Modified:
+   trunk/kernel/iscsi.c
+   trunk/kernel/iscsi_hdr.h
+   trunk/usr/iscsi_hdr.h
+   trunk/usr/param.c
+Log:
+NOP-In preparatory cleanups
+
+- s/NOOP/NOP/g
+- move implicit &quot;*_NR_&lt;KEY&gt;&quot; from usr/param.c::SET_KEY_VALUES() macro back to
+  the key's name. We might want to add keys that don't fit into that naming
+  scheme.
+
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2009-10-08 18:24:05 UTC (rev 255)
++++ trunk/kernel/iscsi.c	2009-10-08 18:29:17 UTC (rev 256)
+@@ -825,7 +825,7 @@
+ 	}
+ }
+ 
+-static int noop_out_start(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
++static int nop_out_start(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
+ {
+ 	u32 size, tmp;
+ 	int i, err = 0;
+@@ -1313,7 +1313,7 @@
+ 	iscsi_cmnd_init_write(rsp);
+ }
+ 
+-static void noop_out_exec(struct iscsi_cmnd *req)
++static void nop_out_exec(struct iscsi_cmnd *req)
+ {
+ 	struct iscsi_cmnd *rsp;
+ 	struct iscsi_nop_in_hdr *rsp_hdr;
+@@ -1322,7 +1322,7 @@
+ 		rsp = iscsi_cmnd_create_rsp_cmnd(req, 1);
+ 
+ 		rsp_hdr = (struct iscsi_nop_in_hdr *)&amp;rsp-&gt;pdu.bhs;
+-		rsp_hdr-&gt;opcode = ISCSI_OP_NOOP_IN;
++		rsp_hdr-&gt;opcode = ISCSI_OP_NOP_IN;
+ 		rsp_hdr-&gt;flags = ISCSI_FLG_FINAL;
+ 		rsp_hdr-&gt;itt = req-&gt;pdu.bhs.itt;
+ 		rsp_hdr-&gt;ttt = cpu_to_be32(ISCSI_RESERVED_TAG);
+@@ -1365,8 +1365,8 @@
+ 	dprintk(D_GENERIC, &quot;%p,%x,%u\n&quot;, cmnd, cmnd_opcode(cmnd), cmnd-&gt;pdu.bhs.sn);
+ 
+ 	switch (cmnd_opcode(cmnd)) {
+-	case ISCSI_OP_NOOP_OUT:
+-		noop_out_exec(cmnd);
++	case ISCSI_OP_NOP_OUT:
++		nop_out_exec(cmnd);
+ 		break;
+ 	case ISCSI_OP_SCSI_CMD:
+ 		scsi_cmnd_exec(cmnd);
+@@ -1491,7 +1491,7 @@
+ 	conn-&gt;write_size = sizeof(cmnd-&gt;pdu.bhs);
+ 
+ 	switch (cmnd_opcode(cmnd)) {
+-	case ISCSI_OP_NOOP_IN:
++	case ISCSI_OP_NOP_IN:
+ 		cmnd_set_sn(cmnd, 1);
+ 		cmnd_send_pdu(conn, cmnd);
+ 		break;
+@@ -1547,7 +1547,7 @@
+ 
+ 	dprintk(D_GENERIC, &quot;%p:%x\n&quot;, cmnd, cmnd_opcode(cmnd));
+ 	switch (cmnd_opcode(cmnd)) {
+-	case ISCSI_OP_NOOP_IN:
++	case ISCSI_OP_NOP_IN:
+ 	case ISCSI_OP_SCSI_RSP:
+ 	case ISCSI_OP_SCSI_TASK_MGT_RSP:
+ 	case ISCSI_OP_TEXT_RSP:
+@@ -1662,8 +1662,8 @@
+ 		return;
+ 
+ 	switch (cmnd_opcode(cmnd)) {
+-	case ISCSI_OP_NOOP_OUT:
+-		err = noop_out_start(conn, cmnd);
++	case ISCSI_OP_NOP_OUT:
++		err = nop_out_start(conn, cmnd);
+ 		break;
+ 	case ISCSI_OP_SCSI_CMD:
+ 		if (!(err = cmnd_insert_hash(cmnd)))
+@@ -1705,7 +1705,7 @@
+ 	dprintk(D_GENERIC, &quot;%p:%x\n&quot;, cmnd, cmnd_opcode(cmnd));
+ 	switch (cmnd_opcode(cmnd)) {
+ 	case ISCSI_OP_SCSI_REJECT:
+-	case ISCSI_OP_NOOP_OUT:
++	case ISCSI_OP_NOP_OUT:
+ 	case ISCSI_OP_SCSI_CMD:
+ 	case ISCSI_OP_SCSI_TASK_MGT_MSG:
+ 	case ISCSI_OP_TEXT_CMD:
+
+Modified: trunk/kernel/iscsi_hdr.h
+===================================================================
+--- trunk/kernel/iscsi_hdr.h	2009-10-08 18:24:05 UTC (rev 255)
++++ trunk/kernel/iscsi_hdr.h	2009-10-08 18:29:17 UTC (rev 256)
+@@ -43,7 +43,7 @@
+ #define ISCSI_OPCODE_MASK		0x3F
+ 
+ /* Client to Server Message Opcode values */
+-#define ISCSI_OP_NOOP_OUT		0x00
++#define ISCSI_OP_NOP_OUT		0x00
+ #define ISCSI_OP_SCSI_CMD		0x01
+ #define ISCSI_OP_SCSI_TASK_MGT_MSG	0x02
+ #define ISCSI_OP_LOGIN_CMD		0x03
+@@ -58,7 +58,7 @@
+ #define ISCSI_OP_VENDOR4_CMD		0x1f
+ 
+ /* Server to Client Message Opcode values */
+-#define ISCSI_OP_NOOP_IN		0x20
++#define ISCSI_OP_NOP_IN 		0x20
+ #define ISCSI_OP_SCSI_RSP		0x21
+ #define ISCSI_OP_SCSI_TASK_MGT_RSP	0x22
+ #define ISCSI_OP_LOGIN_RSP		0x23
+
+Modified: trunk/usr/iscsi_hdr.h
+===================================================================
+--- trunk/usr/iscsi_hdr.h	2009-10-08 18:24:05 UTC (rev 255)
++++ trunk/usr/iscsi_hdr.h	2009-10-08 18:29:17 UTC (rev 256)
+@@ -32,7 +32,7 @@
+ #define ISCSI_OPCODE_MASK		0x3F
+ 
+ /* Client to Server Message Opcode values */
+-#define ISCSI_OP_NOOP_OUT		0x00
++#define ISCSI_OP_NOP_OUT		0x00
+ #define ISCSI_OP_SCSI_CMD		0x01
+ #define ISCSI_OP_SCSI_TASK_MGT_MSG	0x02
+ #define ISCSI_OP_LOGIN_CMD		0x03
+@@ -42,7 +42,7 @@
+ #define ISCSI_OP_SNACK_CMD		0x10
+ 
+ /* Server to Client Message Opcode values */
+-#define ISCSI_OP_NOOP_IN		0x20
++#define ISCSI_OP_NOP_IN 		0x20
+ #define ISCSI_OP_SCSI_RSP		0x21
+ #define ISCSI_OP_SCSI_TASK_MGT_RSP	0x22
+ #define ISCSI_OP_LOGIN_RSP		0x23
+
+Modified: trunk/usr/param.c
+===================================================================
+--- trunk/usr/param.c	2009-10-08 18:24:05 UTC (rev 255)
++++ trunk/usr/param.c	2009-10-08 18:29:17 UTC (rev 256)
+@@ -281,12 +281,12 @@
+ 	.set_val = marker_set_val,
+ };
+ 
+-#define	SET_KEY_VALUES(x)	DEFAULT_NR_##x,MIN_NR_##x, MAX_NR_##x
++#define	SET_KEY_VALUES(x)	DEFAULT_##x,MIN_##x, MAX_##x
+ 
+ struct iscsi_key target_keys[] = {
+-	{&quot;Wthreads&quot;, SET_KEY_VALUES(WTHREADS), &amp;minimum_ops},
++	{&quot;Wthreads&quot;, SET_KEY_VALUES(NR_WTHREADS), &amp;minimum_ops},
+ 	{&quot;Type&quot;, 0, 0, 16, &amp;minimum_ops},
+-	{&quot;QueuedCommands&quot;, SET_KEY_VALUES(QUEUED_CMNDS), &amp;minimum_ops},
++	{&quot;QueuedCommands&quot;, SET_KEY_VALUES(NR_QUEUED_CMNDS), &amp;minimum_ops},
+ 	{NULL,},
+ };
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000167.html">[Iscsitarget-svn] r255 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000169.html">[Iscsitarget-svn] r257 - in trunk: include kernel usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#168">[ date ]</a>
+              <a href="thread.html#168">[ thread ]</a>
+              <a href="subject.html#168">[ subject ]</a>
+              <a href="author.html#168">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

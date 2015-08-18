@@ -1,0 +1,408 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r235 - trunk/etc/initd
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r235%20-%20trunk/etc/initd&In-Reply-To=%3C200909211828.n8LISFJS016749%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000146.html">
+   <LINK REL="Next"  HREF="000148.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r235 - trunk/etc/initd</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r235%20-%20trunk/etc/initd&In-Reply-To=%3C200909211828.n8LISFJS016749%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r235 - trunk/etc/initd">agr at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 21 20:28:15 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000146.html">[Iscsitarget-svn] r234 - in trunk: . usr
+</A></li>
+        <LI>Next message: <A HREF="000148.html">[Iscsitarget-svn] r236 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#147">[ date ]</a>
+              <a href="thread.html#147">[ thread ]</a>
+              <a href="subject.html#147">[ subject ]</a>
+              <a href="author.html#147">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-21 20:28:14 +0200 (Mon, 21 Sep 2009)
+New Revision: 235
+
+Modified:
+   trunk/etc/initd/initd
+   trunk/etc/initd/initd.debian
+   trunk/etc/initd/initd.gentoo
+   trunk/etc/initd/initd.redhat
+Log:
+
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+updated initrd scripts
+
+This patch updates the initrd scripts for the different
+platforms to use common names, handle an options file if
+present and use platform builtin functions if present.
+
+
+Modified: trunk/etc/initd/initd
+===================================================================
+--- trunk/etc/initd/initd	2009-09-21 18:15:06 UTC (rev 234)
++++ trunk/etc/initd/initd	2009-09-21 18:28:14 UTC (rev 235)
+@@ -4,12 +4,17 @@
+ #
+ 
+ PATH=/sbin:/bin:/usr/sbin:/usr/bin
++OPTIONS=&quot;&quot;
+ 
++if [ -f /etc/sysconfig/iscsi-target ]; then
++	. /etc/sysconfig/iscsi-target
++fi
++
+ start_server()
+ {
+ 	modprobe -q crc32c
+ 	modprobe iscsi_trgt
+-	/usr/sbin/ietd
++	/usr/sbin/ietd $OPTIONS
+ }
+ 
+ stop_server()
+
+Modified: trunk/etc/initd/initd.debian
+===================================================================
+--- trunk/etc/initd/initd.debian	2009-09-21 18:15:06 UTC (rev 234)
++++ trunk/etc/initd/initd.debian	2009-09-21 18:28:14 UTC (rev 235)
+@@ -4,62 +4,53 @@
+ # description: Starts and stops the iSCSI target
+ # debianized start-stop script
+ 
+-PID_FILE=/var/run/iscsi_trgt.pid
+-CONFIG_FILE=/etc/ietd.conf
++PATH=/sbin:/bin:/usr/sbin:/usr/bin
+ DAEMON=/usr/sbin/ietd
++OPTIONS=&quot;&quot;
++PIDFILE=/var/run/iscsi_trgt.pid
+ 
+-PATH=/sbin:/bin:/usr/sbin:/usr/bin
++if [ -f /lib/init/vars.sh ]; then
++	. /lib/init/vars.sh
++fi
+ 
++if [ -f /lib/lsb/init-functions ]; then
++	. /lib/lsb/init-functions
++fi
++
++if [ -f /etc/sysconfig/iscsi-target ]; then
++	. /etc/sysconfig/iscsi-target
++fi
++
+ RETVAL=0
+ 
+ ietd_start()
+ {
+-	echo -n &quot;Starting iSCSI enterprise target service: &quot;
++	log_daemon_msg &quot;Starting iSCSI Target&quot; &quot;ietd&quot;
+ 	modprobe -q crc32c
+ 	modprobe iscsi_trgt
+-	start-stop-daemon --start --exec $DAEMON --quiet
+-	RETVAL=$?
+-	if [ $RETVAL -eq 0 ]; then
+-	    echo &quot;succeeded.&quot;
+-	else
+-	    echo &quot;failed.&quot;
+-	fi
++	start-stop-daemon --start --exec $DAEMON --pidfile $PIDFILE -- $OPTIONS
++	log_end_msg $?
+ }
+ 
+ ietd_stop()
+ {
+-	echo -n &quot;Removing iSCSI enterprise target devices: &quot;
+-	# ugly, but ietadm does not always provide correct exit values
+-	RETURN=`ietadm --op delete 2&gt;&amp;1`
+-	RETVAL=$?
+-	if [ $RETVAL -eq 0 ] &amp;&amp; [ x$RETURN != x&quot;something wrong&quot; ]; then
+-	    echo &quot;succeeded.&quot;
+-	else
+-	    echo &quot;failed with reason :$RETURN&quot;
+-	    exit 1
+-	fi
++	log_daemon_msg &quot;Stopping iSCSI Target&quot; &quot;ietd&quot;
++	ietadm --op delete
++	start-stop-daemon --stop --exec $DAEMON --pidfile $PIDFILE
++	rm -f $PIDFILE
++	modprobe -r iscsi_trgt
++	log_end_msg $?
++}
+ 
+-	echo -n &quot;Stopping iSCSI enterprise target service: &quot;
+-	start-stop-daemon --stop --quiet --exec $DAEMON --pidfile $PID_FILE
+-	RETVAL=$?
+-	if [ $RETVAL -eq 0 ]; then
+-	    echo &quot;succeeded.&quot;
++ietd_status()
++{
++	PID=`pidof ietd`
++	if [ $PID ]; then
++		echo &quot;iSCSI Target (pid $PID) is running...&quot;
+ 	else
+-	    echo &quot;failed.&quot;
++		echo &quot;iSCSI Target is stopped.&quot;
++		exit 1
+ 	fi
+-	# ugly, but pid file is not removed by ietd
+-	rm -f $PID_FILE
+-
+-	echo -n &quot;Removing iSCSI enterprise target modules: &quot;
+-	modprobe -r iscsi_trgt
+-	RETVAL=$?
+-	modprobe -r crc32c 2&gt;/dev/null
+-	if [ $RETVAL -eq 0 ]; then
+-	    echo &quot;succeeded.&quot;
+-	else
+-	    echo &quot;failed.&quot;
+-	    exit 1
+-	fi
+ }
+ 
+ case &quot;$1&quot; in
+@@ -75,33 +66,10 @@
+ 	ietd_start
+         ;;
+   status)
+-	PID=`pidof ietd`
+-	if [ $PID ]; then
+-		echo &quot;iSCSI enterprise target is running at pid $PID&quot;
+-	else
+-		echo &quot;no iSCSI enterprise target found!&quot;
+-		exit 1
+-	fi
++	ietd_status
+         ;;
+-  dump)
+-	DUMP=`tempfile -p ietd`
+-	RETVAL=$?
+-	if [ $RETVAL -ne 0 ]; then
+-	    echo &quot;Failed to create dump file $DUMP&quot;
+-	    exit 1
+-	fi
+-        ietadm --mode dump --all &gt;$DUMP
+-	RETVAL=$?
+-	if [ $RETVAL -ne 0 ]; then
+-	    echo &quot;Error dumping config from daemon&quot;
+-	    rm $DUMP
+-	    exit 1
+-	fi
+-	mv -u $DUMP $CONFIG_FILE
+-	echo &quot;Config dumped to $CONFIG_FILE&quot;
+-        ;;
+   *)
+-        echo $&quot;Usage: $0 {start|stop|restart|status|dump}&quot;
++        echo $&quot;Usage: $0 {start|stop|restart|status}&quot;
+         exit 1
+ esac
+ 
+
+Modified: trunk/etc/initd/initd.gentoo
+===================================================================
+--- trunk/etc/initd/initd.gentoo	2009-09-21 18:15:06 UTC (rev 234)
++++ trunk/etc/initd/initd.gentoo	2009-09-21 18:28:14 UTC (rev 235)
+@@ -2,38 +2,39 @@
+ #
+ # Start the iSCSI Enterprise Target.
+ #
++# To define start-up options, create a config file called
++# /etc/conf.d/iscsi-target, in it define OPTIONS=&quot;...&quot;.
+ 
+-PATH=/sbin:/bin:/usr/sbin:/usr/bin
+-
+ depend()
+ {
+-        use net
++	use net
++	need localmount
++	after bootmisc
+ }
+ 
+-start_server()
++start()
+ {
+-        modprobe -q crc32c
+-        modprobe iscsi_trgt
+-        /usr/sbin/ietd
++	ebegin &quot;Starting iSCSI Target&quot;
++	modprobe -q crc32c
++	modprobe iscsi_trgt
++	start-stop-daemon --start --exec /usr/sbin/ietd --pidfile /var/run/iscsi_trgt.pid -- $OPTIONS
++	eend $?
+ }
+ 
+-stop_server()
++stop()
+ {
+-        ietadm --op delete
+-        killall ietd
+-        modprobe -r iscsi_trgt
++	ebegin &quot;Stopping iSCSI Target&quot;
++	ietadm --op delete
++	start-stop-daemon --stop --exec /usr/sbin/ietd --pidfile /var/run/iscsi_trgt.pid
++	rm -f /var/run/iscsi_trgt.pid
++	modprobe -r iscsi_trgt
++	eend $?
+ }
+ 
+-start()
++restart()
+ {
+-        ebegin &quot;Starting iscsi&quot;
+-        start_server
+-        eend 0
++	stop
++	sleep 1
++	start
+ }
+ 
+-stop()
+-{
+-        ebegin &quot;Stopping iscsi&quot;
+-        stop_server
+-        eend 0
+-}
+
+Modified: trunk/etc/initd/initd.redhat
+===================================================================
+--- trunk/etc/initd/initd.redhat	2009-09-21 18:15:06 UTC (rev 234)
++++ trunk/etc/initd/initd.redhat	2009-09-21 18:28:14 UTC (rev 235)
+@@ -6,6 +6,9 @@
+ # pidfile: /var/run/ietd.pid
+ # config:  /etc/ietd.conf
+ 
++PATH=/sbin:/bin:/usr/sbin:/usr/bin
++OPTIONS=&quot;&quot;
++
+ # Source function library.
+ if [ -f /etc/init.d/functions ] ; then
+   . /etc/init.d/functions
+@@ -15,29 +18,35 @@
+   exit 0
+ fi
+ 
+-PATH=/sbin:/bin:/usr/sbin:/usr/bin
++if [ -f /etc/sysconfig/iscsi-target ]; then
++  . /etc/sysconfig/iscsi-target
++fi
+ 
+ RETVAL=0
+ 
+ start()
+ {
+-	echo -n &quot;Starting iSCSI target service: &quot;
++	echo -n &quot;Starting iSCSI Target: &quot;
+ 	modprobe -q crc32c
+ 	modprobe iscsi_trgt
+-	daemon /usr/sbin/ietd
++	daemon /usr/sbin/ietd $OPTIONS
+ 	RETVAL=$?
++	if [ $RETVAL -eq 0 ]; then
++		echo_success
++	else
++		echo_failure
++	fi
+ 	echo
+ 	return $RETVAL
+ }
+ 
+ stop()
+ {
+-	echo -n &quot;Stopping iSCSI target service: &quot;
+-	ietadm --op delete &gt;/dev/null 2&gt;/dev/null
+-	killall ietd 2&gt; /dev/null
+-	modprobe -r iscsi_trgt 2&gt;/dev/null
++	echo -n &quot;Stopping iSCSI Target: &quot;
++	ietadm --op delete
++	killall ietd
++	modprobe -r iscsi_trgt
+ 	RETVAL=$?
+-	modprobe -r crc32c 2&gt;/dev/null
+ 	if [ $RETVAL -eq 0 ]; then
+ 		echo_success
+ 	else
+@@ -49,8 +58,9 @@
+ 
+ restart()
+ {
+-        stop
+-        start
++	stop
++	sleep 1
++	start
+ }
+ 
+ condrestart()
+@@ -65,10 +75,10 @@
+ {
+ 	PID=`pidofproc ietd`
+ 	if [ ! $PID ]; then
+-		echo &quot;iSCSI target stopped&quot;
++		echo &quot;iSCSI Target stopped&quot;
+ 		exit 1
+ 	else
+-		echo &quot;ietd (pid $PID) is running...&quot;
++		echo &quot;iSCSI Target (pid $PID) is running...&quot;
+ 	fi
+ }
+ 
+@@ -80,7 +90,7 @@
+         stop
+         ;;
+   restart)
+-        restart
++	restart
+         ;;
+   condrestart)
+         condrestart
+@@ -89,7 +99,7 @@
+         status
+         ;;
+   *)
+-        echo $&quot;Usage: $0 {start|stop|restart|status}&quot;
++        echo $&quot;Usage: $0 {start|stop|restart|condrestart|status}&quot;
+         exit 1
+ esac
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000146.html">[Iscsitarget-svn] r234 - in trunk: . usr
+</A></li>
+	<LI>Next message: <A HREF="000148.html">[Iscsitarget-svn] r236 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#147">[ date ]</a>
+              <a href="thread.html#147">[ thread ]</a>
+              <a href="subject.html#147">[ subject ]</a>
+              <a href="author.html#147">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

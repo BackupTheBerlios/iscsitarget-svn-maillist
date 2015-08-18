@@ -1,0 +1,251 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r146 - in trunk: . kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r146%20-%20in%20trunk%3A%20.%20kernel&In-Reply-To=%3C200802111226.m1BCQcSe013166%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000059.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r146 - in trunk: . kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r146%20-%20in%20trunk%3A%20.%20kernel&In-Reply-To=%3C200802111226.m1BCQcSe013166%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r146 - in trunk: . kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Feb 11 13:26:38 CET 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000059.html">[Iscsitarget-svn] r147 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58">[ date ]</a>
+              <a href="thread.html#58">[ thread ]</a>
+              <a href="subject.html#58">[ subject ]</a>
+              <a href="author.html#58">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2008-02-11 13:26:38 +0100 (Mon, 11 Feb 2008)
+New Revision: 146
+
+Modified:
+   trunk/Makefile
+   trunk/kernel/block-io.c
+   trunk/kernel/config.c
+   trunk/kernel/digest.c
+   trunk/kernel/event.c
+Log:
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Subject: fix compilation on 2.6.24
+Date: Sun, 10 Feb 2008 22:26:28 +0100
+
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2007-11-28 22:41:22 UTC (rev 145)
++++ trunk/Makefile	2008-02-11 12:26:38 UTC (rev 146)
+@@ -51,6 +51,11 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++# Compatibility patch for kernels &gt;= 2.6.22 and &lt;= 2.6.23
++ifeq ($(call kver_le,2,6,23),1)
++	PATCHES := $(PATCHES) compat-2.6.22-2.6.23.patch
++endif
++
+ # Compatibility patch for kernels &gt;= 2.6.19 and &lt;= 2.6.21
+ ifeq ($(call kver_le,2,6,21),1)
+ 	PATCHES := $(PATCHES) compat-2.6.19-2.6.21.patch
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2007-11-28 22:41:22 UTC (rev 145)
++++ trunk/kernel/block-io.c	2008-02-11 12:26:38 UTC (rev 146)
+@@ -28,15 +28,10 @@
+ 	struct completion tio_complete;
+ };
+ 
+-static int
+-blockio_bio_endio(struct bio *bio, unsigned int bytes_done, int error)
++static void blockio_bio_endio(struct bio *bio, int error)
+ {
+ 	struct tio_work *tio_work = bio-&gt;bi_private;
+ 
+-	/* Ignore partials */
+-	if (bio-&gt;bi_size)
+-		return 1;
+-
+ 	error = test_bit(BIO_UPTODATE, &amp;bio-&gt;bi_flags) ? error : -EIO;
+ 
+ 	if (error)
+@@ -47,8 +42,6 @@
+ 		complete(&amp;tio_work-&gt;tio_complete);
+ 
+ 	bio_put(bio);
+-
+-	return 0;
+ }
+ 
+ /*
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2007-11-28 22:41:22 UTC (rev 145)
++++ trunk/kernel/config.c	2008-02-11 12:26:38 UTC (rev 146)
+@@ -40,7 +40,7 @@
+ 	int i;
+ 	struct proc_dir_entry *ent;
+ 
+-	if (!(proc_iet_dir = proc_mkdir(&quot;net/iet&quot;, 0)))
++	if (!(proc_iet_dir = proc_mkdir(&quot;iet&quot;, init_net.proc_net)))
+ 		goto err;
+ 
+ 	proc_iet_dir-&gt;owner = THIS_MODULE;
+
+Modified: trunk/kernel/digest.c
+===================================================================
+--- trunk/kernel/digest.c	2007-11-28 22:41:22 UTC (rev 145)
++++ trunk/kernel/digest.c	2008-02-11 12:26:38 UTC (rev 146)
+@@ -161,22 +161,17 @@
+ 	}
+ }
+ 
+-/* Copied from linux-iscsi initiator and slightly adjusted */
+-#define SETSG(sg, p, l) do {					\
+-	(sg).page = virt_to_page((p));				\
+-	(sg).offset = ((unsigned long)(p) &amp; ~PAGE_CACHE_MASK);	\
+-	(sg).length = (l);					\
+-} while (0)
+-
+ static void digest_header(struct hash_desc *hash, struct iscsi_pdu *pdu,
+ 			  u8 *crc)
+ {
+ 	struct scatterlist sg[2];
+ 	unsigned int nbytes = sizeof(struct iscsi_hdr);
+ 
+-	SETSG(sg[0], &amp;pdu-&gt;bhs, nbytes);
++	sg_init_table(sg, pdu-&gt;ahssize ? 2 : 1);
++
++	sg_set_buf(&amp;sg[0], &amp;pdu-&gt;bhs, nbytes);
+ 	if (pdu-&gt;ahssize) {
+-		SETSG(sg[1], pdu-&gt;ahs, pdu-&gt;ahssize);
++		sg_set_buf(&amp;sg[1], pdu-&gt;ahs, pdu-&gt;ahssize);
+ 		nbytes += pdu-&gt;ahssize;
+ 	}
+ 
+@@ -220,6 +215,7 @@
+ 
+ 	assert(count &lt;= ISCSI_CONN_IOV_MAX);
+ 
++	sg_init_table(sg, ARRAY_SIZE(cmnd-&gt;conn-&gt;hash_sg));
+ 	crypto_hash_init(hash);
+ 
+ 	for (i = 0; size; i++) {
+@@ -228,13 +224,13 @@
+ 		else
+ 			length = size;
+ 
+-		sg[i].page = tio-&gt;pvec[idx + i];
+-		sg[i].offset = offset;
+-		sg[i].length = length;
++		sg_set_page(&amp;sg[i], tio-&gt;pvec[idx + i], length, offset);
+ 		size -= length;
+ 		offset = 0;
+ 	}
+ 
++	sg_mark_end(&amp;sg[i - 1]);
++
+ 	crypto_hash_update(hash, sg, nbytes);
+ 	crypto_hash_final(hash, crc);
+ }
+
+Modified: trunk/kernel/event.c
+===================================================================
+--- trunk/kernel/event.c	2007-11-28 22:41:22 UTC (rev 145)
++++ trunk/kernel/event.c	2008-02-11 12:26:38 UTC (rev 146)
+@@ -28,7 +28,7 @@
+ 	return 0;
+ }
+ 
+-static int event_recv_skb(struct sk_buff *skb)
++static void event_recv_skb(struct sk_buff *skb)
+ {
+ 	int err;
+ 	struct nlmsghdr	*nlh;
+@@ -37,7 +37,7 @@
+ 	while (skb-&gt;len &gt;= NLMSG_SPACE(0)) {
+ 		nlh = (struct nlmsghdr *)skb-&gt;data;
+ 		if (nlh-&gt;nlmsg_len &lt; sizeof(*nlh) || skb-&gt;len &lt; nlh-&gt;nlmsg_len)
+-			return 0;
++			break;
+ 		rlen = NLMSG_ALIGN(nlh-&gt;nlmsg_len);
+ 		if (rlen &gt; skb-&gt;len)
+ 			rlen = skb-&gt;len;
+@@ -47,21 +47,8 @@
+ 			netlink_ack(skb, nlh, 0);
+ 		skb_pull(skb, rlen);
+ 	}
+-	return 0;
+ }
+ 
+-static void event_recv(struct sock *sk, int length)
+-{
+-	struct sk_buff *skb;
+-
+-	while ((skb = skb_dequeue(&amp;sk-&gt;sk_receive_queue))) {
+-		if (event_recv_skb(skb) &amp;&amp; skb-&gt;len)
+-			skb_queue_head(&amp;sk-&gt;sk_receive_queue, skb);
+-		else
+-			kfree_skb(skb);
+-	}
+-}
+-
+ static int notify(void *data, int len, int gfp_mask)
+ {
+ 	struct sk_buff *skb;
+@@ -95,8 +82,8 @@
+ 
+ int event_init(void)
+ {
+-	nl = netlink_kernel_create(NETLINK_IET, 1, event_recv, NULL,
+-				   THIS_MODULE);
++	nl = netlink_kernel_create(&amp;init_net, NETLINK_IET, 1, event_recv_skb,
++				   NULL, THIS_MODULE);
+ 	if (!nl)
+ 		return -ENOMEM;
+ 	else
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000059.html">[Iscsitarget-svn] r147 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58">[ date ]</a>
+              <a href="thread.html#58">[ thread ]</a>
+              <a href="subject.html#58">[ subject ]</a>
+              <a href="author.html#58">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

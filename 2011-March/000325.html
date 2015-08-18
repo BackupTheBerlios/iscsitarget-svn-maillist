@@ -1,0 +1,319 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[413] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B413%5D%20trunk/kernel&In-Reply-To=%3CE1PztrG-0006cn-0g%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000324.html">
+   <LINK REL="Next"  HREF="000326.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[413] trunk/kernel</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B413%5D%20trunk/kernel&In-Reply-To=%3CE1PztrG-0006cn-0g%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[413] trunk/kernel">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Wed Mar 16 17:46:02 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000324.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[412] branches/1.4.20
+</A></li>
+        <LI>Next message: <A HREF="000326.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[414]	branches/1.4.20/kernel/param.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#325">[ date ]</a>
+              <a href="thread.html#325">[ thread ]</a>
+              <a href="subject.html#325">[ subject ]</a>
+              <a href="author.html#325">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 413
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=413&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=413&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-16 16:46:01 +0000 (Wed, 16 Mar 2011)
+
+Log Message:
+-----------
+This patch fixes the handling of outstanding R2Ts by using
+r2t_length to account for bytes not yet solicited instead of bytes
+not yet received. It keeps track of the bytes received by using a
+new counter, exp_offset, so partially received R2Ts don't cause the
+command to be queued. It also keeps the scsi cmnd from being queued
+while there are outstanding R2Ts and makes sure that no more then
+max outstanding R2Ts are outstanding at once.
+
+This patch supersedes my earlier two revisions.
+
+Compile tested on CentOS5
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/iscsi.c
+    trunk/kernel/iscsi.h
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2011-03-12 12:30:24 UTC (rev 412)
++++ trunk/kernel/iscsi.c	2011-03-16 16:46:01 UTC (rev 413)
+@@ -224,12 +224,12 @@
+ 	LIST_HEAD(head);
+ 
+ 	if (!list_empty(&amp;cmnd-&gt;list)) {
+-		eprintk(&quot;%x %x %x %x %lx %u %u %u %u %u %u %u %d %d\n&quot;,
++		eprintk(&quot;%x %x %x %x %lx %u %u %u %u %u %u %u %u %d %d\n&quot;,
+ 			cmnd_itt(cmnd), cmnd_ttt(cmnd), cmnd_opcode(cmnd),
+ 			cmnd_scsicode(cmnd), cmnd-&gt;flags, cmnd-&gt;r2t_sn,
+-			cmnd-&gt;r2t_length, cmnd-&gt;is_unsolicited_data,
+-			cmnd-&gt;target_task_tag, cmnd-&gt;outstanding_r2t,
+-			cmnd-&gt;hdigest, cmnd-&gt;ddigest,
++			cmnd-&gt;r2t_length, cmnd-&gt;exp_offset,
++			cmnd-&gt;is_unsolicited_data, cmnd-&gt;target_task_tag,
++			cmnd-&gt;outstanding_r2t, cmnd-&gt;hdigest, cmnd-&gt;ddigest,
+ 			list_empty(&amp;cmnd-&gt;pdu_list), list_empty(&amp;cmnd-&gt;hash_list));
+ 
+ 		assert(list_empty(&amp;cmnd-&gt;list));
+@@ -797,16 +797,19 @@
+ 
+ static void send_r2t(struct iscsi_cmnd *req)
+ {
++	struct iscsi_sess_param *param = &amp;req-&gt;conn-&gt;session-&gt;param;
+ 	struct iscsi_cmnd *rsp;
+ 	struct iscsi_r2t_hdr *rsp_hdr;
+-	u32 length, offset, burst;
++	u32 offset, burst;
+ 	LIST_HEAD(send);
+ 
+-	length = req-&gt;r2t_length;
+-	burst = req-&gt;conn-&gt;session-&gt;param.max_burst_length;
+-	offset = be32_to_cpu(cmnd_hdr(req)-&gt;data_length) - length;
++	if (req-&gt;outstanding_r2t &gt;= param-&gt;max_outstanding_r2t)
++		return;
+ 
+-	do {
++	burst = param-&gt;max_burst_length;
++	offset = cmnd_write_size(req) - req-&gt;r2t_length;
++
++	while (req-&gt;r2t_length) {
+ 		rsp = iscsi_cmnd_create_rsp_cmnd(req, 0);
+ 		rsp-&gt;pdu.bhs.ttt = req-&gt;target_task_tag;
+ 
+@@ -817,13 +820,13 @@
+ 		rsp_hdr-&gt;itt = cmnd_hdr(req)-&gt;itt;
+ 		rsp_hdr-&gt;r2t_sn = cpu_to_be32(req-&gt;r2t_sn++);
+ 		rsp_hdr-&gt;buffer_offset = cpu_to_be32(offset);
+-		if (length &gt; burst) {
++		if (req-&gt;r2t_length &gt; burst) {
+ 			rsp_hdr-&gt;data_length = cpu_to_be32(burst);
+-			length -= burst;
++			req-&gt;r2t_length -= burst;
+ 			offset += burst;
+ 		} else {
+-			rsp_hdr-&gt;data_length = cpu_to_be32(length);
+-			length = 0;
++			rsp_hdr-&gt;data_length = cpu_to_be32(req-&gt;r2t_length);
++			req-&gt;r2t_length = 0;
+ 		}
+ 
+ 		dprintk(D_WRITE, &quot;%x %u %u %u %u\n&quot;, cmnd_itt(req),
+@@ -833,17 +836,17 @@
+ 
+ 		list_add_tail(&amp;rsp-&gt;list, &amp;send);
+ 
+-		if (++req-&gt;outstanding_r2t &gt;= req-&gt;conn-&gt;session-&gt;param.max_outstanding_r2t)
++		if (++req-&gt;outstanding_r2t &gt;= param-&gt;max_outstanding_r2t)
+ 			break;
++	}
+ 
+-	} while (length);
+-
+-	iscsi_cmnds_init_write(&amp;send);
++	if (!list_empty(&amp;send))
++		iscsi_cmnds_init_write(&amp;send);
+ }
+ 
+ static void scsi_cmnd_exec(struct iscsi_cmnd *cmnd)
+ {
+-	assert(!cmnd-&gt;r2t_length);
++	assert(!(cmnd-&gt;r2t_length || cmnd-&gt;outstanding_r2t));
+ 
+ 	if (cmnd-&gt;lun) {
+ 		iscsi_scsi_queuecmnd(cmnd);
+@@ -1012,7 +1015,8 @@
+ 		loff_t offset;
+ 		u32 length;
+ 
+-		req-&gt;r2t_length = be32_to_cpu(req_hdr-&gt;data_length) - req-&gt;pdu.datasize;
++		req-&gt;exp_offset = req-&gt;pdu.datasize;
++		req-&gt;r2t_length = cmnd_write_size(req) - req-&gt;pdu.datasize;
+ 		req-&gt;is_unsolicited_data = !(req_hdr-&gt;flags &amp; ISCSI_CMD_FINAL);
+ 		req-&gt;target_task_tag = get_next_ttt(conn-&gt;session);
+ 
+@@ -1058,6 +1062,7 @@
+ 
+ static void data_out_start(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
+ {
++	struct iscsi_sess_param *param = &amp;conn-&gt;session-&gt;param;
+ 	struct iscsi_data_out_hdr *req = (struct iscsi_data_out_hdr *)&amp;cmnd-&gt;pdu.bhs;
+ 	struct iscsi_cmnd *scsi_cmnd = NULL;
+ 	u32 offset = be32_to_cpu(req-&gt;buffer_offset);
+@@ -1071,27 +1076,31 @@
+ 		goto skip_data;
+ 	}
+ 
+-	if (scsi_cmnd-&gt;r2t_length &lt; cmnd-&gt;pdu.datasize) {
+-		eprintk(&quot;invalid data len %x %u %u\n&quot;,
+-			cmnd_itt(scsi_cmnd), cmnd-&gt;pdu.datasize, scsi_cmnd-&gt;r2t_length);
++	if (param-&gt;data_pdu_inorder &amp;&amp; offset != scsi_cmnd-&gt;exp_offset) {
++		eprintk(&quot;invalid data offset %x %u %u\n&quot;,
++			cmnd_itt(scsi_cmnd), offset, cmnd-&gt;exp_offset);
+ 		goto skip_data;
+ 	}
+ 
+-	if (scsi_cmnd-&gt;r2t_length + offset != cmnd_write_size(scsi_cmnd)) {
+-		eprintk(&quot;%x %u %u %u\n&quot;, cmnd_itt(scsi_cmnd), scsi_cmnd-&gt;r2t_length,
+-			offset,	cmnd_write_size(scsi_cmnd));
++	if (offset + cmnd-&gt;pdu.datasize &gt; cmnd_write_size(scsi_cmnd)) {
++		eprintk(&quot;invalid data length %x %u %u\n&quot;,
++			cmnd_itt(scsi_cmnd),(offset + cmnd-&gt;pdu.datasize),
++			cmnd_write_size(scsi_cmnd));
+ 		goto skip_data;
+ 	}
+ 
+-	scsi_cmnd-&gt;r2t_length -= cmnd-&gt;pdu.datasize;
+-
+-	if (req-&gt;ttt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+-		/* unsolicited burst data */
+-		if (scsi_cmnd-&gt;pdu.bhs.flags &amp; ISCSI_FLG_FINAL) {
+-			eprintk(&quot;unexpected data from %x %x\n&quot;,
++	if (scsi_cmnd-&gt;is_unsolicited_data) {
++		if (offset + cmnd-&gt;pdu.datasize &gt; param-&gt;first_burst_length) {
++			eprintk(&quot;unsolicited data &gt; first burst length %x %x\n&quot;,
+ 				cmnd_itt(cmnd), cmnd_ttt(cmnd));
+ 			goto skip_data;
+ 		}
++	} else {
++		if (req-&gt;ttt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
++			eprintk(&quot;unexpected unsolicited data %x %x\n&quot;,
++				cmnd_itt(cmnd), cmnd_ttt(cmnd));
++			goto skip_data;
++		}
+ 	}
+ 
+ 	dprintk(D_WRITE, &quot;%u %p %p %p %u %u\n&quot;, req-&gt;ttt, cmnd, scsi_cmnd,
+@@ -1099,6 +1108,12 @@
+ 
+ 	if (cmnd_recv_pdu(conn, scsi_cmnd-&gt;tio, offset, cmnd-&gt;pdu.datasize) &lt; 0)
+ 		goto skip_data;
++
++	if (scsi_cmnd-&gt;is_unsolicited_data)
++		scsi_cmnd-&gt;r2t_length -= cmnd-&gt;pdu.datasize;
++
++	scsi_cmnd-&gt;exp_offset += cmnd-&gt;pdu.datasize;
++
+ 	return;
+ 
+ skip_data:
+@@ -1120,7 +1135,8 @@
+ 	assert(scsi_cmnd);
+ 
+ 	if (conn-&gt;read_overflow) {
+-		eprintk(&quot;%x %u\n&quot;, cmnd_itt(cmnd), conn-&gt;read_overflow);
++		eprintk(&quot;connection read overflow %x %u\n&quot;,
++			cmnd_itt(cmnd), conn-&gt;read_overflow);
+ 		assert(scsi_cmnd-&gt;tio);
+ 		offset = be32_to_cpu(req-&gt;buffer_offset);
+ 		offset += cmnd-&gt;pdu.datasize - conn-&gt;read_overflow;
+@@ -1129,28 +1145,18 @@
+ 		return;
+ 	}
+ 
+-	if (req-&gt;ttt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+-		if (req-&gt;flags &amp; ISCSI_FLG_FINAL) {
++	if (req-&gt;flags &amp; ISCSI_FLG_FINAL) {
++		if (req-&gt;ttt == cpu_to_be32(ISCSI_RESERVED_TAG))
+ 			scsi_cmnd-&gt;is_unsolicited_data = 0;
+-			iscsi_session_push_cmnd(scsi_cmnd);
+-		}
+-	} else {
+-		/* TODO : proper error handling */
+-		if (!(req-&gt;flags &amp; ISCSI_FLG_FINAL) &amp;&amp; scsi_cmnd-&gt;r2t_length == 0)
+-			eprintk(&quot;initiator error %x\n&quot;, cmnd_itt(scsi_cmnd));
++		else
++			scsi_cmnd-&gt;outstanding_r2t--;
+ 
+-		if (!(req-&gt;flags &amp; ISCSI_FLG_FINAL))
+-			goto out;
+-
+-		scsi_cmnd-&gt;outstanding_r2t--;
+-
+-		if (scsi_cmnd-&gt;r2t_length == 0)
++		if (scsi_cmnd-&gt;outstanding_r2t == 0)
+ 			assert(list_empty(&amp;scsi_cmnd-&gt;pdu_list));
+ 
+ 		iscsi_session_push_cmnd(scsi_cmnd);
+ 	}
+ 
+-out:
+ 	iscsi_cmnd_remove(cmnd);
+ 	return;
+ }
+@@ -1755,6 +1761,9 @@
+ 		return;
+ 	}
+ 
++	if (cmnd-&gt;outstanding_r2t)
++		return;
++
+ 	dprintk(D_GENERIC, &quot;%p:%x %u,%u\n&quot;,
+ 		cmnd, cmnd_opcode(cmnd), cmnd-&gt;pdu.bhs.sn, session-&gt;exp_cmd_sn);
+ 
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2011-03-12 12:30:24 UTC (rev 412)
++++ trunk/kernel/iscsi.h	2011-03-16 16:46:01 UTC (rev 413)
+@@ -296,6 +296,7 @@
+ 
+ 	u32 r2t_sn;
+ 	u32 r2t_length;
++	u32 exp_offset;
+ 	u32 is_unsolicited_data;
+ 	u32 target_task_tag;
+ 	u32 outstanding_r2t;
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000324.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[412] branches/1.4.20
+</A></li>
+	<LI>Next message: <A HREF="000326.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[414]	branches/1.4.20/kernel/param.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#325">[ date ]</a>
+              <a href="thread.html#325">[ thread ]</a>
+              <a href="subject.html#325">[ subject ]</a>
+              <a href="author.html#325">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

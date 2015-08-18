@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[322] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B322%5D%20trunk&In-Reply-To=%3CE1O0zTd-0005tQ-Au%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000233.html">
+   <LINK REL="Next"  HREF="000235.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[322] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B322%5D%20trunk&In-Reply-To=%3CE1O0zTd-0005tQ-Au%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[322] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr 11 17:53:37 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000233.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[321] trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000235.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[323]	trunk/kernel/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#234">[ date ]</a>
+              <a href="thread.html#234">[ thread ]</a>
+              <a href="subject.html#234">[ subject ]</a>
+              <a href="author.html#234">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 322
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=322&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=322&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-11 15:53:37 +0000 (Sun, 11 Apr 2010)
+
+Log Message:
+-----------
+This patch silently aborts all non-immediate out-of-sequence or
+duplicate cmnds.
+
+It also fixes a small arithmetic error when calculating the
+abort_cmnd window, where it was off by 1 because it didn't
+include the abort command itself into the equation.
+
+Compiled and tested on RHEL5 against MS initiator.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/iscsi.c
+    trunk/kernel/iscsi.h
+    trunk/patches/compat-2.6.19-2.6.21.patch
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2010-04-11 15:48:45 UTC (rev 321)
++++ trunk/kernel/iscsi.c	2010-04-11 15:53:37 UTC (rev 322)
+@@ -536,10 +536,20 @@
+ 	u32 cmd_sn;
+ 
+ 	cmnd-&gt;pdu.bhs.sn = cmd_sn = be32_to_cpu(cmnd-&gt;pdu.bhs.sn);
+-	dprintk(D_GENERIC, &quot;%d(%d)\n&quot;, cmd_sn, session-&gt;exp_cmd_sn);
+-	if ((s32)(cmd_sn - session-&gt;exp_cmd_sn) &gt;= 0)
++
++	dprintk(D_GENERIC, &quot;cmd_sn(%u) exp_cmd_sn(%u) max_cmd_sn(%u)\n&quot;,
++		cmd_sn, session-&gt;exp_cmd_sn, session-&gt;max_cmd_sn);
++
++	if  (between(cmd_sn, session-&gt;exp_cmd_sn, session-&gt;max_cmd_sn))
+ 		return 0;
+-	eprintk(&quot;sequence error (%x,%x)\n&quot;, cmd_sn, session-&gt;exp_cmd_sn);
++	else if (cmnd_immediate(cmnd))
++		return 0;
++
++	eprintk(&quot;sequence error: cmd_sn(%u) exp_cmd_sn(%u) max_cmd_sn(%u)\n&quot;,
++		cmd_sn, session-&gt;exp_cmd_sn, session-&gt;max_cmd_sn);
++
++	set_cmnd_tmfabort(cmnd);
++
+ 	return -ISCSI_REASON_PROTOCOL_ERROR;
+ }
+ 
+@@ -611,7 +621,8 @@
+ 	if (!err) {
+ 		update_stat_sn(cmnd);
+ 		err = check_cmd_sn(cmnd);
+-	}
++	} else if (!cmnd_immediate(cmnd))
++		set_cmnd_tmfabort(cmnd);
+ 
+ 	return err;
+ }
+@@ -863,7 +874,7 @@
+ 	}
+ 
+ 	if (cmnd_itt(cmnd) == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+-		if (!(cmnd-&gt;pdu.bhs.opcode &amp; ISCSI_OP_IMMEDIATE))
++		if (!cmnd_immediate(cmnd))
+ 			eprintk(&quot;%s\n&quot;, &quot;initiator bug!&quot;);
+ 		update_stat_sn(cmnd);
+ 		err = check_cmd_sn(cmnd);
+@@ -1158,8 +1169,7 @@
+ 				(struct iscsi_task_mgt_hdr *)&amp;req-&gt;pdu.bhs;
+ 	struct iscsi_cmnd *cmnd;
+ 
+-	u32 max_queued_cmnds = req-&gt;conn-&gt;session-&gt;max_queued_cmnds;
+-	u32 min_cmd_sn = req_hdr-&gt;cmd_sn - (max_queued_cmnds + 1);
++	u32 min_cmd_sn = req_hdr-&gt;cmd_sn - session-&gt;max_queued_cmnds;
+ 
+ 	req_hdr-&gt;ref_cmd_sn = be32_to_cpu(req_hdr-&gt;ref_cmd_sn);
+ 
+@@ -1478,7 +1488,7 @@
+ 		conn-&gt;session-&gt;target-&gt;trgt_param.nop_timeout = t;
+ 	}
+ 
+-	dprintk(D_GENERIC, &quot;NOP-In %p, %x: timer %p\n&quot;,	cmnd, cmnd_ttt(cmnd),
++	dprintk(D_GENERIC, &quot;NOP-In %p, %x: timer %p\n&quot;, cmnd, cmnd_ttt(cmnd),
+ 		&amp;cmnd-&gt;req-&gt;timer);
+ 
+ 	set_cmnd_timer_active(cmnd-&gt;req);
+@@ -1744,7 +1754,7 @@
+ 	dprintk(D_GENERIC, &quot;%p:%x %u,%u\n&quot;,
+ 		cmnd, cmnd_opcode(cmnd), cmnd-&gt;pdu.bhs.sn, session-&gt;exp_cmd_sn);
+ 
+-	if (cmnd-&gt;pdu.bhs.opcode &amp; ISCSI_OP_IMMEDIATE) {
++	if (cmnd_immediate(cmnd)) {
+ 		iscsi_cmnd_exec(cmnd);
+ 		return;
+ 	}
+@@ -1757,25 +1767,17 @@
+ 
+ 			if (list_empty(&amp;session-&gt;pending_list))
+ 				break;
++
+ 			cmnd = list_entry(session-&gt;pending_list.next, struct iscsi_cmnd, list);
+ 			if (cmnd-&gt;pdu.bhs.sn != cmd_sn)
+ 				break;
+-/* 			eprintk(&quot;find out-of-order %x %u %u\n&quot;, */
+-/* 				cmnd_itt(cmnd), cmd_sn, cmnd-&gt;pdu.bhs.sn); */
++
+ 			list_del_init(&amp;cmnd-&gt;list);
+ 			clear_cmnd_pending(cmnd);
+ 		}
+ 	} else {
+-/* 		eprintk(&quot;out-of-order %x %u %u\n&quot;, */
+-/* 			cmnd_itt(cmnd), cmd_sn, session-&gt;exp_cmd_sn); */
+-
+ 		set_cmnd_pending(cmnd);
+-		if (before(cmd_sn, session-&gt;exp_cmd_sn)) /* close the conn */
+-			eprintk(&quot;unexpected cmd_sn (%u,%u)\n&quot;, cmd_sn, session-&gt;exp_cmd_sn);
+ 
+-		if (after(cmd_sn, session-&gt;exp_cmd_sn + session-&gt;max_queued_cmnds))
+-			eprintk(&quot;too large cmd_sn (%u,%u)\n&quot;, cmd_sn, session-&gt;exp_cmd_sn);
+-
+ 		list_for_each(entry, &amp;session-&gt;pending_list) {
+ 			struct iscsi_cmnd *tmp = list_entry(entry, struct iscsi_cmnd, list);
+ 			if (before(cmd_sn, tmp-&gt;pdu.bhs.sn))
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2010-04-11 15:48:45 UTC (rev 321)
++++ trunk/kernel/iscsi.h	2010-04-11 15:53:37 UTC (rev 322)
+@@ -464,6 +464,7 @@
+ #define cmnd_itt(cmnd) cpu_to_be32((cmnd)-&gt;pdu.bhs.itt)
+ #define cmnd_opcode(cmnd) ((cmnd)-&gt;pdu.bhs.opcode &amp; ISCSI_OPCODE_MASK)
+ #define cmnd_scsicode(cmnd) cmnd_hdr(cmnd)-&gt;scb[0]
++#define cmnd_immediate(cmnd) ((cmnd)-&gt;pdu.bhs.opcode &amp; ISCSI_OP_IMMEDIATE)
+ 
+ /* default and maximum scsi level block sizes */
+ #define IET_DEF_BLOCK_SIZE	512
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2010-04-11 15:48:45 UTC (rev 321)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2010-04-11 15:53:37 UTC (rev 322)
+@@ -16,7 +16,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(working copy)
+ +++ 2/kernel/iscsi.c	(revision 137)
+-@@ -1923,7 +1923,8 @@ static int iscsi_init(void)
++@@ -1927,7 +1927,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000233.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[321] trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000235.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[323]	trunk/kernel/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#234">[ date ]</a>
+              <a href="thread.html#234">[ thread ]</a>
+              <a href="subject.html#234">[ subject ]</a>
+              <a href="author.html#234">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

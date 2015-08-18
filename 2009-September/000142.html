@@ -1,0 +1,764 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r230 - in trunk: . etc usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r230%20-%20in%20trunk%3A%20.%20etc%20usr&In-Reply-To=%3C200909161526.n8GFQk0x014313%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000141.html">
+   <LINK REL="Next"  HREF="000143.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r230 - in trunk: . etc usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r230%20-%20in%20trunk%3A%20.%20etc%20usr&In-Reply-To=%3C200909161526.n8GFQk0x014313%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r230 - in trunk: . etc usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 16 17:26:46 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000141.html">[Iscsitarget-svn] r229 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000143.html">[Iscsitarget-svn] r231 - in trunk: . etc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#142">[ date ]</a>
+              <a href="thread.html#142">[ thread ]</a>
+              <a href="subject.html#142">[ subject ]</a>
+              <a href="author.html#142">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-16 17:26:45 +0200 (Wed, 16 Sep 2009)
+New Revision: 230
+
+Modified:
+   trunk/Makefile
+   trunk/etc/initiators.allow
+   trunk/usr/config.h
+   trunk/usr/ietd.c
+   trunk/usr/iscsid.c
+   trunk/usr/iscsid.h
+   trunk/usr/isns.c
+   trunk/usr/plain.c
+   trunk/usr/target.c
+Log:
+From: Ross S. W. Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+SendTargets Patch, Fourth Revision
+
+Currently IET only sends the current IP address for each
+target when an initiator does a SendTargets=ALL request.
+
+This patch enumerates all IP addresses for each target when
+the initiator sends a SendTargets=ALL. The current IP
+address is always listed first unless it has been filtered
+out by initiators.allow/targets.allow entry in which case
+the target is skipped. The other IP addresses are gathered
+from the list of listening file descriptors. If the
+unspecified IP file descriptor is encountered then it will
+enumerate all the interface IP addresses filtering out any
+loopback addresses and any others filtered through
+initiators.allow/targets.allow entries.
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/Makefile	2009-09-16 15:26:45 UTC (rev 230)
+@@ -216,9 +216,9 @@
+ 		install -vD -m 644 etc/initiators.allow \
+ 			$(DISTDIR)/etc/initiators.allow; \
+ 	fi
+-	@if [ ! -e $(DISTDIR)/etc/initiators.deny ]; then \
+-		install -vD -m 644 etc/initiators.deny \
+-			$(DISTDIR)/etc/initiators.deny; \
++	@if [ ! -e $(DISTDIR)/etc/targets.allow ]; then \
++		install -vD -m 644 etc/targets.allow \
++			$(DISTDIR)/etc/targets.allow; \
+ 	fi
+ 
+ install-initd:
+
+Modified: trunk/etc/initiators.allow
+===================================================================
+--- trunk/etc/initiators.allow	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/etc/initiators.allow	2009-09-16 15:26:45 UTC (rev 230)
+@@ -1,7 +1,24 @@
++# The semantics are:
++#
++# * Without any entries no initiator can see or connect to any target.
++#  
++# * By default we allow all initiators to connect to all targets with
++#   the &quot;ALL ALL&quot; entry.
++#
++# * Override which initiators can connect to which targets by putting an
++#   entry for a given target followed by a comma separated list of
++#   initiators, either IP address or IQN name (basic regex patterns for
++#   IQN names are accepted leave out ^ and $ specials as they are implicit),
++#   separate the two with whitespace.
++#
++# * Entry processing stops at the &quot;ALL&quot; target entry if present.
++#
++#
+ # Some examples
+ #
+-#iqn.2001-04.com.example:storage.disk1.sys1.xyz 192.168.22.2, 192.168.3.8
+-#iqn.2001-04.com.example:storage.disk1.sys2.xyz [3ffe:302:11:1:211:43ff:fe31:5ae2], [3ffe:505:2:1::]/64
++#iqn.2001-04.com.example:storage.disk1.sys1.xyz 192.168.0.0/16, .*:mscs1-[1-4]\.example\.com
++#iqn.2001-04.com.example:storage.disk1.sys2.xyz [3ffe:302:11:1:211:43ff:fe31:5ae2], [3ffe:505:2:1::]/64, 192.168.22.0/24
+ #iqn.2001-04.com.example:storage.disk1.sys3.xyz ALL
+-#iqn.2001-04.com.example:storage.disk1.sys4.xyz 192.168.22.3
+-#ALL 192.168.22.4
++#iqn.2001-04.com.example:storage.disk1.sys4.xyz 192.168.22.3, iqn\.1998-01\.com\.vmware:.*\.example\.com
++# ALL 192.168.0.0/16
++ALL ALL
+
+Modified: trunk/usr/config.h
+===================================================================
+--- trunk/usr/config.h	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/usr/config.h	2009-09-16 15:26:45 UTC (rev 230)
+@@ -15,7 +15,8 @@
+ 	int (*account_del) (u32, int, char *);
+ 	int (*account_query) (u32, int, char *, char *);
+ 	int (*account_list) (u32, int, u32 *, u32 *, char *, size_t);
+-	int (*initiator_access) (u32, int);
++	int (*initiator_allow) (u32, int, char *);
++	int (*target_allow) (u32, struct sockaddr *);
+ };
+ 
+ extern struct config_operations *cops;
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/usr/ietd.c	2009-09-16 15:26:45 UTC (rev 230)
+@@ -29,24 +29,10 @@
+ #include &quot;iscsid.h&quot;
+ #include &quot;ietadm.h&quot;
+ 
+-#define LISTEN_MAX		8
+-#define INCOMING_MAX		32
+-
+-enum {
+-	POLL_LISTEN,
+-	POLL_IPC = POLL_LISTEN + LISTEN_MAX,
+-	POLL_NL,
+-	POLL_ISNS,
+-	POLL_SCN_LISTEN,
+-	POLL_SCN,
+-	POLL_INCOMING,
+-	POLL_MAX = POLL_INCOMING + INCOMING_MAX,
+-};
+-
+ static char* server_address;
+ uint16_t server_port = ISCSI_LISTEN_PORT;
+ 
+-static struct pollfd poll_array[POLL_MAX];
++struct pollfd poll_array[POLL_MAX];
+ static struct connection *incoming[INCOMING_MAX];
+ static int incoming_cnt;
+ int ctrl_fd, ipc_fd, nl_fd;
+@@ -67,7 +53,7 @@
+ 	{0, 0, 0, 0},
+ };
+ 
+-/* This will be comfigurable by command line options */
++/* This will be configurable by command line options */
+ extern struct config_operations plain_ops;
+ struct config_operations *cops = &amp;plain_ops;
+ 
+@@ -119,7 +105,9 @@
+ 	hints.ai_flags = AI_PASSIVE;
+ 
+ 	if (getaddrinfo(server_address, servname, &amp;hints, &amp;res0)) {
+-		log_error(&quot;unable to get address info (%s)!&quot;, strerror(errno));
++		log_error(&quot;unable to get address info (%s)!&quot;,
++			(errno == EAI_SYSTEM) ? strerror(errno) :
++						gai_strerror(errno));
+ 		exit(1);
+ 	}
+ 
+@@ -136,10 +124,12 @@
+ 		if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &amp;opt, sizeof(opt)))
+ 			log_warning(&quot;unable to set SO_KEEPALIVE on server socket (%s)!&quot;,
+ 				    strerror(errno));
++
+ 		opt = 1;
+ 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &amp;opt, sizeof(opt)))
+ 			log_warning(&quot;unable to set SO_REUSEADDR on server socket (%s)!&quot;,
+ 				    strerror(errno));
++
+ 		opt = 1;
+ 		if (res-&gt;ai_family == AF_INET6 &amp;&amp;
+ 		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &amp;opt, sizeof(opt)))
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/usr/iscsid.c	2009-09-16 15:26:45 UTC (rev 230)
+@@ -391,7 +391,11 @@
+ 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
+ 	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
+ 	char *name, *alias, *session_type, *target_name;
++	struct sockaddr_storage ss;
++	socklen_t slen = sizeof(struct sockaddr_storage);
+ 
++	memset(&amp;ss, 0, sizeof(ss));
++
+ 	conn-&gt;cid = be16_to_cpu(req-&gt;cid);
+ 	conn-&gt;sid.id64 = req-&gt;sid.id64;
+ 	if (!conn-&gt;sid.id64) {
+@@ -416,6 +420,8 @@
+ 	conn-&gt;auth_method = -1;
+ 	conn-&gt;session_type = SESSION_NORMAL;
+ 
++	getsockname(conn-&gt;fd, (struct sockaddr *) &amp;ss, &amp;slen);
++
+ 	if (session_type) {
+ 		if (!strcmp(session_type, &quot;Discovery&quot;))
+ 			conn-&gt;session_type = SESSION_DISCOVERY;
+@@ -435,9 +441,10 @@
+ 			return;
+ 		}
+ 
+-		if (!(conn-&gt;tid = target_find_by_name(target_name)) ||
+-		    cops-&gt;initiator_access(conn-&gt;tid, conn-&gt;fd) ||
+-		    isns_scn_access(conn-&gt;tid, conn-&gt;fd, name)) {
++		if (!(conn-&gt;tid = target_find_by_name(target_name))
++			|| !cops-&gt;initiator_allow(conn-&gt;tid, conn-&gt;fd, name)
++			|| !cops-&gt;target_allow(conn-&gt;tid, (struct sockaddr *) &amp;ss)
++			|| !isns_scn_allow(conn-&gt;tid, name)) {
+ 			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+ 			rsp-&gt;status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
+ 			conn-&gt;state = STATE_EXIT;
+@@ -720,34 +727,10 @@
+ 
+ 	while ((key = next_key(&amp;data, &amp;datasize, &amp;value))) {
+ 		if (!strcmp(key, &quot;SendTargets&quot;)) {
+-			struct sockaddr_storage ss;
+-			socklen_t slen, blen;
+-			char *p, buf[NI_MAXHOST + 128];
+-
+ 			if (value[0] == 0)
+ 				continue;
+ 
+-			p = buf;
+-			blen = sizeof(buf);
+-
+-			slen = sizeof(ss);
+-			getsockname(conn-&gt;fd, (struct sockaddr *) &amp;ss, &amp;slen);
+-			if (ss.ss_family == AF_INET6) {
+-				*p++ = '[';
+-				blen--;
+-			}
+-
+-			slen = sizeof(ss);
+-			getnameinfo((struct sockaddr *) &amp;ss, slen, p, blen,
+-				    NULL, 0, NI_NUMERICHOST);
+-
+-			p = buf + strlen(buf);
+-
+-			if (ss.ss_family == AF_INET6)
+-				 *p++ = ']';
+-
+-			sprintf(p, &quot;:%d,1&quot;, server_port);
+-			target_list_build(conn, buf,
++			target_list_build(conn,
+ 					  strcmp(value, &quot;All&quot;) ? value : NULL);
+ 		} else
+ 			text_key_add(conn, key, &quot;NotUnderstood&quot;);
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/usr/iscsid.h	2009-09-16 15:26:45 UTC (rev 230)
+@@ -8,6 +8,7 @@
+ #define ISCSID_H
+ 
+ #include &lt;search.h&gt;
++#include &lt;sys/socket.h&gt;
+ #include &lt;sys/types.h&gt;
+ 
+ #include &quot;types.h&quot;
+@@ -130,6 +131,20 @@
+ 
+ #define INCOMING_BUFSIZE	8192
+ 
++#define LISTEN_MAX		8
++#define INCOMING_MAX		32
++
++enum {
++	POLL_LISTEN,
++	POLL_IPC = POLL_LISTEN + LISTEN_MAX,
++	POLL_NL,
++	POLL_ISNS,
++	POLL_SCN_LISTEN,
++	POLL_SCN,
++	POLL_INCOMING,
++	POLL_MAX = POLL_INCOMING + INCOMING_MAX,
++};
++
+ struct target {
+ 	struct __qelem tlist;
+ 
+@@ -195,7 +210,7 @@
+ extern int target_del(u32);
+ extern u32 target_find_by_name(const char *name);
+ struct target * target_find_by_id(u32);
+-extern void target_list_build(struct connection *, char *, char *);
++extern void target_list_build(struct connection *, char *);
+ 
+ /* message.c */
+ extern int ietadm_request_listen(void);
+@@ -233,7 +248,7 @@
+ extern int isns_init(char *addr, int isns_ac);
+ extern int isns_handle(int is_timeout, int *timeout);
+ extern int isns_scn_handle(int accept);
+-extern int isns_scn_access(u32 tid, int fd, char *name);
++extern int isns_scn_allow(u32 tid, char *name);
+ extern int isns_target_register(char *name);
+ extern int isns_target_deregister(char *name);
+ extern void isns_exit(void);
+
+Modified: trunk/usr/isns.c
+===================================================================
+--- trunk/usr/isns.c	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/usr/isns.c	2009-09-16 15:26:45 UTC (rev 230)
+@@ -63,22 +63,22 @@
+ static uint8_t ip[16]; /* IET supoprts only one portal */
+ static struct sockaddr_storage ss;
+ 
+-int isns_scn_access(uint32_t tid, int fd, char *name)
++int isns_scn_allow(uint32_t tid, char *name)
+ {
+ 	struct isns_initiator *ini;
+ 	struct target *target = target_find_by_id(tid);
+ 
+ 	if (!use_isns || !use_isns_ac)
+-		return 0;
++		return 1;
+ 
+ 	if (!target)
+-		return -EPERM;
++		return 0;
+ 
+ 	list_for_each_entry(ini, &amp;target-&gt;isns_head, ilist) {
+ 		if (!strcmp(ini-&gt;name, name))
+-			return 0;
++			return 1;
+ 	}
+-	return -EPERM;
++	return 0;
+ }
+ 
+ static int isns_get_ip(int fd)
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/usr/plain.c	2009-09-16 15:26:45 UTC (rev 230)
+@@ -9,6 +9,7 @@
+ #include &lt;dirent.h&gt;
+ #include &lt;errno.h&gt;
+ #include &lt;netdb.h&gt;
++#include &lt;regex.h&gt;
+ #include &lt;stdio.h&gt;
+ #include &lt;stdlib.h&gt;
+ #include &lt;string.h&gt;
+@@ -341,25 +342,49 @@
+ 	return 0;
+ }
+ 
+-static int __initiator_match(int fd, char *str)
++static int initiator_match(char *initiator, char *p)
+ {
+-	struct sockaddr_storage from;
++	int match = 0;
++	char pattern[strlen(p) + 3];
++	regex_t re;
++
++	snprintf(pattern, sizeof(pattern), &quot;^%s$&quot;, p);
++
++	if (regcomp(&amp;re, pattern, REG_NOSUB))
++		return 0;
++
++	match = !regexec(&amp;re, initiator, (size_t) 0, NULL, 0);
++
++	regfree(&amp;re);
++
++	return match;
++}
++
++static int __match(struct sockaddr *sa, char *initiator, char *str)
++{
+ 	struct addrinfo hints, *res;
+-	socklen_t len;
+ 	char *p, *q;
+-	int err = 0;
++	int match = 0;
+ 
+-	len = sizeof(from);
+-	if (getpeername(fd, (struct sockaddr *) &amp;from, &amp;len) &lt; 0)
+-		return 0;
+-
+ 	while ((p = strsep(&amp;str, &quot;,&quot;))) {
+ 		while (isspace(*p))
+ 			p++;
+ 
++		if (!*p)
++			continue;
++
++		q = p + (strlen(p) - 1);
++
++		while (isspace(*q))
++			*(q--) = '\0';
++
+ 		if (!strcmp(p, &quot;ALL&quot;))
+ 			return 1;
+ 
++		if (initiator)
++			if (initiator_match(initiator, p))
++				return 1;
++
+ 		if (*p == '[') {
+ 			p++;
+ 			if (!(q = strchr(p, ']')))
+@@ -375,55 +400,56 @@
+ 		hints.ai_socktype = SOCK_STREAM;
+ 		hints.ai_flags = AI_NUMERICHOST;
+ 
+-		if (getaddrinfo(p, NULL, &amp;hints, &amp;res) &lt; 0)
+-			return 0;
++		if (getaddrinfo(p, NULL, &amp;hints, &amp;res) == 0) {
++			if (q)
++				match = netmask_match(res-&gt;ai_addr, sa, q);
++			else
++				match = address_match(res-&gt;ai_addr, sa);
+ 
+-		if (q)
+-			err = netmask_match(res-&gt;ai_addr,
+-					    (struct sockaddr *) &amp;from, q);
+-		else
+-			err = address_match(res-&gt;ai_addr,
+-					    (struct sockaddr *) &amp;from);
++			freeaddrinfo(res);
++		}
+ 
+-		freeaddrinfo(res);
+-
+-		if (err)
++		if (match)
+ 			break;
+ 	}
+ 
+-	return err;
++	return match;
+ }
+ 
+-static int initiator_match(u32 tid, int fd, char *filename)
++static int match(u32 tid, struct sockaddr *sa, char *initiator, char *filename)
+ {
+-	int err = 0;
++	int err = -EPERM;
+ 	FILE *fp;
+-	char buf[BUFSIZE], *p;
++	char buf[BUFSIZE], *p, *q;
+ 
+ 	if (!(fp = fopen(filename, &quot;r&quot;)))
+-		return err;
++		return -ENOENT;
+ 
+ 	/*
+ 	 * Every time we are called, we read the file. So we don't need to
+ 	 * implement 'reload feature'. It's slow, however, it doesn't matter.
+ 	 */
+ 	while ((p = fgets(buf, sizeof(buf), fp))) {
+-		if (!p || *p == '#')
+-			continue;
++		q = &amp;buf[strlen(buf) - 1];
+ 
+-		p = &amp;buf[strlen(buf) - 1];
+-		if (*p != '\n')
++		if (*q != '\n')
+ 			continue;
+-		*p = '\0';
++		else
++			*q = '\0';
+ 
+-		if (!(p = strchr(buf, ' ')))
++		q = p;
++
++		p = target_sep_string(&amp;q);
++
++		if (!p || *p == '#')
+ 			continue;
+-		*(p++) = '\0';
+ 
+-		if (target_find_by_name(buf) != tid &amp;&amp; strcmp(buf, &quot;ALL&quot;))
++		if (target_find_by_name(p) != tid &amp;&amp; strcmp(p, &quot;ALL&quot;))
+ 			continue;
+ 
+-		err = __initiator_match(fd, p);
++		if (__match(sa, initiator, q))
++			err = 0;
++
+ 		break;
+ 	}
+ 
+@@ -431,15 +457,40 @@
+ 	return err;
+ }
+ 
+-static int plain_initiator_access(u32 tid, int fd)
++static int plain_initiator_allow(u32 tid, int fd, char *initiator)
+ {
+-	if (initiator_match(tid, fd, &quot;/etc/initiators.deny&quot;) &amp;&amp;
+-	    !initiator_match(tid, fd, &quot;/etc/initiators.allow&quot;))
+-		return -EPERM;
+-	else
+-		return 0;
++	struct sockaddr_storage ss;
++	socklen_t slen = sizeof(struct sockaddr_storage);
++	int allow, deny;
++
++	memset(&amp;ss, 0, sizeof(ss));
++
++	getpeername(fd, (struct sockaddr *) &amp;ss, &amp;slen);
++
++	allow = match(tid, (struct sockaddr *) &amp;ss, initiator,
++						&quot;/etc/initiators.allow&quot;);
++	deny = match(tid, (struct sockaddr *) &amp;ss, initiator,
++						&quot;/etc/initiators.deny&quot;);
++
++	if (deny != -ENOENT) {
++		if (!deny &amp;&amp; allow)
++			return 0;
++		else
++			return 1;
++	}
++
++	return (allow == -ENOENT) ? 1 : !allow;
+ }
+ 
++static int plain_target_allow(u32 tid, struct sockaddr *sa)
++{
++	int allow;
++
++	allow = match(tid, sa, NULL, &quot;/etc/targets.allow&quot;);
++
++	return (allow == -ENOENT) ? 1 : !allow;
++}
++
+ /*
+  * Main configuration code
+  */
+@@ -612,6 +663,11 @@
+ 	char buf[BUFSIZE];
+ 	char *p, *q;
+ 
++	if ((config = fopen(&quot;/etc/initiators.deny&quot;, &quot;r&quot;))) {
++		fclose(config);
++		log_warning(&quot;%s is depreciated and will be obsoleted in the next release, please see README.initiators for more information&quot;, &quot;/etc/initiators.deny&quot;);
++	}
++
+ 	if (!(config = fopen(params ? : CONFIG_FILE, &quot;r&quot;)))
+ 		return -errno;
+ 
+@@ -645,5 +701,6 @@
+ 	.account_del		= plain_account_del,
+ 	.account_query		= plain_account_query,
+ 	.account_list		= plain_account_list,
+-	.initiator_access	= plain_initiator_access,
++	.initiator_allow	= plain_initiator_allow,
++	.target_allow		= plain_target_allow,
+ };
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2009-09-10 05:55:54 UTC (rev 229)
++++ trunk/usr/target.c	2009-09-16 15:26:45 UTC (rev 230)
+@@ -10,25 +10,147 @@
+ #include &lt;stdio.h&gt;
+ #include &lt;stdlib.h&gt;
+ #include &lt;string.h&gt;
++#include &lt;netdb.h&gt;
++#include &lt;ifaddrs.h&gt;
++#include &lt;arpa/inet.h&gt;
++#include &lt;netinet/in.h&gt;
++#include &lt;sys/poll.h&gt;
++#include &lt;sys/socket.h&gt;
+ #include &lt;sys/stat.h&gt;
++#include &lt;sys/types.h&gt;
+ 
+ #include &quot;iscsid.h&quot;
+ 
+ struct __qelem targets_list = LIST_HEAD_INIT(targets_list);
+ 
+-void target_list_build(struct connection *conn, char *addr, char *name)
++extern struct pollfd poll_array[POLL_MAX];
++
++static int is_addr_loopback(char *addr)
+ {
++	struct in_addr ia;
++	struct in6_addr ia6;
++
++	if (inet_pton(AF_INET, addr, &amp;ia) == 1)
++		return !strncmp(addr, &quot;127.&quot;, 4);
++
++	if (inet_pton(AF_INET6, addr, &amp;ia6) == 1)
++		return IN6_IS_ADDR_LOOPBACK(&amp;ia6);
++
++	return 0;
++}
++
++static int is_addr_unspecified(char *addr)
++{
++	struct in_addr ia;
++	struct in6_addr ia6;
++
++	if (inet_pton(AF_INET, addr, &amp;ia) == 1)
++		return (ia.s_addr == 0);
++
++	if (inet_pton(AF_INET6, addr, &amp;ia6) == 1)
++		return IN6_IS_ADDR_UNSPECIFIED(&amp;ia6);
++
++	return 0;
++}
++
++static void target_print_addr(struct connection *conn, char *addr, int family)
++{
++	char taddr[NI_MAXHOST + NI_MAXSERV + 5];
++
++	snprintf(taddr, sizeof(taddr),
++		(family == AF_INET) ? &quot;%s:%d,1&quot; : &quot;[%s]:%d,1&quot;,
++							addr, server_port);
++
++	text_key_add(conn, &quot;TargetAddress&quot;, taddr);
++}
++
++void target_list_build_ifaddrs(struct connection *conn, u32 tid, char *addr,
++								int family)
++{
++	struct ifaddrs *ifaddr, *ifa;
++	char if_addr[NI_MAXHOST];
++
++	getifaddrs(&amp;ifaddr);
++
++	ifa = ifaddr;
++
++	while (ifa) {
++		int sa_family = ifa-&gt;ifa_addr-&gt;sa_family;
++
++		if (sa_family == family) {
++			if (getnameinfo(ifa-&gt;ifa_addr, (family == AF_INET) ?
++						sizeof(struct sockaddr_in) :
++						sizeof(struct sockaddr_in6),
++						if_addr, sizeof(if_addr),
++						NULL, 0, NI_NUMERICHOST))
++				continue;
++
++			if (strcmp(addr, if_addr) &amp;&amp; !is_addr_loopback(if_addr)
++				&amp;&amp; cops-&gt;target_allow(tid, ifa-&gt;ifa_addr))
++				target_print_addr(conn, if_addr, family);
++		}
++
++		ifa = ifa-&gt;ifa_next;
++	}
++
++	freeifaddrs(ifaddr);
++}
++
++void target_list_build(struct connection *conn, char *name)
++{
+ 	struct target *target;
++	struct sockaddr_storage ss;
++	socklen_t slen = sizeof(struct sockaddr_storage);
++	char addr1[NI_MAXHOST], addr2[NI_MAXHOST];
++	int family, i;
+ 
++	if (getsockname(conn-&gt;fd, (struct sockaddr *) &amp;ss, &amp;slen))
++		return;
++
++	if (getnameinfo((struct sockaddr *) &amp;ss, slen, addr1, sizeof(addr1),
++						NULL, 0, NI_NUMERICHOST))
++		return;
++
++	family = ss.ss_family;
++
+ 	list_for_each_entry(target, &amp;targets_list, tlist) {
+ 		if (name &amp;&amp; strcmp(target-&gt;name, name))
+ 			continue;
+-		if (cops-&gt;initiator_access(target-&gt;tid, conn-&gt;fd) ||
+-		    isns_scn_access(target-&gt;tid, conn-&gt;fd, conn-&gt;initiator))
++
++		if (!isns_scn_allow(target-&gt;tid, conn-&gt;initiator)
++			|| !cops-&gt;initiator_allow(target-&gt;tid, conn-&gt;fd,
++							conn-&gt;initiator)
++			|| !cops-&gt;target_allow(target-&gt;tid,
++						(struct sockaddr *) &amp;ss))
+ 			continue;
+ 
+ 		text_key_add(conn, &quot;TargetName&quot;, target-&gt;name);
+-		text_key_add(conn, &quot;TargetAddress&quot;, addr);
++
++		target_print_addr(conn, addr1, family);
++
++		for (i = 0; i &lt; LISTEN_MAX &amp;&amp; poll_array[i].fd; i++) {
++			slen = sizeof(struct sockaddr_storage);
++
++			if (getsockname(poll_array[i].fd,
++					(struct sockaddr *) &amp;ss, &amp;slen))
++				continue;
++
++			if (getnameinfo((struct sockaddr *) &amp;ss, slen, addr2,
++				sizeof(addr2), NULL, 0, NI_NUMERICHOST))
++				continue;
++
++			if (ss.ss_family != family)
++				continue;
++
++			if (is_addr_unspecified(addr2))
++				target_list_build_ifaddrs(conn, target-&gt;tid,
++								addr1, family);
++			else if (strcmp(addr1, addr2)
++				&amp;&amp; !is_addr_loopback(addr2)
++				&amp;&amp; cops-&gt;target_allow(target-&gt;tid,
++						(struct sockaddr *) &amp;ss))
++				target_print_addr(conn, addr2, family);
++		}
+ 	}
+ }
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000141.html">[Iscsitarget-svn] r229 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000143.html">[Iscsitarget-svn] r231 - in trunk: . etc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#142">[ date ]</a>
+              <a href="thread.html#142">[ thread ]</a>
+              <a href="subject.html#142">[ subject ]</a>
+              <a href="author.html#142">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

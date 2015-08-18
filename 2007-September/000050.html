@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r138 - in trunk: kernel patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r138%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200709202332.l8KNWb2e001996%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r138 - in trunk: kernel patches</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r138%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200709202332.l8KNWb2e001996%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r138 - in trunk: kernel patches">tomo at mail.berlios.de
+       </A><BR>
+    <I>Fri Sep 21 01:32:37 CEST 2007</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#50">[ date ]</a>
+              <a href="thread.html#50">[ thread ]</a>
+              <a href="subject.html#50">[ subject ]</a>
+              <a href="author.html#50">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-09-21 01:26:20 +0200 (Fri, 21 Sep 2007)
+New Revision: 138
+
+Modified:
+   trunk/kernel/iscsi.c
+   trunk/kernel/tio.c
+   trunk/patches/compat-2.6.19-2.6.21.patch
+Log:
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Subject: 2.6.23 compile fix
+Date: Thu, 20 Sep 2007 23:30:19 +0200
+
+kmem_cache_create()'s arguments will change with 2.6.23.
+
+Note that instead of simply modifying the kmem_cache_create() calls to
+match the new interface, they're replaced with KMEM_CACHE(), which was
+introduced with 2.6.22 to simplify slab cache creation.
+
+Merely compile tested.
+
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2007-08-22 17:39:59 UTC (rev 137)
++++ trunk/kernel/iscsi.c	2007-09-20 23:26:20 UTC (rev 138)
+@@ -1757,8 +1757,7 @@
+ 	if ((err = event_init()) &lt; 0)
+ 		goto err;
+ 
+-	iscsi_cmnd_cache = kmem_cache_create(&quot;iscsi_cmnd&quot;, sizeof(struct iscsi_cmnd),
+-					     0, 0, NULL, NULL);
++	iscsi_cmnd_cache = KMEM_CACHE(iscsi_cmnd, 0);
+ 	if (!iscsi_cmnd_cache)
+ 		goto err;
+ 
+
+Modified: trunk/kernel/tio.c
+===================================================================
+--- trunk/kernel/tio.c	2007-08-22 17:39:59 UTC (rev 137)
++++ trunk/kernel/tio.c	2007-09-20 23:26:20 UTC (rev 138)
+@@ -110,8 +110,7 @@
+ 
+ int tio_init(void)
+ {
+-	tio_cache = kmem_cache_create(&quot;tio&quot;, sizeof(struct tio),
+-				      0, 0, NULL, NULL);
++	tio_cache = KMEM_CACHE(tio, 0);
+ 	return  tio_cache ? 0 : -ENOMEM;
+ }
+ 
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2007-08-22 17:39:59 UTC (rev 137)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2007-09-20 23:26:20 UTC (rev 138)
+@@ -12,3 +12,30 @@
+  	if (!nl)
+  		return -ENOMEM;
+  	else
++Index: kernel/iscsi.c
++===================================================================
++--- kernel/iscsi.c	(working copy)
+++++ kernel/iscsi.c	(revision 137)
++@@ -1757,7 +1757,8 @@ static int iscsi_init(void)
++ 	if ((err = event_init()) &lt; 0)
++ 		goto err;
++ 
++-	iscsi_cmnd_cache = KMEM_CACHE(iscsi_cmnd, 0);
+++	iscsi_cmnd_cache = kmem_cache_create(&quot;iscsi_cmnd&quot;, sizeof(struct iscsi_cmnd),
+++					     0, 0, NULL, NULL);
++ 	if (!iscsi_cmnd_cache)
++ 		goto err;
++ 
++Index: kernel/tio.c
++===================================================================
++--- kernel/tio.c	(working copy)
+++++ kernel/tio.c	(revision 137)
++@@ -110,7 +110,8 @@ int tio_sync(struct iet_volume *lu, stru
++ 
++ int tio_init(void)
++ {
++-	tio_cache = KMEM_CACHE(tio, 0);
+++	tio_cache = kmem_cache_create(&quot;tio&quot;, sizeof(struct tio),
+++				      0, 0, NULL, NULL);
++ 	return  tio_cache ? 0 : -ENOMEM;
++ }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#50">[ date ]</a>
+              <a href="thread.html#50">[ thread ]</a>
+              <a href="subject.html#50">[ subject ]</a>
+              <a href="author.html#50">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

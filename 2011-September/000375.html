@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[464]	trunk/kernel/persist.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B464%5D%0A%09trunk/kernel/persist.c&In-Reply-To=%3CE1R5d53-0000Is-Az%40sfp-svn-3.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000374.html">
+   <LINK REL="Next"  HREF="000376.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[464]	trunk/kernel/persist.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B464%5D%0A%09trunk/kernel/persist.c&In-Reply-To=%3CE1R5d53-0000Is-Az%40sfp-svn-3.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[464]	trunk/kernel/persist.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Mon Sep 19 14:36:13 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000374.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[463]	trunk/kernel/persist.c
+</A></li>
+        <LI>Next message: <A HREF="000376.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[465] trunk/usr/types.h
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#375">[ date ]</a>
+              <a href="thread.html#375">[ thread ]</a>
+              <a href="subject.html#375">[ subject ]</a>
+              <a href="author.html#375">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 464
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=464&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=464&amp;view=rev</A>
+Author:   agr1
+Date:     2011-09-19 12:36:12 +0000 (Mon, 19 Sep 2011)
+Log Message:
+-----------
+Persistent Reservations: PR Out error handling + logging
+
+Analogous to the PR In validation, the service action is checked first and only then
+scope and parameter list length are checked. While at it, some log messages are
+added as well.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/persist.c
+
+Modified: trunk/kernel/persist.c
+===================================================================
+--- trunk/kernel/persist.c	2011-09-19 12:35:57 UTC (rev 463)
++++ trunk/kernel/persist.c	2011-09-19 12:36:12 UTC (rev 464)
+@@ -258,7 +258,7 @@
+ 		cmnd-&gt;tio = tio_alloc(get_pgcnt(allocation_length, 0));
+ 		break;
+ 	default:
+-		eprintk(&quot;%#Lx:%hu: invalid PR In Service Action %c\n&quot;,
++		eprintk(&quot;%#Lx:%hu: invalid PR In Service Action %x\n&quot;,
+ 			cmnd-&gt;conn-&gt;session-&gt;sid,
+ 			cmnd-&gt;conn-&gt;cid,
+ 			action);
+@@ -667,14 +667,30 @@
+ 		(const struct persistent_reserve_out *)(cmnd_hdr(cmnd)-&gt;scb);
+ 	const enum pr_out_service_actions action =
+ 		pr_out-&gt;service_action &amp; PR_SERVICE_ACTION_MASK;
++	const u32 param_list_length = be32_to_cpu(pr_out-&gt;parameter_list_length);
+ 
+ 	dprintk_pr(cmnd,
+ 		   &quot;svc action %x, scope_type %x, param len %u\n&quot;,
+ 		   action,
+ 		   pr_out-&gt;scope_type,
+-		   be32_to_cpu(pr_out-&gt;parameter_list_length));
++		   param_list_length);
+ 
+-	if ((pr_out-&gt;scope_type &amp; PR_SCOPE_MASK)) {
++	switch (action) {
++	case SERVICE_ACTION_REGISTER:
++	case SERVICE_ACTION_REGISTER_IGNORE:
++	case SERVICE_ACTION_RESERVE:
++	case SERVICE_ACTION_RELEASE:
++	case SERVICE_ACTION_CLEAR:
++	case SERVICE_ACTION_PREEMPT:
++	case SERVICE_ACTION_PREEMPT_ABORT:
++		break;
++	case SERVICE_ACTION_REGISTER_MOVE:
++		/* not implemented (yet) */
++	default:
++		eprintk(&quot;%#Lx:%hu: invalid PR Out Service Action %x\n&quot;,
++			cmnd-&gt;conn-&gt;session-&gt;sid,
++			cmnd-&gt;conn-&gt;cid,
++			action);
+ 		iscsi_cmnd_set_sense(cmnd,
+ 				     ILLEGAL_REQUEST,
+ 				     INVALID_FIELD_IN_CDB_ASC,
+@@ -682,9 +698,25 @@
+ 		return;
+ 	}
+ 
+-	if (be32_to_cpu(pr_out-&gt;parameter_list_length) != 24) {
++	if ((pr_out-&gt;scope_type &amp; PR_SCOPE_MASK) != PR_SCOPE_LU) {
++		eprintk(&quot;%#Lx:%hu: invalid PR scope %x\n&quot;,
++			cmnd-&gt;conn-&gt;session-&gt;sid,
++			cmnd-&gt;conn-&gt;cid,
++			pr_out-&gt;scope_type &amp; PR_SCOPE_MASK);
+ 		iscsi_cmnd_set_sense(cmnd,
+ 				     ILLEGAL_REQUEST,
++				     INVALID_FIELD_IN_CDB_ASC,
++				     INVALID_FIELD_IN_CDB_ASCQ);
++		return;
++	}
++
++	if (param_list_length &lt; sizeof(struct pr_out_param_list)) {
++		eprintk(&quot;%#Lx:%hu: invalid PR Out parameter list length %d\n&quot;,
++			cmnd-&gt;conn-&gt;session-&gt;sid,
++			cmnd-&gt;conn-&gt;cid,
++			param_list_length);
++		iscsi_cmnd_set_sense(cmnd,
++				     ILLEGAL_REQUEST,
+ 				     PARAMETER_LIST_LENGTH_ERROR_ASC,
+ 				     PARAMETER_LIST_LENGTH_ERROR_ASCQ);
+ 		return;
+@@ -716,11 +748,10 @@
+ 			       pr_out-&gt;scope_type &amp; PR_TYPE_MASK,
+ 			       true);
+ 		break;
++	case SERVICE_ACTION_REGISTER_MOVE:
++		/* not implemented (yet) */
+ 	default:
+-		iscsi_cmnd_set_sense(cmnd,
+-				     ILLEGAL_REQUEST,
+-				     INVALID_FIELD_IN_CDB_ASC,
+-				     INVALID_FIELD_IN_CDB_ASCQ);
+-		break;
++		/* not reachable due to the earlier switch stmt */
++		BUG();
+ 	}
+ }
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000374.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[463]	trunk/kernel/persist.c
+</A></li>
+	<LI>Next message: <A HREF="000376.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[465] trunk/usr/types.h
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#375">[ date ]</a>
+              <a href="thread.html#375">[ thread ]</a>
+              <a href="subject.html#375">[ subject ]</a>
+              <a href="author.html#375">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

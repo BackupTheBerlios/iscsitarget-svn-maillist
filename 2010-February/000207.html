@@ -1,0 +1,384 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[295] trunk/usr/ctldev.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B295%5D%20trunk/usr/ctldev.c&In-Reply-To=%3CE1NgGpS-0005Rp-If%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000206.html">
+   <LINK REL="Next"  HREF="000208.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[295] trunk/usr/ctldev.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B295%5D%20trunk/usr/ctldev.c&In-Reply-To=%3CE1NgGpS-0005Rp-If%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[295] trunk/usr/ctldev.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sat Feb 13 13:10:30 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000206.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[294] trunk/usr/ctldev.c
+</A></li>
+        <LI>Next message: <A HREF="000208.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[296] trunk/kernel/iscsi.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#207">[ date ]</a>
+              <a href="thread.html#207">[ thread ]</a>
+              <a href="subject.html#207">[ subject ]</a>
+              <a href="author.html#207">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 295
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=295&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=295&amp;view=rev</A>
+Author:   agr1
+Date:     2010-02-13 12:10:30 +0000 (Sat, 13 Feb 2010)
+
+Log Message:
+-----------
+Revert &quot;Make ioctl error checking more robust&quot;
+
+This will be too chatty
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/usr/ctldev.c
+
+Modified: trunk/usr/ctldev.c
+===================================================================
+--- trunk/usr/ctldev.c	2010-02-13 11:52:34 UTC (rev 294)
++++ trunk/usr/ctldev.c	2010-02-13 12:10:30 UTC (rev 295)
+@@ -72,68 +72,63 @@
+ 
+ static int iet_module_info(struct module_info *info)
+ {
+-	int ret = ioctl(ctrl_fd, GET_MODULE_INFO, info);
+-	if (ret &lt; 0) {
++	int err;
++
++	err = ioctl(ctrl_fd, GET_MODULE_INFO, info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl GET_MODULE_INFO: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_target_create(u32 *tid, char *name)
+ {
+ 	struct target_info info;
+-	int ret;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+ 	snprintf(info.name, sizeof(info.name), &quot;%s&quot;, name);
+ 	info.tid = *tid;
+ 
+-	ret = ioctl(ctrl_fd, ADD_TARGET, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, ADD_TARGET, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_TARGET: %m&quot;);
+-		return -errno;
+-	}
++	else if (!err)
++		*tid = info.tid;
+ 
+-	*tid = info.tid;
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_target_destroy(u32 tid)
+ {
+ 	struct target_info info;
+-	int ret;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+ 
+-	ret = ioctl(ctrl_fd, DEL_TARGET, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, DEL_TARGET, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_TARGET: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static inline int iscsi_target_destroy_all(void)
+ {
+-	int ret = ioctl(ctrl_fd, DEL_TARGET_ALL, NULL);
+-	if (ret &lt; 0) {
+-		log_error(&quot;error calling DEL_TARGET_ALL: %m&quot;);
+-		return -errno;
+-	}
++	int err;
+ 
+-	return 0;
++	err = ioctl(ctrl_fd, DEL_TARGET_ALL, NULL);
++
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_lunit_create(u32 tid, u32 lun, char *args)
+ {
+ 	struct volume_info info;
+ 	char *p;
+-	int ret;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+@@ -148,81 +143,74 @@
+ 	info.args_ptr = (unsigned long)args;
+ 	info.args_len = strlen(args);
+ 
+-	ret = ioctl(ctrl_fd, ADD_VOLUME, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, ADD_VOLUME, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_VOLUME: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_lunit_destroy(u32 tid, u32 lun)
+ {
+ 	struct volume_info info;
+-	int ret;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+ 	info.lun = lun;
+ 
+-	ret = ioctl(ctrl_fd, DEL_VOLUME, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, DEL_VOLUME, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_VOLUME: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
+ {
+ 	struct conn_info info;
+-	int ret;
++	int err;
+ 
+ 	info.tid = tid;
+ 	info.sid = sid;
+ 	info.cid = cid;
+ 
+-	ret = ioctl(ctrl_fd, DEL_CONN, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, DEL_CONN, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_CONN: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param)
+ {
+ 	struct iscsi_param_info info;
+-	int ret, i;
++	int err, i;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+ 	info.sid = sid;
+ 	info.param_type = type;
+ 
+-	ret = ioctl(ctrl_fd, ISCSI_PARAM_GET, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ISCSI_PARAM_GET: %m&quot;);
+-		return -errno;
++	else if (!err) {
++		if (type == key_session)
++			for (i = 0; i &lt; session_key_last; i++)
++				param[i].val = info.session_param[i];
++		else
++			for (i = 0; i &lt; target_key_last; i++)
++				param[i].val = info.target_param[i];
+ 	}
+ 
+-	if (type == key_session)
+-		for (i = 0; i &lt; session_key_last; i++)
+-			param[i].val = info.session_param[i];
+-	else
+-		for (i = 0; i &lt; target_key_last; i++)
+-			param[i].val = info.target_param[i];
+-
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial, struct iscsi_param *param)
+ {
+ 	struct iscsi_param_info info;
+-	int i, ret;
++	int i, err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 	info.tid = tid;
+@@ -237,19 +225,17 @@
+ 		for (i = 0; i &lt; target_key_last; i++)
+ 			info.target_param[i] = param[i].val;
+ 
+-	ret = ioctl(ctrl_fd, ISCSI_PARAM_SET, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ISCSI_PARAM_SET: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn, u32 max_cmd_sn, char *name)
+ {
+ 	struct session_info info;
+-	int ret;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+@@ -259,39 +245,35 @@
+ 	info.max_cmd_sn = max_cmd_sn;
+ 	strncpy(info.initiator_name, name, sizeof(info.initiator_name) - 1);
+ 
+-	ret = ioctl(ctrl_fd, ADD_SESSION, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, ADD_SESSION, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_SESSION: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_session_destroy(u32 tid, u64 sid)
+ {
+ 	struct session_info info;
+-	int ret;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+ 	info.tid = tid;
+ 	info.sid = sid;
+ 
+-	ret = ioctl(ctrl_fd, DEL_SESSION, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, DEL_SESSION, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_SESSION: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
+ 			     int fd, u32 hdigest, u32 ddigest)
+ {
+ 	struct conn_info info;
+-	int ret;
++	int err;
+ 
+ 	memset(&amp;info, 0, sizeof(info));
+ 
+@@ -304,24 +286,22 @@
+ 	info.header_digest = hdigest;
+ 	info.data_digest = ddigest;
+ 
+-	ret = ioctl(ctrl_fd, ADD_CONN, &amp;info);
+-	if (ret &lt; 0) {
++	err = ioctl(ctrl_fd, ADD_CONN, &amp;info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_CONN: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_session_info(struct session_info *info)
+ {
+-	int ret = ioctl(ctrl_fd, GET_SESSION_INFO, info);
+-	if (ret &lt; 0) {
++	int err;
++
++	err = ioctl(ctrl_fd, GET_SESSION_INFO, info);
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl GET_SESSION_INFO: %m&quot;);
+-		return -errno;
+-	}
+ 
+-	return 0;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ struct iscsi_kernel_interface ioctl_ki = {
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000206.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[294] trunk/usr/ctldev.c
+</A></li>
+	<LI>Next message: <A HREF="000208.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[296] trunk/kernel/iscsi.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#207">[ date ]</a>
+              <a href="thread.html#207">[ thread ]</a>
+              <a href="subject.html#207">[ subject ]</a>
+              <a href="author.html#207">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

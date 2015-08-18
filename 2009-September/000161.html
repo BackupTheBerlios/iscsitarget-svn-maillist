@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r249 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r249%20-%20trunk/usr&In-Reply-To=%3C200909302123.n8ULN09s019700%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000160.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r249 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r249%20-%20trunk/usr&In-Reply-To=%3C200909302123.n8ULN09s019700%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r249 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 30 23:23:00 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000160.html">[Iscsitarget-svn] r248 - trunk/kernel
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#161">[ date ]</a>
+              <a href="thread.html#161">[ thread ]</a>
+              <a href="subject.html#161">[ subject ]</a>
+              <a href="author.html#161">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-30 23:22:59 +0200 (Wed, 30 Sep 2009)
+New Revision: 249
+
+Modified:
+   trunk/usr/target.c
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+This patch to target.c skips interfaces with NULL ifa_addr
+structures.
+
+Compile tested on RHEL5.
+
+Thanks to David Shirley for pointing out the problem and the initial patch.
+
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2009-09-28 19:08:20 UTC (rev 248)
++++ trunk/usr/target.c	2009-09-30 21:22:59 UTC (rev 249)
+@@ -75,6 +75,9 @@
+ 	ifa = ifaddr;
+ 
+ 	while (ifa) {
++		if (!ifa-&gt;ifa_addr)
++			continue;
++
+ 		int sa_family = ifa-&gt;ifa_addr-&gt;sa_family;
+ 
+ 		if (sa_family == family) {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000160.html">[Iscsitarget-svn] r248 - trunk/kernel
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#161">[ date ]</a>
+              <a href="thread.html#161">[ thread ]</a>
+              <a href="subject.html#161">[ subject ]</a>
+              <a href="author.html#161">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

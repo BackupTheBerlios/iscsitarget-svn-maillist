@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r194 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r194%20-%20trunk/usr&In-Reply-To=%3C200812200914.mBK9ETM8027850%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000105.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r194 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r194%20-%20trunk/usr&In-Reply-To=%3C200812200914.mBK9ETM8027850%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r194 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Sat Dec 20 10:14:29 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000105.html">[Iscsitarget-svn] r193 - trunk/usr
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#106">[ date ]</a>
+              <a href="thread.html#106">[ thread ]</a>
+              <a href="subject.html#106">[ subject ]</a>
+              <a href="author.html#106">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-12-20 10:14:29 +0100 (Sat, 20 Dec 2008)
+New Revision: 194
+
+Modified:
+   trunk/usr/iscsi_hdr.h
+   trunk/usr/iscsid.c
+Log:
+Add support for Reject PDUs
+
+.. and make use of them in appropriate places.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/usr/iscsi_hdr.h
+===================================================================
+--- trunk/usr/iscsi_hdr.h	2008-12-20 09:12:32 UTC (rev 193)
++++ trunk/usr/iscsi_hdr.h	2008-12-20 09:14:29 UTC (rev 194)
+@@ -213,4 +213,34 @@
+ 	u32 rsvd5;
+ } __packed;
+ 
++#define ISCSI_REASON_NO_FULL_FEATURE_PHASE	0x01
++#define ISCSI_REASON_DATA_DIGEST_ERROR		0x02
++#define ISCSI_REASON_DATA_SNACK_REJECT		0x03
++#define ISCSI_REASON_PROTOCOL_ERROR		0x04
++#define ISCSI_REASON_UNSUPPORTED_COMMAND	0x05
++#define ISCSI_REASON_IMMEDIATE_COMMAND_REJECT	0x06
++#define ISCSI_REASON_TASK_IN_PROGRESS		0x07
++#define ISCSI_REASON_INVALID_SNACK		0x08
++#define ISCSI_REASON_INVALID_PDU_FIELD		0x09
++#define ISCSI_REASON_BOOKMARK_REJECT		0x0a
++#define ISCSI_REASON_NEGOTIATION_RESET		0x0b
++#define ISCSI_REASON_WAITING_LOGOUT		0x0c
++
++struct iscsi_reject_hdr {
++	u8  opcode;
++	u8  flags;
++	u8  reason;
++	u8  rsvd1;
++	u8  ahslength;
++	u8  datalength[3];
++	u32 rsvd2[2];
++	u32 ffffffff;
++	u32 rsvd3;
++	u32 stat_sn;
++	u32 exp_cmd_sn;
++	u32 max_cmd_sn;
++	u32 data_sn;
++	u32 rsvd4[2];
++} __packed;
++
+ #endif	/* ISCSI_HDR_H */
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2008-12-20 09:12:32 UTC (rev 193)
++++ trunk/usr/iscsid.c	2008-12-20 09:14:29 UTC (rev 194)
+@@ -480,6 +480,36 @@
+ 	}
+ }
+ 
++static void cmnd_reject(struct connection *conn, u8 reason)
++{
++	struct iscsi_reject_hdr *rej =
++		(struct iscsi_reject_hdr *)&amp;conn-&gt;rsp.bhs;
++	size_t data_sz = sizeof(struct iscsi_hdr);
++	struct buf_segment *seg = conn_alloc_buf_segment(conn, data_sz);
++
++	conn_free_rsp_buf_list(conn);
++
++	memset(rej, 0x0, sizeof *rej);
++	rej-&gt;opcode = ISCSI_OP_REJECT_MSG;
++	rej-&gt;reason = ISCSI_REASON_INVALID_PDU_FIELD;
++	rej-&gt;ffffffff = ISCSI_RESERVED_TAG;
++	rej-&gt;flags |= ISCSI_FLG_FINAL;
++
++	rej-&gt;stat_sn = cpu_to_be32(conn-&gt;stat_sn++);
++	rej-&gt;exp_cmd_sn = cpu_to_be32(conn-&gt;exp_cmd_sn);
++	conn-&gt;max_cmd_sn = conn-&gt;exp_cmd_sn + 1;
++	rej-&gt;max_cmd_sn = cpu_to_be32(conn-&gt;max_cmd_sn);
++
++	if (!seg) {
++		log_error(&quot;Failed to alloc data segment for Reject PDU\n&quot;);
++		return;
++	}
++
++	memcpy(seg-&gt;data, &amp;conn-&gt;req.bhs, data_sz);
++	seg-&gt;len = data_sz;
++	list_add_tail(&amp;seg-&gt;entry, &amp;conn-&gt;rsp_buf_list);
++}
++
+ static int cmnd_exec_auth(struct connection *conn)
+ {
+        int res;
+@@ -508,7 +538,8 @@
+ 	memset(rsp, 0, BHS_SIZE);
+ 	if ((req-&gt;opcode &amp; ISCSI_OPCODE_MASK) != ISCSI_OP_LOGIN_CMD ||
+ 	    !(req-&gt;opcode &amp; ISCSI_OP_IMMEDIATE)) {
+-		//reject
++		cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
++		return;
+ 	}
+ 
+ 	rsp-&gt;opcode = ISCSI_OP_LOGIN_RSP;
+@@ -751,13 +782,8 @@
+ 			  &quot;expected %#x; %stext segments queued\n&quot;,
+ 			  req-&gt;ttt, conn-&gt;ttt, list_empty(&amp;conn-&gt;rsp_buf_list) ?
+ 			  &quot;no &quot; : &quot;&quot;);
+-		/*
+-		 * Return a malformed text rsp and close the conn for now.
+-		 * The proper response would be a Reject instead.
+-		 */
+-		conn-&gt;ttt = rsp-&gt;ttt = ISCSI_RESERVED_TAG;
+-		conn_free_rsp_buf_list(conn);
+-		conn-&gt;state = STATE_CLOSE;
++		cmnd_reject(conn, ISCSI_REASON_INVALID_PDU_FIELD);
++		return;
+ 	}
+ 
+ 	if (list_length_is_one(&amp;conn-&gt;rsp_buf_list))
+@@ -796,22 +822,29 @@
+ 
+ 	switch (conn-&gt;req.bhs.opcode &amp; ISCSI_OPCODE_MASK) {
+ 	case ISCSI_OP_LOGIN_CMD:
+-		//if conn-&gt;state == STATE_FULL -&gt; reject
++		if (conn-&gt;state == STATE_FULL) {
++			cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
++			break;
++		}
+ 		cmnd_exec_login(conn);
+ 		login_rsp = (struct iscsi_login_rsp_hdr *) &amp;conn-&gt;rsp.bhs;
+ 		if (login_rsp-&gt;status_class)
+ 			conn_free_rsp_buf_list(conn);
+ 		break;
+ 	case ISCSI_OP_TEXT_CMD:
+-		//if conn-&gt;state != STATE_FULL -&gt; reject
+-		cmnd_exec_text(conn);
++		if (conn-&gt;state != STATE_FULL)
++			cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
++		else
++			cmnd_exec_text(conn);
+ 		break;
+ 	case ISCSI_OP_LOGOUT_CMD:
+-		//if conn-&gt;state != STATE_FULL -&gt; reject
+-		cmnd_exec_logout(conn);
++		if (conn-&gt;state != STATE_FULL)
++			cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
++		else
++			cmnd_exec_logout(conn);
+ 		break;
+ 	default:
+-		//reject
++		cmnd_reject(conn, ISCSI_REASON_UNSUPPORTED_COMMAND);
+ 		return 0;
+ 	}
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000105.html">[Iscsitarget-svn] r193 - trunk/usr
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#106">[ date ]</a>
+              <a href="thread.html#106">[ thread ]</a>
+              <a href="subject.html#106">[ subject ]</a>
+              <a href="author.html#106">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

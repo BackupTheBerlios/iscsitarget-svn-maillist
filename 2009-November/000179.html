@@ -1,0 +1,99 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r267 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r267%20-%20trunk/kernel&In-Reply-To=%3C200911101824.nAAIOVDY005335%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000178.html">
+   <LINK REL="Next"  HREF="000180.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r267 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r267%20-%20trunk/kernel&In-Reply-To=%3C200911101824.nAAIOVDY005335%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r267 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov 10 19:24:31 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000178.html">[Iscsitarget-svn] r266 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000180.html">[Iscsitarget-svn] r268 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#179">[ date ]</a>
+              <a href="thread.html#179">[ thread ]</a>
+              <a href="subject.html#179">[ subject ]</a>
+              <a href="author.html#179">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-11-10 19:24:30 +0100 (Tue, 10 Nov 2009)
+New Revision: 267
+
+Modified:
+   trunk/kernel/session.c
+Log:
+From: Ross S. W. Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+session_add() returns -EEXIST on success [updated]
+
+
+Modified: trunk/kernel/session.c
+===================================================================
+--- trunk/kernel/session.c	2009-11-06 19:16:05 UTC (rev 266)
++++ trunk/kernel/session.c	2009-11-10 18:24:30 UTC (rev 267)
+@@ -109,17 +109,16 @@
+ int session_add(struct iscsi_target *target, struct session_info *info)
+ {
+ 	struct iscsi_session *session;
+-	int err = -EEXIST;
+ 
+ 	session = session_lookup(target, info-&gt;sid);
+ 	if (session)
+-		return err;
++		return -EEXIST;
+ 
+ 	session = iet_session_alloc(target, info);
+ 	if (!session)
+-		err = -ENOMEM;
++		return -ENOMEM;
+ 
+-	return err;
++	return 0;
+ }
+ 
+ int session_del(struct iscsi_target *target, u64 sid)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000178.html">[Iscsitarget-svn] r266 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000180.html">[Iscsitarget-svn] r268 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#179">[ date ]</a>
+              <a href="thread.html#179">[ thread ]</a>
+              <a href="subject.html#179">[ subject ]</a>
+              <a href="author.html#179">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

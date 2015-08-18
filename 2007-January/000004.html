@@ -1,0 +1,90 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r92 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r92%20-%20trunk/kernel&In-Reply-To=%3C200701091650.l09Gop8B014263%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000003.html">
+   <LINK REL="Next"  HREF="000005.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r92 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r92%20-%20trunk/kernel&In-Reply-To=%3C200701091650.l09Gop8B014263%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r92 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Tue Jan  9 17:50:51 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000003.html">[Iscsitarget-svn] r91 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000005.html">[Iscsitarget-svn] r93 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4">[ date ]</a>
+              <a href="thread.html#4">[ thread ]</a>
+              <a href="subject.html#4">[ subject ]</a>
+              <a href="author.html#4">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-01-09 17:50:50 +0100 (Tue, 09 Jan 2007)
+New Revision: 92
+
+Modified:
+   trunk/kernel/param.c
+Log:
+Subject: [Iscsitarget-devel] [PATCH] enforce MaxConnections = 1
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at xiranet.com</A>&gt;
+Date: Wed, 13 Dec 2006 18:31:38 +0100
+
+We don't support MaxConnections != 1.
+
+
+
+Modified: trunk/kernel/param.c
+===================================================================
+--- trunk/kernel/param.c	2007-01-08 09:55:07 UTC (rev 91)
++++ trunk/kernel/param.c	2007-01-09 16:50:50 UTC (rev 92)
+@@ -43,7 +43,7 @@
+ {
+ 	u32 *iparam = info-&gt;session_param;
+ 
+-	CHECK_PARAM(info, iparam, max_connections, 1, 65535);
++	CHECK_PARAM(info, iparam, max_connections, 1, 1);
+ 	CHECK_PARAM(info, iparam, max_recv_data_length, 512,
+ 		    (u32) ((ISCSI_CONN_IOV_MAX - 1) * PAGE_CACHE_SIZE));
+ 	CHECK_PARAM(info, iparam, max_xmit_data_length, 512,
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000003.html">[Iscsitarget-svn] r91 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000005.html">[Iscsitarget-svn] r93 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4">[ date ]</a>
+              <a href="thread.html#4">[ thread ]</a>
+              <a href="subject.html#4">[ subject ]</a>
+              <a href="author.html#4">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

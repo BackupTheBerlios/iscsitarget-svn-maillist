@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[428] branches/1.4.20
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B428%5D%20branches/1.4.20&In-Reply-To=%3CE1Q1QP5-0001Rp-FH%40sfp-svn-5.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000339.html">
+   <LINK REL="Next"  HREF="000341.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[428] branches/1.4.20</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B428%5D%20branches/1.4.20&In-Reply-To=%3CE1Q1QP5-0001Rp-FH%40sfp-svn-5.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[428] branches/1.4.20">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Sun Mar 20 22:43:15 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000339.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[427]	branches/1.4.20/ChangeLog
+</A></li>
+        <LI>Next message: <A HREF="000341.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[429] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#340">[ date ]</a>
+              <a href="thread.html#340">[ thread ]</a>
+              <a href="subject.html#340">[ subject ]</a>
+              <a href="author.html#340">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 428
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=428&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=428&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-20 21:43:14 +0000 (Sun, 20 Mar 2011)
+
+Log Message:
+-----------
+Updated default parameter changes to revert Time2Wait back
+to it's previous configuration.
+
+Updated manpages and example ietd.conf to reflect changes.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/doc/manpages/ietd.conf.5
+    branches/1.4.20/etc/ietd.conf
+    branches/1.4.20/kernel/param.c
+    branches/1.4.20/kernel/target.c
+    branches/1.4.20/usr/param.c
+
+Modified: branches/1.4.20/doc/manpages/ietd.conf.5
+===================================================================
+--- branches/1.4.20/doc/manpages/ietd.conf.5	2011-03-20 19:51:13 UTC (rev 427)
++++ branches/1.4.20/doc/manpages/ietd.conf.5	2011-03-20 21:43:14 UTC (rev 428)
+@@ -40,7 +40,7 @@
+     MaxBurstLength 262144
+     FirstBurstLength 65536
+     DefaultTime2Wait 2
+-    DefaultTime2Retain 20
++    DefaultTime2Retain 0
+     MaxOutstandingR2T 8
+     NOPInterval 0
+     NOPTimeout 0
+@@ -279,10 +279,10 @@
+ should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is 65536.
+ .TP
+ .B [DefaultTime2Wait &lt;value&gt;]
+-Currently not supported.
++Currently not implemented, but can be used to set how long initiators wait before logging back in after a connection is logged out or dropped.
+ .TP
+ .B [DefaultTime2Retain &lt;value&gt;]
+-Currently not supported.
++Currently we only support 0 which means sessions are not retained after the last connection is logged out or dropped.
+ .TP
+ .B [MaxOutstandingR2T &lt;value&gt;]
+ Optional. Controls the maximum number of data transfers the target may request at once, each of up to
+
+Modified: branches/1.4.20/etc/ietd.conf
+===================================================================
+--- branches/1.4.20/etc/ietd.conf	2011-03-20 19:51:13 UTC (rev 427)
++++ branches/1.4.20/etc/ietd.conf	2011-03-20 21:43:14 UTC (rev 428)
+@@ -76,10 +76,12 @@
+ 	#MaxXmitDataSegmentLength 8192		# Max data per PDU to transmit
+ 	#MaxBurstLength		262144		# Max data per sequence (R2T)
+ 	#FirstBurstLength	65536		# Max unsolicited data sequence
+-	#DefaultTime2Wait	2		# Secs wait for ini to log out
+-						# Not used
+-	#DefaultTime2Retain	20		# Secs keep cmnds after log out
+-						# Not used
++	#DefaultTime2Wait	2		# Secs to wait for ini to logout
++						# also secs for ini to wait
++						# before logging back in
++						# Not implemented, but settable
++	#DefaultTime2Retain	0		# Secs keep session after logout
++						# We only support 0
+ 	#MaxOutstandingR2T	1		# Max outstanding R2Ts per cmnd
+ 	#DataPDUInOrder		Yes		# Data in PDUs is ordered
+ 						# We only support ordered
+
+Modified: branches/1.4.20/kernel/param.c
+===================================================================
+--- branches/1.4.20/kernel/param.c	2011-03-20 19:51:13 UTC (rev 427)
++++ branches/1.4.20/kernel/param.c	2011-03-20 21:43:14 UTC (rev 428)
+@@ -52,7 +52,6 @@
+ 	CHECK_PARAM(info, iparam, data_pdu_inorder, 1, 1);
+ 	CHECK_PARAM(info, iparam, data_sequence_inorder, 1, 1);
+ 	CHECK_PARAM(info, iparam, max_outstanding_r2t, 1, 1);
+-	CHECK_PARAM(info, iparam, default_wait_time, 0, 0);
+ 	CHECK_PARAM(info, iparam, default_retain_time, 0, 0);
+ 
+ 	digest_alg_available(&amp;iparam[key_header_digest]);
+
+Modified: branches/1.4.20/kernel/target.c
+===================================================================
+--- branches/1.4.20/kernel/target.c	2011-03-20 19:51:13 UTC (rev 427)
++++ branches/1.4.20/kernel/target.c	2011-03-20 21:43:14 UTC (rev 428)
+@@ -25,7 +25,7 @@
+ 	.max_xmit_data_length = 8192,
+ 	.max_burst_length = 262144,
+ 	.first_burst_length = 65536,
+-	.default_wait_time = 0,
++	.default_wait_time = 2,
+ 	.default_retain_time = 0,
+ 	.max_outstanding_r2t = 1,
+ 	.data_pdu_inorder = 1,
+
+Modified: branches/1.4.20/usr/param.c
+===================================================================
+--- branches/1.4.20/usr/param.c	2011-03-20 19:51:13 UTC (rev 427)
++++ branches/1.4.20/usr/param.c	2011-03-20 21:43:14 UTC (rev 428)
+@@ -301,7 +301,7 @@
+ 	{&quot;MaxBurstLength&quot;, 262144, 512, 16777215, &amp;minimum_ops},
+ 	{&quot;FirstBurstLength&quot;, 65536, 512, 16777215, &amp;minimum_ops},
+ 	{&quot;DefaultTime2Wait&quot;, 2, 0, 3600, &amp;maximum_ops},
+-	{&quot;DefaultTime2Retain&quot;, 20, 0, 3600, &amp;minimum_ops},
++	{&quot;DefaultTime2Retain&quot;, 0, 0, 3600, &amp;minimum_ops},
+ 	{&quot;MaxOutstandingR2T&quot;, 1, 1, 65535, &amp;minimum_ops},
+ 	{&quot;DataPDUInOrder&quot;, 1, 0, 1, &amp;or_ops},
+ 	{&quot;DataSequenceInOrder&quot;, 1, 0, 1, &amp;or_ops},
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000339.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[427]	branches/1.4.20/ChangeLog
+</A></li>
+	<LI>Next message: <A HREF="000341.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[429] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#340">[ date ]</a>
+              <a href="thread.html#340">[ thread ]</a>
+              <a href="subject.html#340">[ subject ]</a>
+              <a href="author.html#340">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

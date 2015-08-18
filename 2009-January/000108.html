@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r196 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r196%20-%20trunk/usr&In-Reply-To=%3C200901021308.n02D8C9b023760%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000107.html">
+   <LINK REL="Next"  HREF="000109.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r196 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r196%20-%20trunk/usr&In-Reply-To=%3C200901021308.n02D8C9b023760%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r196 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Fri Jan  2 14:08:12 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000107.html">[Iscsitarget-svn] r195 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000109.html">[Iscsitarget-svn] r197 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#108">[ date ]</a>
+              <a href="thread.html#108">[ thread ]</a>
+              <a href="subject.html#108">[ subject ]</a>
+              <a href="author.html#108">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-01-02 14:08:11 +0100 (Fri, 02 Jan 2009)
+New Revision: 196
+
+Modified:
+   trunk/usr/target.c
+Log:
+Allow removal of kernel target objects if the user space object does not exist
+
+Based on a patch by Lars Ellenberg.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2009-01-02 13:02:34 UTC (rev 195)
++++ trunk/usr/target.c	2009-01-02 13:08:11 UTC (rev 196)
+@@ -71,22 +71,23 @@
+ 
+ int target_del(u32 tid)
+ {
+-	int err;
+-	struct target* target;
++	struct target *target = target_find_by_id(tid);
++	int err = ki-&gt;target_destroy(tid);
+ 
+-	if (!(target = target_find_by_id(tid)))
++	if (err &lt; 0 &amp;&amp; errno != ENOENT)
++		return -errno;
++	else if (!err &amp;&amp; !target)
++		/* A leftover kernel object was cleaned up - don't complain. */
++		return 0;
++
++	if (!target)
+ 		return -ENOENT;
+ 
+-	if (target-&gt;nr_sessions)
+-		return -EBUSY;
+-
+-	if ((err = ki-&gt;target_destroy(tid)) &lt; 0)
+-		return err;
+-
+ 	remque(&amp;target-&gt;tlist);
+ 
+ 	if (!list_empty(&amp;target-&gt;sessions_list)) {
+-		fprintf(stderr, &quot;%s still have sessions %d\n&quot;, __FUNCTION__, tid);
++		log_error(&quot;%s: target %u still has sessions\n&quot;, __FUNCTION__,
++			  tid);
+ 		exit(-1);
+ 	}
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000107.html">[Iscsitarget-svn] r195 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000109.html">[Iscsitarget-svn] r197 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#108">[ date ]</a>
+              <a href="thread.html#108">[ thread ]</a>
+              <a href="subject.html#108">[ subject ]</a>
+              <a href="author.html#108">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

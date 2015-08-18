@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[346] branches/1.4.20/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B346%5D%20branches/1.4.20/usr&In-Reply-To=%3CE1OTiq1-0007vw-1Q%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000262.html">
+   <LINK REL="Next"  HREF="000261.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[346] branches/1.4.20/usr</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B346%5D%20branches/1.4.20/usr&In-Reply-To=%3CE1OTiq1-0007vw-1Q%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[346] branches/1.4.20/usr">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Jun 29 23:59:29 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000262.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[345] trunk/Makefile
+</A></li>
+        <LI>Next message: <A HREF="000261.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[347] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#268">[ date ]</a>
+              <a href="thread.html#268">[ thread ]</a>
+              <a href="subject.html#268">[ subject ]</a>
+              <a href="author.html#268">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 346
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=346&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=346&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-06-29 21:59:28 +0000 (Tue, 29 Jun 2010)
+
+Log Message:
+-----------
+IET 1.4.20 introduced a bug where deleting targets with sessions
+via ietadm caused ietd to quit in error.
+
+Current code base can't handle deleting targets with sessions, so
+this patch just logs a warning message that the target is busy
+instead.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/usr/event.c
+    branches/1.4.20/usr/ietd.c
+    branches/1.4.20/usr/target.c
+
+Modified: branches/1.4.20/usr/event.c
+===================================================================
+--- branches/1.4.20/usr/event.c	2010-06-29 21:58:53 UTC (rev 345)
++++ branches/1.4.20/usr/event.c	2010-06-29 21:59:28 UTC (rev 346)
+@@ -92,11 +92,11 @@
+ 			goto retry;
+ 		}
+ 
+-		if (!--session-&gt;conn_cnt)
++		if (--session-&gt;conn_cnt &lt;= 0)
+ 			session_remove(session);
+ 		break;
+ 	default:
+-		log_warning(&quot;%s(%d) %u\n&quot;, __FUNCTION__, __LINE__, event.state);
++		log_error(&quot;%s(%d) %u\n&quot;, __FUNCTION__, __LINE__, event.state);
+ 		exit(-1);
+ 		break;
+ 	}
+
+Modified: branches/1.4.20/usr/ietd.c
+===================================================================
+--- branches/1.4.20/usr/ietd.c	2010-06-29 21:58:53 UTC (rev 345)
++++ branches/1.4.20/usr/ietd.c	2010-06-29 21:59:28 UTC (rev 346)
+@@ -424,7 +424,7 @@
+ 				pollfd-&gt;fd = -1;
+ 				incoming[i] = NULL;
+ 				incoming_cnt--;
+-				if (session &amp;&amp; !session-&gt;conn_cnt)
++				if (session &amp;&amp; session-&gt;conn_cnt &lt;= 0)
+ 					session_remove(session);
+ 			}
+ 		}
+
+Modified: branches/1.4.20/usr/target.c
+===================================================================
+--- branches/1.4.20/usr/target.c	2010-06-29 21:58:53 UTC (rev 345)
++++ branches/1.4.20/usr/target.c	2010-06-29 21:59:28 UTC (rev 346)
+@@ -226,6 +226,12 @@
+ 	if (!target)
+ 		return -ENOENT;
+ 
++	if (!list_empty(&amp;target-&gt;sessions_list)) {
++		log_warning(&quot;%s: target %u still has sessions\n&quot;, __FUNCTION__,
++			  tid);
++		return -EBUSY;
++	}
++
+ 	err = ki-&gt;target_destroy(tid);
+ 	if (err &lt; 0) {
+ 		log_error(&quot;unable to delete target %u: %d&quot;, tid, errno);
+@@ -234,12 +240,6 @@
+ 
+ 	remque(&amp;target-&gt;tlist);
+ 
+-	if (!list_empty(&amp;target-&gt;sessions_list)) {
+-		log_error(&quot;%s: target %u still has sessions\n&quot;, __FUNCTION__,
+-			  tid);
+-		exit(-1);
+-	}
+-
+ 	all_accounts_del(tid, AUTH_DIR_INCOMING);
+ 	all_accounts_del(tid, AUTH_DIR_OUTGOING);
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000262.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[345] trunk/Makefile
+</A></li>
+	<LI>Next message: <A HREF="000261.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[347] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#268">[ date ]</a>
+              <a href="thread.html#268">[ thread ]</a>
+              <a href="subject.html#268">[ subject ]</a>
+              <a href="author.html#268">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

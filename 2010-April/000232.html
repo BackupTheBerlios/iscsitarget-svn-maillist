@@ -1,0 +1,102 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[320]	trunk/kernel/wthread.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B320%5D%0A%09trunk/kernel/wthread.c&In-Reply-To=%3CE1O0zAs-0005Fw-Rv%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000231.html">
+   <LINK REL="Next"  HREF="000233.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[320]	trunk/kernel/wthread.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B320%5D%0A%09trunk/kernel/wthread.c&In-Reply-To=%3CE1O0zAs-0005Fw-Rv%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[320]	trunk/kernel/wthread.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr 11 17:34:14 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000231.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[319] trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000233.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[321] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#232">[ date ]</a>
+              <a href="thread.html#232">[ thread ]</a>
+              <a href="subject.html#232">[ subject ]</a>
+              <a href="author.html#232">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 320
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=320&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=320&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-11 15:34:14 +0000 (Sun, 11 Apr 2010)
+
+Log Message:
+-----------
+
+The current wthread code has a possible race condition between
+where it sets the task INTERRUPTIBLE and where it tests the
+list_empty condition, if the list_empty test is executed
+before set task due to CPU parallelism.
+
+Solution, change __set_current_task to set_current_task so
+a memory barrier is performed before the test.
+
+Thanks go to Jagadish Kumar for pointing this out and
+Lars Ellenberg for the fix.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/wthread.c
+
+Modified: trunk/kernel/wthread.c
+===================================================================
+--- trunk/kernel/wthread.c	2010-04-11 15:13:42 UTC (rev 319)
++++ trunk/kernel/wthread.c	2010-04-11 15:34:14 UTC (rev 320)
+@@ -91,7 +91,7 @@
+ 			atomic_dec(&amp;conn-&gt;nr_busy_cmnds);
+ 		}
+ 
+-		__set_current_state(TASK_INTERRUPTIBLE);
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		if (list_empty(&amp;info-&gt;work_queue))
+ 			schedule();
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000231.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[319] trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000233.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[321] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#232">[ date ]</a>
+              <a href="thread.html#232">[ thread ]</a>
+              <a href="subject.html#232">[ subject ]</a>
+              <a href="author.html#232">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r263 - trunk/doc/manpages
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r263%20-%20trunk/doc/manpages&In-Reply-To=%3C200910081953.n98Jr4dx027205%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000174.html">
+   <LINK REL="Next"  HREF="000176.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r263 - trunk/doc/manpages</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r263%20-%20trunk/doc/manpages&In-Reply-To=%3C200910081953.n98Jr4dx027205%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r263 - trunk/doc/manpages">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 21:53:04 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000174.html">[Iscsitarget-svn] r262 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000176.html">[Iscsitarget-svn] r264 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#175">[ date ]</a>
+              <a href="thread.html#175">[ thread ]</a>
+              <a href="subject.html#175">[ subject ]</a>
+              <a href="author.html#175">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 21:53:02 +0200 (Thu, 08 Oct 2009)
+New Revision: 263
+
+Modified:
+   trunk/doc/manpages/ietadm.8
+Log:
+From: SZ?\195?\137KELYI Szabolcs (posted in the sf.net tracker)
+
+doc/manpages/ietadm.8 states adding a new target with tid=0 is illegal, but
+in practice, it is not as it allocates a new tid automatically. Patch
+attached to fix the manpage.
+
+
+Modified: trunk/doc/manpages/ietadm.8
+===================================================================
+--- trunk/doc/manpages/ietadm.8	2009-10-08 19:37:22 UTC (rev 262)
++++ trunk/doc/manpages/ietadm.8	2009-10-08 19:53:02 UTC (rev 263)
+@@ -162,7 +162,7 @@
+ .IX Header &quot;OPTIONS&quot;
+ \&amp;\fB\-\-op new \-\-tid=[id] \-\-params Name=[name]\fR
+ .PP
+-add a new target with [id]. [id] must not be zero.
++add a new target with [id]. If [id] is zero, the lowest free [id] is allocated automatically to the new target.
+ .PP
+ \&amp;\fB\-\-op delete \-\-tid=[id]\fR
+ .PP
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000174.html">[Iscsitarget-svn] r262 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000176.html">[Iscsitarget-svn] r264 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#175">[ date ]</a>
+              <a href="thread.html#175">[ thread ]</a>
+              <a href="subject.html#175">[ subject ]</a>
+              <a href="author.html#175">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

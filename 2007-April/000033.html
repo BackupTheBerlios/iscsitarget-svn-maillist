@@ -1,0 +1,113 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r121 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r121%20-%20trunk/kernel&In-Reply-To=%3C200704232229.l3NMT5gV022839%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000032.html">
+   <LINK REL="Next"  HREF="000034.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r121 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r121%20-%20trunk/kernel&In-Reply-To=%3C200704232229.l3NMT5gV022839%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r121 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Tue Apr 24 00:29:05 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000032.html">[Iscsitarget-svn] r120 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000034.html">[Iscsitarget-svn] r122 - trunk/etc/initd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33">[ date ]</a>
+              <a href="thread.html#33">[ thread ]</a>
+              <a href="subject.html#33">[ subject ]</a>
+              <a href="author.html#33">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-04-24 00:29:05 +0200 (Tue, 24 Apr 2007)
+New Revision: 121
+
+Modified:
+   trunk/kernel/iscsi.h
+   trunk/kernel/target.c
+Log:
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Date: Mon, 23 Apr 2007 22:54:28 +0200
+Subject: Remove unused variables
+
+Cleanup garbage left from previous Reserve/Release implementation.
+
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2007-04-16 23:58:04 UTC (rev 120)
++++ trunk/kernel/iscsi.h	2007-04-23 22:29:05 UTC (rev 121)
+@@ -116,9 +116,6 @@
+ 	struct worker_thread_info wthread_info;
+ 
+ 	struct semaphore target_sem;
+-
+-	struct list_head initiator_list;
+-	u32 initiator_iid_count;
+ };
+ 
+ struct iscsi_queue {
+@@ -189,8 +186,6 @@
+ 	struct list_head cmnd_hash[1 &lt;&lt; IET_HASH_ORDER];
+ 
+ 	u32 next_ttt;
+-
+-	struct iscsi_initiator *rinitiator;
+ };
+ 
+ enum connection_state_bit {
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2007-04-16 23:58:04 UTC (rev 120)
++++ trunk/kernel/target.c	2007-04-23 22:29:05 UTC (rev 121)
+@@ -148,7 +148,6 @@
+ 
+ 	INIT_LIST_HEAD(&amp;target-&gt;session_list);
+ 	INIT_LIST_HEAD(&amp;target-&gt;volumes);
+-	INIT_LIST_HEAD(&amp;target-&gt;initiator_list);
+ 
+ 	atomic_set(&amp;target-&gt;nr_volumes, 0);
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000032.html">[Iscsitarget-svn] r120 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000034.html">[Iscsitarget-svn] r122 - trunk/etc/initd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33">[ date ]</a>
+              <a href="thread.html#33">[ thread ]</a>
+              <a href="subject.html#33">[ subject ]</a>
+              <a href="author.html#33">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

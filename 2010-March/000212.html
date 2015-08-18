@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[300] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B300%5D%20trunk&In-Reply-To=%3CE1Nm8NR-0004Vv-Et%40sfp-svn-3.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000215.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[300] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B300%5D%20trunk&In-Reply-To=%3CE1Nm8NR-0004Vv-Et%40sfp-svn-3.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[300] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Mon Mar  1 17:21:49 CET 2010</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000215.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[301] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#212">[ date ]</a>
+              <a href="thread.html#212">[ thread ]</a>
+              <a href="subject.html#212">[ subject ]</a>
+              <a href="author.html#212">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 300
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=300&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=300&amp;view=rev</A>
+Author:   agr1
+Date:     2010-03-01 16:21:49 +0000 (Mon, 01 Mar 2010)
+
+Log Message:
+-----------
+Update to 2.6.33
+
+struct inet_sock's daddr member was renamed to inet_daddr.
+Compile tested only.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/kernel/conn.c
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2010-02-25 21:23:05 UTC (rev 299)
++++ trunk/Makefile	2010-03-01 16:21:49 UTC (rev 300)
+@@ -51,6 +51,11 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++# Compatibility patch for kernels &lt;= 2.6.32
++ifeq ($(call kver_le,2,6,32),1)
++	PATCHES := $(PATCHES) compat-2.6.32.patch
++endif
++
+ # Compatibility patch for kernels &lt;= 2.6.31
+ ifeq ($(call kver_le,2,6,31),1)
+ 	PATCHES := $(PATCHES) compat-2.6.31.patch
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2010-02-25 21:23:05 UTC (rev 299)
++++ trunk/kernel/conn.c	2010-03-01 16:21:49 UTC (rev 300)
+@@ -43,7 +43,7 @@
+ 		switch (sk-&gt;sk_family) {
+ 		case AF_INET:
+ 			snprintf(buf, sizeof(buf),
+-				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;daddr));
++				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;inet_daddr));
+ 			break;
+ 		case AF_INET6:
+ 			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000215.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[301] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#212">[ date ]</a>
+              <a href="thread.html#212">[ thread ]</a>
+              <a href="subject.html#212">[ subject ]</a>
+              <a href="author.html#212">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

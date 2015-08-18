@@ -1,0 +1,739 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[307] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B307%5D%20trunk&In-Reply-To=%3CE1NogYc-0005Ng-0a%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000218.html">
+   <LINK REL="Next"  HREF="000220.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[307] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B307%5D%20trunk&In-Reply-To=%3CE1NogYc-0005Ng-0a%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[307] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Mon Mar  8 18:15:54 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000218.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[306] trunk/usr/target.c
+</A></li>
+        <LI>Next message: <A HREF="000220.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[308]	trunk/kernel/nthread.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#219">[ date ]</a>
+              <a href="thread.html#219">[ thread ]</a>
+              <a href="subject.html#219">[ subject ]</a>
+              <a href="author.html#219">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 307
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=307&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=307&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-03-08 17:15:53 +0000 (Mon, 08 Mar 2010)
+
+Log Message:
+-----------
+
+Set a temporary target redirection via ietadm for an existing
+target. To clear a redirection provide a blank destination.
+
+Signed-off-by: Kun Huang on behalf of VMware, Inc.
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/doc/manpages/ietadm.8
+    trunk/usr/config.h
+    trunk/usr/ietadm.c
+    trunk/usr/ietadm.h
+    trunk/usr/iscsid.c
+    trunk/usr/iscsid.h
+    trunk/usr/isns.c
+    trunk/usr/message.c
+    trunk/usr/plain.c
+    trunk/usr/target.c
+
+Modified: trunk/doc/manpages/ietadm.8
+===================================================================
+--- trunk/doc/manpages/ietadm.8	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/doc/manpages/ietadm.8	2010-03-08 17:15:53 UTC (rev 307)
+@@ -209,6 +209,14 @@
+ target with [id]. You can use parameters in ietd.conf
+ as a key.
+ .PP
++\&amp;\fB\-\-op update \-\-tid=[id] \-\-redirect=[destination]\fR
++.PP
++set a temporary target redirection for target [id]. [destination]
++MUST be in the form &lt;ip address&gt;:port where :port is optional and
++if not specified port 3260 is assumed. IPv6 addresses must be
++surrounded by square brackets, e.g. [&lt;ipv6 address&gt;]:port. If the
++destination is empty then any existing redirection is cleared.
++.PP
+ \&amp;\fB\-\-op new \-\-tid=[id] \-\-user \-\-params=[user]=[name],Password=[pass]\fR
+ .PP
+ add a new account with [pass] for specific target.
+
+Modified: trunk/usr/config.h
+===================================================================
+--- trunk/usr/config.h	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/config.h	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,3 +1,30 @@
++/*
++ * config.h - ietd plain file-based configuration
++ *
++ * Copyright (C) 2004-2005 FUJITA Tomonori &lt;tomof at acm dot org&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * This file is part of iSCSI Enterprise Target software.
++ *
++ * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
++ */
++
+ #ifndef CONFIG_H
+ #define CONFIG_H
+ 
+@@ -16,6 +43,7 @@
+ 	int (*account_list) (u32, int, u32 *, u32 *, char *, size_t);
+ 	int (*initiator_allow) (u32, int, char *);
+ 	int (*target_allow) (u32, struct sockaddr *);
++	int (*target_redirect) (u32, char *, u8);
+ };
+ 
+ extern struct config_operations *cops;
+
+Modified: trunk/usr/ietadm.c
+===================================================================
+--- trunk/usr/ietadm.c	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/ietadm.c	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,9 +1,28 @@
+ /*
+- * ietadm - manage iSCSI Enterprise Target software.
++ * ietadm.c - ietd management program
+  *
+- * (C) 2004 - 2005 FUJITA Tomonori &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">tomof at acm.org</A>&gt;
++ * Copyright (C) 2004-2005 FUJITA Tomonori &lt;tomof at acm dot org&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
+  *
+- * This code is licenced under the GPL.
++ * This file is part of iSCSI Enterprise Target software.
++ *
++ * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
+  */
+ 
+ #include &lt;ctype.h&gt;
+@@ -28,6 +47,7 @@
+ #define	SET_CONNECTION	(1 &lt;&lt; 2)
+ #define	SET_LUNIT	(1 &lt;&lt; 3)
+ #define	SET_USER	(1 &lt;&lt; 4)
++#define	SET_REDIRECT	(1 &lt;&lt; 5)
+ 
+ typedef int (user_handle_fn_t)(struct ietadm_req *req, char *user, char *pass);
+ 
+@@ -47,6 +67,7 @@
+ 	{&quot;sid&quot;, required_argument, NULL, 's'},
+ 	{&quot;cid&quot;, required_argument, NULL, 'c'},
+ 	{&quot;lun&quot;, required_argument, NULL, 'l'},
++	{&quot;redirect&quot;, required_argument, NULL, 'r'},
+ 	{&quot;params&quot;, required_argument, NULL, 'p'},
+ 	{&quot;user&quot;, no_argument, NULL, 'u'},
+ 	{&quot;version&quot;, no_argument, NULL, 'v'},
+@@ -112,6 +133,15 @@
+                         [OutgoingUser].\n\
+                         If you don't specify a target (omit --tid option),\n\
+                         you delete the account for discovery sessions.\n\
++  --op update --tid=[id] --redirect=[dest]\n\
++                        redirect login to target with tid [id] to portal\n\
++                        [dest]. Discovery sessions will not be impacted,\n\
++                        but normal sessions will be redirected before\n\
++                        security negotiation. The destination should be\n\
++                        specified using the format:\n\
++                                &lt;ip_addr&gt;[:port]\n\
++                        IPv6 addresses need to be enclosed in [] brackets\n\
++                        To clear, provide an empty string\n\
+   --version             display version and exit\n\
+   --help                display this help and exit\n\
+ \n\
+@@ -330,9 +360,14 @@
+ 		req.rcmnd = C_TRGT_DEL;
+ 		break;
+ 	case OP_UPDATE:
+-		req.rcmnd = C_TRGT_UPDATE;
+-		if ((err = parse_trgt_params(&amp;req.u.trgt, params)) &lt; 0)
+-			goto out;
++		if (set &amp; SET_REDIRECT) {
++			req.rcmnd = C_TRGT_REDIRECT;
++			strncpy(req.u.redir.dest, params, sizeof(req.u.redir.dest) - 1);
++		} else {
++			req.rcmnd = C_TRGT_UPDATE;
++			if ((err = parse_trgt_params(&amp;req.u.trgt, params)) &lt; 0)
++				goto out;
++		}
+ 		break;
+ 	case OP_SHOW:
+ 		req.rcmnd = C_TRGT_SHOW;
+@@ -682,7 +717,7 @@
+ 	u64 sid = 0;
+ 	char *params = NULL;
+ 
+-	while ((ch = getopt_long(argc, argv, &quot;o:t:s:c:l:p:uvh&quot;,
++	while ((ch = getopt_long(argc, argv, &quot;o:t:s:c:l:r:p:uvh&quot;,
+ 				 long_options, &amp;longindex)) &gt;= 0) {
+ 		switch (ch) {
+ 		case 'o':
+@@ -707,6 +742,10 @@
+ 		case 'p':
+ 			params = optarg;
+ 			break;
++		case 'r':
++			set |= SET_REDIRECT;
++			params = optarg;
++			break;
+ 		case 'u':
+ 			set |= SET_USER;
+ 			break;
+
+Modified: trunk/usr/ietadm.h
+===================================================================
+--- trunk/usr/ietadm.h	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/ietadm.h	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,3 +1,30 @@
++/*
++ * ietadm.h - ietd management program
++ *
++ * Copyright (C) 2004-2005 FUJITA Tomonori &lt;tomof at acm dot org&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * This file is part of iSCSI Enterprise Target software.
++ *
++ * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
++ */
++
+ #ifndef _IET_ADM_H
+ #define _IET_ADM_H
+ 
+@@ -33,11 +60,16 @@
+ 	char args[ISCSI_ARGS_LEN];
+ };
+ 
++struct msg_redir {
++	char dest[NI_MAXHOST + NI_MAXSERV + 4];
++};
++
+ enum ietadm_cmnd {
+ 	C_TRGT_NEW,
+ 	C_TRGT_DEL,
+ 	C_TRGT_UPDATE,
+ 	C_TRGT_SHOW,
++	C_TRGT_REDIRECT,
+ 
+ 	C_SESS_NEW,
+ 	C_SESS_DEL,
+@@ -79,6 +111,7 @@
+ 		struct msg_trgt trgt;
+ 		struct msg_acnt acnt;
+ 		struct msg_lunit lunit;
++		struct msg_redir redir;
+ 	} u;
+ };
+ 
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/iscsid.c	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,7 +1,28 @@
+ /*
+- * Copyright (C) 2002-2003 Ardis Technolgies &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">roman at ardistech.com</A>&gt;
++ * iscsid.c - ietd iSCSI protocol processing
+  *
++ * Copyright (C) 2002-2003 Ardis Technolgies &lt;roman at ardistech dot com&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * This file is part of iSCSI Enterprise Target software.
++ *
+  * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
+  */
+ 
+ #include &lt;ctype.h&gt;
+@@ -428,7 +449,8 @@
+ 	conn-&gt;auth_method = -1;
+ 	conn-&gt;session_type = SESSION_NORMAL;
+ 
+-	getsockname(conn-&gt;fd, (struct sockaddr *) &amp;ss, &amp;slen);
++	if (getsockname(conn-&gt;fd, (struct sockaddr *) &amp;ss, &amp;slen))
++		log_error(&quot;%s: Failed to get local address.&quot;, __FUNCTION__);
+ 
+ 	if (session_type) {
+ 		if (!strcmp(session_type, &quot;Discovery&quot;))
+@@ -456,6 +478,21 @@
+ 			return;
+ 		}
+ 
++		if (target_redirected(target, conn, (struct sockaddr *) &amp;ss)) {
++			struct iscsi_login_rsp_hdr *rsp =
++				(struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
++
++			log_debug(1, &quot;redirected target %s login to %s:%s&quot;,
++					target-&gt;name, target-&gt;redirect.addr,
++					strlen(target-&gt;redirect.port) ?
++					target-&gt;redirect.port : &quot;3260&quot;);
++
++			rsp-&gt;status_class = ISCSI_STATUS_REDIRECT;
++			rsp-&gt;status_detail = target-&gt;redirect.type;
++			conn-&gt;state = STATE_EXIT;
++			return;
++		}
++
+ 		conn-&gt;tid = target-&gt;tid;
+ 
+ 		if (target-&gt;max_nr_sessions &amp;&amp;
+@@ -827,7 +864,7 @@
+ 		}
+ 		cmnd_exec_login(conn);
+ 		login_rsp = (struct iscsi_login_rsp_hdr *) &amp;conn-&gt;rsp.bhs;
+-		if (login_rsp-&gt;status_class)
++		if (login_rsp-&gt;status_class &amp;&amp; login_rsp-&gt;status_class != ISCSI_STATUS_REDIRECT)
+ 			conn_free_rsp_buf_list(conn);
+ 		break;
+ 	case ISCSI_OP_TEXT_CMD:
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/iscsid.h	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,7 +1,28 @@
+ /*
+- * Copyright (C) 2002-2003 Ardis Technolgies &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">roman at ardistech.com</A>&gt;
++ * iscsid.h - ietd iSCSI protocol processing
+  *
++ * Copyright (C) 2002-2003 Ardis Technolgies &lt;roman at ardistech dot com&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * This file is part of iSCSI Enterprise Target software.
++ *
+  * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
+  */
+ 
+ #ifndef ISCSID_H
+@@ -10,6 +31,7 @@
+ #include &lt;search.h&gt;
+ #include &lt;sys/socket.h&gt;
+ #include &lt;sys/types.h&gt;
++#include &lt;netdb.h&gt;
+ 
+ #include &quot;types.h&quot;
+ #include &quot;iscsi_hdr.h&quot;
+@@ -154,6 +176,12 @@
+ 	char name[ISCSI_NAME_LEN];
+ 	char *alias;
+ 
++	struct redirect_addr {
++		char addr[NI_MAXHOST + 1];
++		char port[NI_MAXSERV + 1];
++		u8 type;
++	} redirect;
++
+ 	int max_nr_sessions;
+ 	int nr_sessions;
+ 
+@@ -208,6 +236,7 @@
+ extern struct __qelem targets_list;
+ extern int target_add(u32 *, char *);
+ extern int target_del(u32);
++extern int target_redirected(struct target *, struct connection *, struct sockaddr *);
+ extern struct target * target_find_by_name(const char *name);
+ extern struct target * target_find_by_id(u32);
+ extern void target_list_build(struct connection *, char *);
+
+Modified: trunk/usr/isns.c
+===================================================================
+--- trunk/usr/isns.c	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/isns.c	2010-03-08 17:15:53 UTC (rev 307)
+@@ -60,7 +60,7 @@
+ static uint16_t transaction;
+ static uint32_t current_timeout = 30; /* seconds */
+ static char eid[ISCSI_NAME_LEN];
+-static uint8_t ip[16]; /* IET supoprts only one portal */
++static uint8_t ip[16]; /* IET supports only one portal */
+ static struct sockaddr_storage ss;
+ 
+ int isns_scn_allow(uint32_t tid, char *name)
+
+Modified: trunk/usr/message.c
+===================================================================
+--- trunk/usr/message.c	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/message.c	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,7 +1,28 @@
+ /*
+- * (C) 2004 - 2005 FUJITA Tomonori &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">tomof at acm.org</A>&gt;
++ * message.c - ietd inter-process communication
+  *
+- * This code is licenced under the GPL.
++ * Copyright (C) 2004-2005 FUJITA Tomonori &lt;tomof at acm dot org&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * This file is part of iSCSI Enterprise Target software.
++ *
++ * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
+  */
+ 
+ #include &lt;errno.h&gt;
+@@ -72,6 +93,10 @@
+ 		err = ki-&gt;param_get(req-&gt;tid, req-&gt;sid, key_target,
+ 				    req-&gt;u.trgt.target_param);
+ 		break;
++        case C_TRGT_REDIRECT:
++		err = cops-&gt;target_redirect(req-&gt;tid, req-&gt;u.redir.dest,
++						ISCSI_STATUS_TGT_MOVED_TEMP);
++		break;
+ 
+ 	case C_SESS_NEW:
+ 	case C_SESS_DEL:
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/plain.c	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,8 +1,28 @@
+ /*
+- * Plain file-based configuration file code.
++ * plain.c - ietd plain file-based configuration
+  *
+- * (C) 2005 FUJITA Tomonori &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">tomof at acm.org</A>&gt;
+- * This code is licenced under the GPL.
++ * Copyright (C) 2004-2005 FUJITA Tomonori &lt;tomof at acm dot org&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * This file is part of iSCSI Enterprise Target software.
++ *
++ * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
+  */
+ 
+ #include &lt;ctype.h&gt;
+@@ -43,6 +63,31 @@
+ 	char *password;
+ };
+ 
++int is_addr_valid(char *addr)
++{
++	struct in_addr ia;
++	struct in6_addr ia6;
++	char tmp[NI_MAXHOST + 1], *p = tmp, *q;
++
++	snprintf(tmp, sizeof(tmp), &quot;%s&quot;, addr);
++
++	if (inet_pton(AF_INET, p, &amp;ia) == 1)
++		return 1;
++
++	if (*p == '[') {
++		p++;
++		q = p + strlen(p) - 1;
++		if (*q != ']')
++			return 0;
++		*q = '\0';
++	}
++
++	if (inet_pton(AF_INET6, p, &amp;ia6) == 1)
++		return 1;
++
++	return 0;
++}
++
+ /* this is the orignal Ardis code. */
+ static char *target_sep_string(char **pp)
+ {
+@@ -476,6 +521,65 @@
+  * Main configuration code
+  */
+ 
++static int __plain_target_redirect(u32 tid, char *dest, u8 type, int update)
++{
++	struct target *target;
++	char *a = dest, *p = dest + strlen(dest);
++
++	if (!tid || !dest || !type)
++		return -EINVAL;
++
++	if (type != ISCSI_STATUS_TGT_MOVED_TEMP &amp;&amp;
++			type != ISCSI_STATUS_TGT_MOVED_PERM)
++		return -EINVAL;
++
++	target = target_find_by_id(tid);
++	if (!target) {
++		log_error(&quot;can't find target: %d&quot;, tid);
++		return -ENOENT;
++	}
++
++	while(isspace(*a))
++		a++;
++
++	if (strlen(a)) {
++		while(isspace(*(--p)))
++			*p = '\0';
++
++		if ((p = strrchr(a, ']')))
++			p = strchrnul(p, ':');
++		else
++			p = strchrnul(a, ':');
++
++		if (*p) {
++			*(p++) = '\0';
++			if (!atoi(p))
++				return -EINVAL;
++		}
++
++		if (!is_addr_valid(a))
++			return -EINVAL;
++
++		log_warning(&quot;target %s %s redirected to %s:%s&quot;, target-&gt;name,
++			(type == ISCSI_STATUS_TGT_MOVED_TEMP) ? &quot;temporarily&quot; :
++								&quot;permanently&quot;,
++						a, strlen(p) ? p : &quot;3260&quot;);
++	} else
++		log_warning(&quot;target redirection for %s cleared&quot;, target-&gt;name);
++
++	target-&gt;redirect.type = type;
++
++	snprintf(target-&gt;redirect.addr, sizeof(target-&gt;redirect.addr), &quot;%s&quot;, a);
++	snprintf(target-&gt;redirect.port, sizeof(target-&gt;redirect.port), &quot;%s&quot;, p);
++
++	return 0;
++}
++
++static int plain_target_redirect(u32 tid, char *dest, u8 type)
++{
++	return __plain_target_redirect(tid, dest, type, 1);
++}
++
+ static int __plain_target_create(u32 *tid, char *name, int update)
+ {
+ 	int err;
+@@ -750,4 +854,5 @@
+ 	.account_list		= plain_account_list,
+ 	.initiator_allow	= plain_initiator_allow,
+ 	.target_allow		= plain_target_allow,
++	.target_redirect	= plain_target_redirect,
+ };
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2010-03-03 22:14:27 UTC (rev 306)
++++ trunk/usr/target.c	2010-03-08 17:15:53 UTC (rev 307)
+@@ -1,7 +1,28 @@
+ /*
+- * Copyright (C) 2002-2003 Ardis Technolgies &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">roman at ardistech.com</A>&gt;
++ * target.c - ietd target handling
+  *
++ * Copyright (C) 2002-2003 Ardis Technolgies &lt;roman at ardistech dot com&gt;
++ * Copyright (C) 2004-2010 VMware, Inc. All Rights Reserved.
++ * Copyright (C) 2007-2010 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * This file is part of iSCSI Enterprise Target software.
++ *
+  * Released under the terms of the GNU GPL v2.0.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
+  */
+ 
+ #include &lt;ctype.h&gt;
+@@ -263,3 +284,39 @@
+ 	free(target);
+ 	return err;
+ }
++
++int target_redirected(struct target *target, struct connection *conn, struct sockaddr *sa)
++{
++	char tmp[NI_MAXHOST + 1];
++	char addr[NI_MAXHOST + 3];
++	char redirect[NI_MAXHOST + NI_MAXSERV + 4];
++	char *p;
++
++	if (!strlen(target-&gt;redirect.addr))
++		return 0;
++
++	if (getnameinfo(sa, (sa-&gt;sa_family == AF_INET) ?
++					sizeof(struct sockaddr_in) :
++					sizeof(struct sockaddr_in6),
++					tmp, sizeof(tmp), NULL, 0,
++					NI_NUMERICHOST))
++		return 0;
++
++	if ((p = strrchr(tmp, '%')))
++		*p = '\0';
++
++	if (sa-&gt;sa_family == AF_INET6)
++		snprintf(addr, sizeof(addr), &quot;[%s]&quot;, tmp);
++	else
++		snprintf(addr, sizeof(addr), &quot;%s&quot;, tmp);
++
++	snprintf(redirect, sizeof(redirect), &quot;%s:%s&quot;, target-&gt;redirect.addr,
++		strlen(target-&gt;redirect.port) ? target-&gt;redirect.port : &quot;3260&quot;);
++
++	if (strcmp(target-&gt;redirect.addr, addr)) {
++		text_key_add(conn, &quot;TargetAddress&quot;, redirect);
++		return 1;
++	}
++
++	return 0;
++}
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000218.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[306] trunk/usr/target.c
+</A></li>
+	<LI>Next message: <A HREF="000220.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[308]	trunk/kernel/nthread.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#219">[ date ]</a>
+              <a href="thread.html#219">[ thread ]</a>
+              <a href="subject.html#219">[ subject ]</a>
+              <a href="author.html#219">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

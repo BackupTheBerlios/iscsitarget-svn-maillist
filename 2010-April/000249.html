@@ -1,0 +1,109 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[337]	branches/1.4.20/Makefile
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B337%5D%0A%09branches/1.4.20/Makefile&In-Reply-To=%3CE1O5zlI-0001Ou-9B%40sfp-svn-5.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000248.html">
+   <LINK REL="Next"  HREF="000250.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[337]	branches/1.4.20/Makefile</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B337%5D%0A%09branches/1.4.20/Makefile&In-Reply-To=%3CE1O5zlI-0001Ou-9B%40sfp-svn-5.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[337]	branches/1.4.20/Makefile">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr 25 13:12:32 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000248.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[336]	branches/1.4.20/kernel/target_disk.c
+</A></li>
+        <LI>Next message: <A HREF="000250.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[338] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#249">[ date ]</a>
+              <a href="thread.html#249">[ thread ]</a>
+              <a href="subject.html#249">[ subject ]</a>
+              <a href="author.html#249">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 337
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=337&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=337&amp;view=rev</A>
+Author:   agr1
+Date:     2010-04-25 11:12:31 +0000 (Sun, 25 Apr 2010)
+
+Log Message:
+-----------
+Merge trunk, rev 332 + 333:
+
+In 2.6.33 utsrelease.h was moved from include/linux to include/generated
+-- adapt Makefile
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Revision Links:
+--------------
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=332&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=332&amp;view=rev</A>
+
+Modified Paths:
+--------------
+    branches/1.4.20/Makefile
+
+Modified: branches/1.4.20/Makefile
+===================================================================
+--- branches/1.4.20/Makefile	2010-04-25 11:09:59 UTC (rev 336)
++++ branches/1.4.20/Makefile	2010-04-25 11:12:31 UTC (rev 337)
+@@ -15,10 +15,15 @@
+ 	KSRC ?= /lib/modules/$(shell uname -r)/build
+ endif
+ 
+-ifneq ($(wildcard $(KSRC)/include/linux/utsrelease.h),)
+-	VERSION_FILE := $(KSRC)/include/linux/utsrelease.h
++
++ifneq ($(wildcard $(KSRC)/include/generated/utsrelease.h),)
++	VERSION_FILE := $(KSRC)/include/generated/utsrelease.h
+ else
+-	VERSION_FILE := $(KSRC)/include/linux/version.h
++  ifneq ($(wildcard $(KSRC)/include/linux/utsrelease.h),)
++	  VERSION_FILE := $(KSRC)/include/linux/utsrelease.h
++  else
++	  VERSION_FILE := $(KSRC)/include/linux/version.h
++  endif
+ endif
+ 
+ KVER := $(shell $(CC) $(CFLAGS) -E -dM $(VERSION_FILE) | \
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000248.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[336]	branches/1.4.20/kernel/target_disk.c
+</A></li>
+	<LI>Next message: <A HREF="000250.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[338] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#249">[ date ]</a>
+              <a href="thread.html#249">[ thread ]</a>
+              <a href="subject.html#249">[ subject ]</a>
+              <a href="author.html#249">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,322 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r99 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r99%20-%20trunk/kernel&In-Reply-To=%3C200702260039.l1Q0dbe8006748%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000010.html">
+   <LINK REL="Next"  HREF="000012.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r99 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r99%20-%20trunk/kernel&In-Reply-To=%3C200702260039.l1Q0dbe8006748%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r99 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Feb 26 01:39:37 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000010.html">[Iscsitarget-svn] r98 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000012.html">[Iscsitarget-svn] r100 - in trunk: include kernel usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11">[ date ]</a>
+              <a href="thread.html#11">[ thread ]</a>
+              <a href="subject.html#11">[ subject ]</a>
+              <a href="author.html#11">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-02-26 01:39:36 +0100 (Mon, 26 Feb 2007)
+New Revision: 99
+
+Modified:
+   trunk/kernel/iscsi.h
+   trunk/kernel/session.c
+   trunk/kernel/target_disk.c
+   trunk/kernel/volume.c
+Log:
+Date: Sun, 25 Feb 2007 10:54:39 +0200 (EET)
+From: Juhani Rautiainen &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jrauti at iki.fi</A>&gt;
+Subject: [Iscsitarget-devel] [PATCH] Revert reserve/release to spec
+
+I know this is not liked by many but in order to get 0.4.15 out of door 
+I'll revert reserve/release to spec version. I'll make patch to get MPIO 
+friendly reserve/release later. I'd also like to keep the old one as 
+option which you can switch on but that is the road that leads to dark 
+place. In the end you have lot's of out-of-spec things that you can  
+switch on and it's maintenance nightmare. So here is the patch:
+
+Signed-off-by: <A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jrauti at iki.fi</A>
+
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2007-02-19 22:32:07 UTC (rev 98)
++++ trunk/kernel/iscsi.h	2007-02-26 00:39:36 UTC (rev 99)
+@@ -144,7 +144,7 @@
+ 	u32 blk_shift;
+ 	u64 blk_cnt;
+ 
+-	u32 reserve_iid;
++	u64 reserve_sid;
+ 	spinlock_t reserve_lock;
+ 
+ 	unsigned long flags;
+@@ -276,14 +276,6 @@
+ 	struct iscsi_cmnd *req;
+ };
+ 
+-struct iscsi_initiator {
+-	struct list_head list;
+-
+-	char *name;
+-	u32 iid;
+-	u32 usage_count;
+-};
+-
+ #define ISCSI_OP_SCSI_REJECT	ISCSI_OP_VENDOR1_CMD
+ #define ISCSI_OP_PDU_REJECT	ISCSI_OP_VENDOR2_CMD
+ #define ISCSI_OP_DATA_REJECT	ISCSI_OP_VENDOR3_CMD
+@@ -346,9 +338,9 @@
+ extern struct iet_volume *volume_lookup(struct iscsi_target *, u32);
+ extern struct iet_volume *volume_get(struct iscsi_target *, u32);
+ extern void volume_put(struct iet_volume *);
+-extern int volume_reserve(struct iet_volume *volume, u32 iid);
+-extern int volume_release(struct iet_volume *volume, u32 iid, int force);
+-extern int is_volume_reserved(struct iet_volume *volume, u32 iid);
++extern int volume_reserve(struct iet_volume *volume, u64 sid);
++extern int volume_release(struct iet_volume *volume, u64 sid, int force);
++extern int is_volume_reserved(struct iet_volume *volume, u64 sid);
+ 
+ /* tio.c */
+ extern int tio_init(void);
+
+Modified: trunk/kernel/session.c
+===================================================================
+--- trunk/kernel/session.c	2007-02-19 22:32:07 UTC (rev 98)
++++ trunk/kernel/session.c	2007-02-26 00:39:36 UTC (rev 99)
+@@ -7,88 +7,6 @@
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+ 
+-static struct iscsi_initiator *initiator_lookup(struct iscsi_target *target,
+-						char *name)
+-{
+-	struct iscsi_initiator *initiator;
+-
+-	list_for_each_entry(initiator, &amp;target-&gt;initiator_list, list) {
+-		if (!strcmp(name, initiator-&gt;name))
+-			return initiator;
+-	}
+-	return NULL;
+-}
+-
+-static struct iscsi_initiator *initiator_alloc(struct iscsi_target *target,
+-					       struct session_info *info)
+-{
+-	struct iscsi_initiator *initiator;
+-	struct iscsi_session *session;
+-
+-	dprintk(D_SETUP, &quot;%p %u %#Lx\n&quot;, target, target-&gt;tid,
+-		(unsigned long long) info-&gt;sid);
+-
+-	initiator = kzalloc(sizeof(*initiator), GFP_KERNEL);
+-	if (!initiator)
+-		return NULL;
+-
+-	initiator-&gt;usage_count = 1;
+-	initiator-&gt;iid = ++target-&gt;initiator_iid_count;
+-
+-	initiator-&gt;name = kstrdup(info-&gt;initiator_name, GFP_KERNEL);
+-	if (!initiator-&gt;name) {
+-		kfree(initiator);
+-		return NULL;
+-	}
+-
+-	dprintk(D_SETUP, &quot;%s %u\n&quot;, initiator-&gt;name, initiator-&gt;iid);
+-	list_add(&amp;initiator-&gt;list, &amp;target-&gt;initiator_list);
+-
+-	session = session_lookup(target, info-&gt;sid);
+-	BUG_ON(!session);
+-	session-&gt;rinitiator = initiator;
+-
+-	return initiator;
+-}
+-
+-static void initiator_free(struct iscsi_initiator *initiator)
+-{
+-	list_del(&amp;initiator-&gt;list);
+-	kfree(initiator-&gt;name);
+-	kfree(initiator);
+-}
+-
+-static int initiator_add(struct iscsi_target *target, struct session_info *info)
+-{
+-	struct iscsi_initiator *initiator;
+-	struct iscsi_session *session;
+-
+-	dprintk(D_SETUP, &quot;%s\n&quot;, info-&gt;initiator_name);
+-
+-	initiator = initiator_lookup(target, info-&gt;initiator_name);
+-	if (initiator)
+-		initiator-&gt;usage_count++;
+-	else {
+-		initiator = initiator_alloc(target, info);
+-		if (!initiator)
+-			return -ENOMEM;
+-	}
+-
+-	session = session_lookup(target, info-&gt;sid);
+-	BUG_ON(!session);
+-	session-&gt;rinitiator = initiator;
+-	return 0;
+-}
+-
+-static void initiator_del(struct iscsi_target *target, char *name)
+-{
+-	struct iscsi_initiator *initiator;
+-
+-	initiator = initiator_lookup(target, name);
+-	if (initiator &amp;&amp; !--initiator-&gt;usage_count)
+-		initiator_free(initiator);
+-}
+-
+ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
+ {
+ 	struct iscsi_session *session;
+@@ -171,11 +89,7 @@
+ 		return err;
+ 
+ 	session = iet_session_alloc(target, info);
+-	if (session) {
+-		err = initiator_add(target, info);
+-		if (err)
+-			session_free(session);
+-	} else
++	if (!session)
+ 		err = -ENOMEM;
+ 
+ 	return err;
+@@ -193,8 +107,6 @@
+ 		return -EBUSY;
+ 	}
+ 
+-	initiator_del(target, session-&gt;initiator);
+-
+ 	return session_free(session);
+ }
+ 
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2007-02-19 22:32:07 UTC (rev 98)
++++ trunk/kernel/target_disk.c	2007-02-26 00:39:36 UTC (rev 99)
+@@ -382,13 +382,13 @@
+ 
+ static int build_reserve_response(struct iscsi_cmnd *cmnd)
+ {
+-	return volume_reserve(cmnd-&gt;lun, cmnd-&gt;conn-&gt;session-&gt;rinitiator-&gt;iid);
++	return volume_reserve(cmnd-&gt;lun, cmnd-&gt;conn-&gt;session-&gt;sid);
+ }
+ 
+ static int build_release_response(struct iscsi_cmnd *cmnd)
+ {
+ 	return volume_release(cmnd-&gt;lun,
+-			      cmnd-&gt;conn-&gt;session-&gt;rinitiator-&gt;iid, 0);
++			      cmnd-&gt;conn-&gt;session-&gt;sid, 0);
+ }
+ 
+ static int build_reservation_conflict_response(struct iscsi_cmnd *cmnd)
+@@ -403,7 +403,7 @@
+ 	req-&gt;opcode &amp;= ISCSI_OPCODE_MASK;
+ 
+ 	if (is_volume_reserved(cmnd-&gt;lun,
+-			       cmnd-&gt;conn-&gt;session-&gt;rinitiator-&gt;iid)) {
++			       cmnd-&gt;conn-&gt;session-&gt;sid)) {
+ 		switch (req-&gt;scb[0]) {
+ 		case INQUIRY:
+ 		case RELEASE:
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2007-02-19 22:32:07 UTC (rev 98)
++++ trunk/kernel/volume.c	2007-02-26 00:39:36 UTC (rev 99)
+@@ -170,35 +170,35 @@
+ 		iscsi_volume_destroy(volume);
+ }
+ 
+-int volume_reserve(struct iet_volume *volume, u32 iid)
++int volume_reserve(struct iet_volume *volume, u64 sid)
+ {
+ 	if (!volume)
+ 		return -ENOENT;
+ 
+ 	spin_lock(&amp;volume-&gt;reserve_lock);
+-	if (volume-&gt;reserve_iid &amp;&amp; volume-&gt;reserve_iid != iid) {
++	if (volume-&gt;reserve_sid &amp;&amp; volume-&gt;reserve_sid != sid) {
+ 		spin_unlock(&amp;volume-&gt;reserve_lock);
+ 		return -EBUSY;
+ 	}
+ 
+-	volume-&gt;reserve_iid = iid;
++	volume-&gt;reserve_sid = sid;
+ 	spin_unlock(&amp;volume-&gt;reserve_lock);
+ 
+ 	return 0;
+ }
+ 
+-int is_volume_reserved(struct iet_volume *volume, u32 iid)
++int is_volume_reserved(struct iet_volume *volume, u64 sid)
+ {
+-	if (!volume || !volume-&gt;reserve_iid || volume-&gt;reserve_iid == iid)
++	if (!volume || !volume-&gt;reserve_sid || volume-&gt;reserve_sid == sid)
+ 		return 0;
+ 
+ 	return -EBUSY;
+ }
+ 
+-int volume_release(struct iet_volume *volume, u32 iid, int force)
++int volume_release(struct iet_volume *volume, u64 sid, int force)
+ {
+-	if (force || volume-&gt;reserve_iid == iid)
+-		volume-&gt;reserve_iid = 0;
++	if (force || volume-&gt;reserve_sid == sid)
++		volume-&gt;reserve_sid = 0;
+ 
+ 	return 0;
+ }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000010.html">[Iscsitarget-svn] r98 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000012.html">[Iscsitarget-svn] r100 - in trunk: include kernel usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11">[ date ]</a>
+              <a href="thread.html#11">[ thread ]</a>
+              <a href="subject.html#11">[ subject ]</a>
+              <a href="author.html#11">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

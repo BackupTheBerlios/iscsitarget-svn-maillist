@@ -1,0 +1,90 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r218 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r218%20-%20trunk/usr&In-Reply-To=%3C200907291747.n6THlcJg009037%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000129.html">
+   <LINK REL="Next"  HREF="000131.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r218 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r218%20-%20trunk/usr&In-Reply-To=%3C200907291747.n6THlcJg009037%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r218 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul 29 19:47:38 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000129.html">[Iscsitarget-svn] r217 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000131.html">[Iscsitarget-svn] r219 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#130">[ date ]</a>
+              <a href="thread.html#130">[ thread ]</a>
+              <a href="subject.html#130">[ subject ]</a>
+              <a href="author.html#130">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-07-29 19:47:38 +0200 (Wed, 29 Jul 2009)
+New Revision: 218
+
+Modified:
+   trunk/usr/iscsid.c
+Log:
+Set the Final-bit on empty text response PDUs
+
+Fixes a problem pointed out by Ross
+
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-07-29 06:43:11 UTC (rev 217)
++++ trunk/usr/iscsid.c	2009-07-29 17:47:38 UTC (rev 218)
+@@ -786,8 +786,10 @@
+ 		return;
+ 	}
+ 
+-	if (list_length_is_one(&amp;conn-&gt;rsp_buf_list))
++	if (list_empty(&amp;conn-&gt;rsp_buf_list) ||
++	    list_length_is_one(&amp;conn-&gt;rsp_buf_list))
+ 		rsp-&gt;flags = ISCSI_FLG_FINAL;
++
+ 	rsp-&gt;ttt = conn-&gt;ttt;
+ 
+ 	rsp-&gt;stat_sn = cpu_to_be32(conn-&gt;stat_sn++);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000129.html">[Iscsitarget-svn] r217 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000131.html">[Iscsitarget-svn] r219 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#130">[ date ]</a>
+              <a href="thread.html#130">[ thread ]</a>
+              <a href="subject.html#130">[ subject ]</a>
+              <a href="author.html#130">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

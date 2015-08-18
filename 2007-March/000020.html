@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r108 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r108%20-%20trunk&In-Reply-To=%3C200703220306.l2M368P4014194%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000019.html">
+   <LINK REL="Next"  HREF="000021.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r108 - trunk</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r108%20-%20trunk&In-Reply-To=%3C200703220306.l2M368P4014194%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r108 - trunk">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Mar 22 04:06:08 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000019.html">[Iscsitarget-svn] r107 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000021.html">[Iscsitarget-svn] r109 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20">[ date ]</a>
+              <a href="thread.html#20">[ thread ]</a>
+              <a href="subject.html#20">[ subject ]</a>
+              <a href="author.html#20">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-03-22 04:06:07 +0100 (Thu, 22 Mar 2007)
+New Revision: 108
+
+Removed:
+   trunk/compat.mk
+Log:
+Subject: Remove old compat.mk include
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rwalker at medallion.com</A>&gt;
+Date: Wed, 21 Mar 2007 13:03:08 -0400
+
+This patch simply removes the compat.mk file which is obsoleted by the first patch.
+
+Signed off by Arne and myself.
+
+
+Deleted: trunk/compat.mk
+===================================================================
+--- trunk/compat.mk	2007-03-22 03:03:26 UTC (rev 107)
++++ trunk/compat.mk	2007-03-22 03:06:07 UTC (rev 108)
+@@ -1,69 +0,0 @@
+-#
+-# compat.mk - Kernel compatibility checks to be used from IET's main Makefile.
+-#             Taken from open-iscsi (<A HREF="http://www.open-iscsi.org">http://www.open-iscsi.org</A>).
+-#
+-
+-KSUBLEVEL = $(shell cat $(KSRC)/Makefile | \
+-	awk -F= '/^SUBLEVEL =/ {print $$2}' | \
+-	sed 's/^[ \t]*//;s/[ \t]*$$//')
+-
+-# generic check function
+-# syntax:
+-# @$(call generic_check_cmnd, CHECKING-COMMAND, PATCHNAME)
+-generic_check_cmnd = if $(1) ; then \
+-			echo &quot; ... FAILED&quot;; \
+-			echo &quot;Apply $(2) first!&quot;; exit 1; fi ; \
+-			echo &quot; ... OK&quot;
+-
+-# the actual check for crypto_digest_*()
+-check_crypto_digest_cmnd = ! grep crypto_alloc_tfm kernel/digest.c &gt; /dev/null
+-
+-# see if we make use of the crypto_digest_*() family already
+-# (deprecated as of 2.6.19)
+-# syntax:
+-# @$(call check_crypto_digest, PATCHNAME)
+-check_crypto_digest = $(call generic_check_cmnd, $(check_crypto_digest_cmnd),\
+-			$(1))
+-
+-# this if-else ladder is horrible
+-# but I don't know any quick way to clean it up
+-# since Make doesn't support a switch construct
+-.NOTPARALLEL: check_kernel_compat
+-check_kernel_compat:
+-	@echo -n &quot;Checking kernel compatibility&quot;
+-ifeq ($(KSUBLEVEL),14)
+-	@$(call check_crypto_digest,\
+-		patches/compat-2.6.14-2.6.18.patch)
+-else
+-ifeq ($(KSUBLEVEL),15)
+-	@$(call check_crypto_digest,\
+-		patches/compat-2.6.14-2.6.18.patch)
+-else
+-ifeq ($(KSUBLEVEL),16)
+-	@$(call check_crypto_digest,\
+-		patches/compat-2.6.14-2.6.18.patch)
+-else
+-ifeq ($(KSUBLEVEL),17)
+-	@$(call check_crypto_digest,\
+-		patches/compat-2.6.14-2.6.18.patch)
+-else
+-ifeq ($(KSUBLEVEL),18)
+-	@$(call check_crypto_digest,\
+-		patches/compat-2.6.14-2.6.18.patch)
+-else
+-ifeq ($(KSUBLEVEL),19)
+-# XXX: make sure no compat patch is applied here!?
+-	@echo &quot; ... OK&quot;
+-else
+-ifeq ($(KSUBLEVEL),20)
+-	@echo &quot; ... OK&quot;
+-else
+-	@echo &quot;UNSUPPORTED KERNEL DETECTED&quot;
+-	exit 1;
+-endif
+-endif
+-endif
+-endif
+-endif
+-endif
+-endif
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000019.html">[Iscsitarget-svn] r107 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000021.html">[Iscsitarget-svn] r109 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20">[ date ]</a>
+              <a href="thread.html#20">[ thread ]</a>
+              <a href="subject.html#20">[ subject ]</a>
+              <a href="author.html#20">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

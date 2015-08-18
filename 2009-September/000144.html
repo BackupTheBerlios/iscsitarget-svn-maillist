@@ -1,0 +1,312 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r232 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r232%20-%20trunk/kernel&In-Reply-To=%3C200909161719.n8GHJ7qD030091%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000143.html">
+   <LINK REL="Next"  HREF="000145.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r232 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r232%20-%20trunk/kernel&In-Reply-To=%3C200909161719.n8GHJ7qD030091%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r232 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 16 19:19:07 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000143.html">[Iscsitarget-svn] r231 - in trunk: . etc
+</A></li>
+        <LI>Next message: <A HREF="000145.html">[Iscsitarget-svn] r233 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#144">[ date ]</a>
+              <a href="thread.html#144">[ thread ]</a>
+              <a href="subject.html#144">[ subject ]</a>
+              <a href="author.html#144">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-16 19:18:51 +0200 (Wed, 16 Sep 2009)
+New Revision: 232
+
+Modified:
+   trunk/kernel/config.c
+   trunk/kernel/conn.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/nthread.c
+   trunk/kernel/session.c
+   trunk/kernel/target.c
+Log:
+Stop all activity (remove conns / sessions /targets) on release of the ctrl fd
+
+If the ietd daemon is killed all connections / sessions / targets in the
+kernel module are released.
+
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2009-09-16 15:32:39 UTC (rev 231)
++++ trunk/kernel/config.c	2009-09-16 17:18:51 UTC (rev 232)
+@@ -307,8 +307,16 @@
+ 	return err;
+ }
+ 
++static int release(struct inode *i __attribute__((unused)),
++		   struct file *f __attribute__((unused)))
++{
++	target_del_all();
++	return 0;
++}
++
+ struct file_operations ctr_fops = {
+ 	.owner		= THIS_MODULE,
+ 	.unlocked_ioctl	= ioctl,
+ 	.compat_ioctl	= ioctl,
++	.release	= release
+ };
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2009-09-16 15:32:39 UTC (rev 231)
++++ trunk/kernel/conn.c	2009-09-16 17:18:51 UTC (rev 232)
+@@ -240,3 +240,12 @@
+ 
+ 	return 0;
+ }
++
++/* target_lock() supposed to be held */
++void conn_del_all(struct iscsi_session *session)
++{
++	struct iscsi_conn *conn;
++
++	list_for_each_entry(conn, &amp;session-&gt;conn_list, list)
++		conn_close(conn);
++}
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2009-09-16 15:32:39 UTC (rev 231)
++++ trunk/kernel/iscsi.h	2009-09-16 17:18:51 UTC (rev 232)
+@@ -7,6 +7,7 @@
+ #ifndef __ISCSI_H__
+ #define __ISCSI_H__
+ 
++#include &lt;linux/completion.h&gt;
+ #include &lt;linux/pagemap.h&gt;
+ #include &lt;linux/seq_file.h&gt;
+ #include &lt;linux/mm.h&gt;
+@@ -123,6 +124,7 @@
+ 	struct worker_thread_info * wthread_info;
+ 
+ 	struct semaphore target_sem;
++	struct completion *done;
+ };
+ 
+ struct iscsi_queue {
+@@ -183,7 +185,7 @@
+ struct iscsi_session {
+ 	struct list_head list;
+ 	struct iscsi_target *target;
+-
++	struct completion *done;
+ 	char *initiator;
+ 	u64 sid;
+ 
+@@ -326,6 +328,7 @@
+ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
+ extern int conn_add(struct iscsi_session *, struct conn_info *);
+ extern int conn_del(struct iscsi_session *, struct conn_info *);
++extern void conn_del_all(struct iscsi_session *);
+ extern int conn_free(struct iscsi_conn *);
+ extern void conn_close(struct iscsi_conn *);
+ extern void conn_info_show(struct seq_file *, struct iscsi_session *);
+@@ -353,6 +356,7 @@
+ struct iscsi_target *target_lookup_by_id(u32);
+ extern int target_add(struct target_info *);
+ extern int target_del(u32 id);
++extern void target_del_all(void);
+ extern struct seq_operations iet_seq_op;
+ 
+ /* config.c */
+@@ -365,6 +369,7 @@
+ extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
+ extern int session_add(struct iscsi_target *, struct session_info *);
+ extern int session_del(struct iscsi_target *, u64);
++extern void session_del_all(struct iscsi_target *);
+ 
+ /* volume.c */
+ extern struct file_operations volume_seq_fops;
+
+Modified: trunk/kernel/nthread.c
+===================================================================
+--- trunk/kernel/nthread.c	2009-09-16 15:32:39 UTC (rev 231)
++++ trunk/kernel/nthread.c	2009-09-16 17:18:51 UTC (rev 232)
+@@ -637,8 +637,12 @@
+ 	event_send(target-&gt;tid, session-&gt;sid, conn-&gt;cid, E_CONN_CLOSE, 0);
+ 	conn_free(conn);
+ 
+-	if (list_empty(&amp;session-&gt;conn_list))
+-		session_del(target, session-&gt;sid);
++	if (list_empty(&amp;session-&gt;conn_list)) {
++		if (session-&gt;done)
++			complete(session-&gt;done);
++		else
++			session_del(target, session-&gt;sid);
++	}
+ }
+ 
+ static int istd(void *arg)
+
+Modified: trunk/kernel/session.c
+===================================================================
+--- trunk/kernel/session.c	2009-09-16 15:32:39 UTC (rev 231)
++++ trunk/kernel/session.c	2009-09-16 17:18:51 UTC (rev 232)
+@@ -138,6 +138,29 @@
+ 	return session_free(session);
+ }
+ 
++void session_del_all(struct iscsi_target *target)
++{
++	DECLARE_COMPLETION_ONSTACK(done);
++	struct iscsi_session *sess;
++
++	while (!list_empty(&amp;target-&gt;session_list)) {
++		init_completion(&amp;done);
++		target_lock(target, 0);
++		sess = list_entry(target-&gt;session_list.next, struct
++				  iscsi_session, list);
++		sess-&gt;done = &done;
++		conn_del_all(sess);
++		target_unlock(target);
++		wait_for_completion(&amp;done);
++		target_lock(target, 0);
++		session_free(sess);
++		target_unlock(target);
++	}
++
++	if (target-&gt;done)
++		complete(target-&gt;done);
++}
++
+ static void iet_session_info_show(struct seq_file *seq, struct iscsi_target *target)
+ {
+ 	struct iscsi_session *session;
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2009-09-16 15:32:39 UTC (rev 231)
++++ trunk/kernel/target.c	2009-09-16 17:18:51 UTC (rev 232)
+@@ -245,40 +245,61 @@
+ 	module_put(THIS_MODULE);
+ }
+ 
+-int target_del(u32 id)
++/* @locking: target_list_sem must be locked */
++int __target_del(struct iscsi_target *target)
+ {
+-	struct iscsi_target *target;
+-	int err;
+-
+-	if ((err = down_interruptible(&amp;target_list_sem)) &lt; 0)
+-		return err;
+-
+-	if (!(target = __target_lookup_by_id(id))) {
+-		err = -ENOENT;
+-		goto out;
+-	}
+-
+ 	target_lock(target, 0);
+ 
+ 	if (!list_empty(&amp;target-&gt;session_list)) {
+-		err = -EBUSY;
+ 		target_unlock(target);
+-		goto out;
++		return -EBUSY;
+ 	}
+ 
+ 	list_del(&amp;target-&gt;t_list);
+ 	nr_targets--;
+ 
+ 	target_unlock(target);
+-	up(&amp;target_list_sem);
+-
+ 	target_destroy(target);
+ 	return 0;
+-out:
++}
++
++int target_del(u32 id)
++{
++	struct iscsi_target *target;
++	int err = down_interruptible(&amp;target_list_sem);
++	if (err &lt; 0)
++		return err;
++
++	target = __target_lookup_by_id(id);
++	if (!target) {
++		err = -ENOENT;
++		goto out;
++	}
++
++	err = __target_del(target);
++ out:
+ 	up(&amp;target_list_sem);
+ 	return err;
+ }
+ 
++void target_del_all(void)
++{
++	DECLARE_COMPLETION_ONSTACK(done);
++	struct iscsi_target *target, *tmp;
++
++	down(&amp;target_list_sem);
++
++	list_for_each_entry_safe(target, tmp, &amp;target_list, t_list) {
++		init_completion(&amp;done);
++		target-&gt;done = &done;
++		session_del_all(target);
++		wait_for_completion(&amp;done);
++		__target_del(target);
++	}
++
++	up(&amp;target_list_sem);
++}
++
+ static void *iet_seq_start(struct seq_file *m, loff_t *pos)
+ {
+ 	int err;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000143.html">[Iscsitarget-svn] r231 - in trunk: . etc
+</A></li>
+	<LI>Next message: <A HREF="000145.html">[Iscsitarget-svn] r233 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#144">[ date ]</a>
+              <a href="thread.html#144">[ thread ]</a>
+              <a href="subject.html#144">[ subject ]</a>
+              <a href="author.html#144">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

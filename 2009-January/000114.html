@@ -1,0 +1,285 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r202 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r202%20-%20trunk/kernel&In-Reply-To=%3C200901241325.n0ODPfgx009340%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000113.html">
+   <LINK REL="Next"  HREF="000115.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r202 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r202%20-%20trunk/kernel&In-Reply-To=%3C200901241325.n0ODPfgx009340%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r202 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Sat Jan 24 14:25:41 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000113.html">[Iscsitarget-svn] r201 - in trunk: . kernel patches
+</A></li>
+        <LI>Next message: <A HREF="000115.html">[Iscsitarget-svn] r203 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#114">[ date ]</a>
+              <a href="thread.html#114">[ thread ]</a>
+              <a href="subject.html#114">[ subject ]</a>
+              <a href="author.html#114">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-01-24 14:25:40 +0100 (Sat, 24 Jan 2009)
+New Revision: 202
+
+Modified:
+   trunk/kernel/block-io.c
+   trunk/kernel/event.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/session.c
+   trunk/kernel/target.c
+   trunk/kernel/volume.c
+Log:
+From: Lars Ellenberg &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">lars.ellenberg at linbit.com</A>&gt;
+
+new proc seq_file implementation
+
+patch for &quot;single record&quot; seq_file interface in ./kernel/ :
+
+I did no further test than create 10000 targets, and do some
+cat as well as wc of /proc/net/iet/*...
+4544 9088 102298 /proc/net/iet/session
+4544 9088 102298 /proc/net/iet/volume
+
+appears to work.
+
+
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2009-01-24 13:08:41 UTC (rev 201)
++++ trunk/kernel/block-io.c	2009-01-24 13:25:40 UTC (rev 202)
+@@ -154,14 +154,14 @@
+ {
+ 	struct blockio_data *bio_data = volume-&gt;private;
+ 	struct block_device *bdev;
+-	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
++	int flags = LUReadonly(volume) ? MS_RDONLY : 0;
+ 	int err = 0;
+ 
+ 	bio_data-&gt;path = kstrdup(path, GFP_KERNEL);
+ 	if (!bio_data-&gt;path)
+ 		return -ENOMEM;
+ 
+-	bdev = open_bdev_exclusive(path, flags, THIS_MODULE);
++	bdev = open_bdev_excl(path, flags, THIS_MODULE);
+ 	if (IS_ERR(bdev)) {
+ 		err = PTR_ERR(bdev);
+ 		eprintk(&quot;Can't open device %s, error %d\n&quot;, path, err);
+@@ -323,10 +323,9 @@
+ blockio_detach(struct iet_volume *volume)
+ {
+ 	struct blockio_data *bio_data = volume-&gt;private;
+-	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
+ 
+ 	if (bio_data-&gt;bdev)
+-		close_bdev_exclusive(bio_data-&gt;bdev, flags);
++		close_bdev_excl(bio_data-&gt;bdev);
+ 	kfree(bio_data-&gt;path);
+ 
+ 	kfree(volume-&gt;private);
+
+Modified: trunk/kernel/event.c
+===================================================================
+--- trunk/kernel/event.c	2009-01-24 13:08:41 UTC (rev 201)
++++ trunk/kernel/event.c	2009-01-24 13:25:40 UTC (rev 202)
+@@ -92,5 +92,6 @@
+ 
+ void event_exit(void)
+ {
+-	netlink_kernel_release(nl);
++	if (nl)
++		sock_release(nl-&gt;sk_socket);
+ }
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2009-01-24 13:08:41 UTC (rev 201)
++++ trunk/kernel/iscsi.h	2009-01-24 13:25:40 UTC (rev 202)
+@@ -324,6 +324,7 @@
+ struct iscsi_target *target_lookup_by_id(u32);
+ extern int target_add(struct target_info *);
+ extern int target_del(u32 id);
++extern struct seq_operations iet_seq_op;
+ 
+ /* config.c */
+ extern int iet_procfs_init(void);
+
+Modified: trunk/kernel/session.c
+===================================================================
+--- trunk/kernel/session.c	2009-01-24 13:08:41 UTC (rev 201)
++++ trunk/kernel/session.c	2009-01-24 13:25:40 UTC (rev 202)
+@@ -123,14 +123,14 @@
+ 	}
+ }
+ 
+-static int iet_sessions_info_show(struct seq_file *seq, void *v)
+-{
+-	return iet_info_show(seq, iet_session_info_show);
+-}
+-
+ static int iet_session_seq_open(struct inode *inode, struct file *file)
+ {
+-	return single_open(file, iet_sessions_info_show, NULL);
++	int res;
++	res = seq_open(file, &amp;iet_seq_op);
++	if (!res)
++		((struct seq_file *)file-&gt;private_data)-&gt;private =
++			iet_session_info_show;
++	return res;
+ }
+ 
+ struct file_operations session_seq_fops = {
+@@ -138,5 +138,5 @@
+ 	.open		= iet_session_seq_open,
+ 	.read		= seq_read,
+ 	.llseek		= seq_lseek,
+-	.release	= single_release,
++	.release	= seq_release,
+ };
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2009-01-24 13:08:41 UTC (rev 201)
++++ trunk/kernel/target.c	2009-01-24 13:25:40 UTC (rev 202)
+@@ -256,26 +256,53 @@
+ 	return err;
+ }
+ 
+-int iet_info_show(struct seq_file *seq, iet_show_info_t *func)
++static void *iet_seq_start(struct seq_file *m, loff_t *pos)
+ {
+ 	int err;
+-	struct iscsi_target *target;
+ 
+-	if ((err = down_interruptible(&amp;target_list_sem)) &lt; 0)
+-		return err;
++	/* are you sure this is to be interruptible? */
++	err = down_interruptible(&amp;target_list_sem);
++	if (err &lt; 0)
++		return ERR_PTR(err);
+ 
+-	list_for_each_entry(target, &amp;target_list, t_list) {
+-		seq_printf(seq, &quot;tid:%u name:%s\n&quot;, target-&gt;tid, target-&gt;name);
++	return seq_list_start(&amp;target_list, *pos);
++}
+ 
+-		if ((err = target_lock(target, 1)) &lt; 0)
+-			break;
++static void *iet_seq_next(struct seq_file *m, void *v, loff_t *pos)
++{
++	return seq_list_next(v, &amp;target_list, pos);
++}
+ 
+-		func(seq, target);
++static void iet_seq_stop(struct seq_file *m, void *v)
++{
++	up(&amp;target_list_sem);
++}
+ 
+-		target_unlock(target);
+-	}
++static int iet_seq_show(struct seq_file *m, void *p)
++{
++	iet_show_info_t *func = (iet_show_info_t *)m-&gt;private;
++	struct iscsi_target *target =
++		list_entry(p, struct iscsi_target, t_list);
++	int err;
+ 
+-	up(&amp;target_list_sem);
++	/* relly, interruptible?  I'd think target_lock(target, 0)
++	 * would be more appropriate. --lge */
++	err = target_lock(target, 1);
++	if (err &lt; 0)
++		return err;
+ 
++	seq_printf(m, &quot;tid:%u name:%s\n&quot;, target-&gt;tid, target-&gt;name);
++
++	func(m, target);
++
++	target_unlock(target);
++
+ 	return 0;
+ }
++
++struct seq_operations iet_seq_op = {
++	.start = iet_seq_start,
++	.next = iet_seq_next,
++	.stop = iet_seq_stop,
++	.show = iet_seq_show,
++};
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2009-01-24 13:08:41 UTC (rev 201)
++++ trunk/kernel/volume.c	2009-01-24 13:25:40 UTC (rev 202)
+@@ -245,14 +245,14 @@
+ 	}
+ }
+ 
+-static int iet_volumes_info_show(struct seq_file *seq, void *v)
+-{
+-	return iet_info_show(seq, iet_volume_info_show);
+-}
+-
+ static int iet_volume_seq_open(struct inode *inode, struct file *file)
+ {
+-	return single_open(file, iet_volumes_info_show, NULL);
++	int res;
++	res = seq_open(file, &amp;iet_seq_op);
++	if (!res)
++		((struct seq_file *)file-&gt;private_data)-&gt;private =
++			iet_volume_info_show;
++	return res;
+ }
+ 
+ struct file_operations volume_seq_fops = {
+@@ -260,5 +260,5 @@
+ 	.open		= iet_volume_seq_open,
+ 	.read		= seq_read,
+ 	.llseek		= seq_lseek,
+-	.release	= single_release,
++	.release	= seq_release,
+ };
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000113.html">[Iscsitarget-svn] r201 - in trunk: . kernel patches
+</A></li>
+	<LI>Next message: <A HREF="000115.html">[Iscsitarget-svn] r203 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#114">[ date ]</a>
+              <a href="thread.html#114">[ thread ]</a>
+              <a href="subject.html#114">[ subject ]</a>
+              <a href="author.html#114">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

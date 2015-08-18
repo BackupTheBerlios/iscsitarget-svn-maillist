@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r271 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r271%20-%20trunk/usr&In-Reply-To=%3C200911121832.nACIWcBe019549%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000182.html">
+   <LINK REL="Next"  HREF="000184.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r271 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r271%20-%20trunk/usr&In-Reply-To=%3C200911121832.nACIWcBe019549%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r271 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Nov 12 19:32:38 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000182.html">[Iscsitarget-svn] r270 - trunk/doc/manpages
+</A></li>
+        <LI>Next message: <A HREF="000184.html">[Iscsitarget-svn] r272 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#183">[ date ]</a>
+              <a href="thread.html#183">[ thread ]</a>
+              <a href="subject.html#183">[ subject ]</a>
+              <a href="author.html#183">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-11-12 19:32:37 +0100 (Thu, 12 Nov 2009)
+New Revision: 271
+
+Modified:
+   trunk/usr/ietd.c
+   trunk/usr/session.c
+Log:
+From: Kevin Ye &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">kevin.ye at gmail.com</A>&gt;
+
+Fix session cleanup in case of EPIPE during login
+
+The following patch solved the incomplete session without cid problem if
+SIGPIPE is received during login process. I have tested that. The patch will
+remove the session without cid when the connection is closed.
+
+Without this patch, if SGPIPE is received, a session without cid will appear
+in the /proc/net/iet/session, the target will not be able to be removed, and
+--op delete will cause ietd to block at line 250 in ctldev.c: server_stop():
+line 250   while (proc_session_parse(ctrl_fd, &amp;shutdown_wait_ops, NULL) &lt; 0)
+After that, the only way to recover is to kill the ietd and start it again.
+
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2009-11-10 18:36:38 UTC (rev 270)
++++ trunk/usr/ietd.c	2009-11-12 18:32:37 UTC (rev 271)
+@@ -404,6 +404,7 @@
+ 
+ 		conn_close:
+ 			if (conn-&gt;state == STATE_CLOSE) {
++				struct session *session = conn-&gt;session;
+ 				log_debug(1, &quot;connection closed&quot;);
+ 				conn_free_pdu(conn);
+ 				conn_free(conn);
+@@ -411,6 +412,8 @@
+ 				pollfd-&gt;fd = -1;
+ 				incoming[i] = NULL;
+ 				incoming_cnt--;
++				if (session &amp;&amp; !session-&gt;conn_cnt)
++					session_remove(session);
+ 			}
+ 		}
+ 	}
+
+Modified: trunk/usr/session.c
+===================================================================
+--- trunk/usr/session.c	2009-11-10 18:36:38 UTC (rev 270)
++++ trunk/usr/session.c	2009-11-12 18:32:37 UTC (rev 271)
+@@ -153,8 +153,7 @@
+ {
+ 	log_debug(1, &quot;session_remove: %#&quot;  PRIx64, session-&gt;sid.id64);
+ 
+-	if (!session-&gt;sid.id.tsih)
+-		ki-&gt;session_destroy(session-&gt;target-&gt;tid, session-&gt;sid.id64);
++	ki-&gt;session_destroy(session-&gt;target-&gt;tid, session-&gt;sid.id64);
+ 
+ 	if (session-&gt;target) {
+ 		remque(&amp;session-&gt;slist);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000182.html">[Iscsitarget-svn] r270 - trunk/doc/manpages
+</A></li>
+	<LI>Next message: <A HREF="000184.html">[Iscsitarget-svn] r272 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#183">[ date ]</a>
+              <a href="thread.html#183">[ thread ]</a>
+              <a href="subject.html#183">[ subject ]</a>
+              <a href="author.html#183">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

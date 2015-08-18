@@ -1,0 +1,260 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r134 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-August/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r134%20-%20trunk/kernel&In-Reply-To=%3C200708200723.l7K7NhWP001702%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000045.html">
+   <LINK REL="Next"  HREF="000047.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r134 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r134%20-%20trunk/kernel&In-Reply-To=%3C200708200723.l7K7NhWP001702%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r134 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Aug 20 09:23:43 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000045.html">[Iscsitarget-svn] r133 - trunk/patches
+</A></li>
+        <LI>Next message: <A HREF="000047.html">[Iscsitarget-svn] r135 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46">[ date ]</a>
+              <a href="thread.html#46">[ thread ]</a>
+              <a href="subject.html#46">[ subject ]</a>
+              <a href="author.html#46">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-08-20 09:23:42 +0200 (Mon, 20 Aug 2007)
+New Revision: 134
+
+Modified:
+   trunk/kernel/iotype.c
+   trunk/kernel/iscsi.c
+   trunk/kernel/iscsi_dbg.h
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rwalker at medallion.com</A>&gt;
+Date: Mon, 13 Aug 2007 21:18:05 -0400
+Subject: add verbosity to kernel output and task management
+
+- Add &quot;iscsi_trgt&quot; prefix to printk in iscsi_dbg.h
+- Add iprintk macro for informational output without debug info
+- Add kernel log levels to dprintk, eprintk and iprintk
+- Added verbose task management output to execute_task_management()
+- Added iprintk output to iotype_init()
+
+
+
+Modified: trunk/kernel/iotype.c
+===================================================================
+--- trunk/kernel/iotype.c	2007-08-14 04:11:04 UTC (rev 133)
++++ trunk/kernel/iotype.c	2007-08-20 07:23:42 UTC (rev 134)
+@@ -89,9 +89,11 @@
+ 
+ 	for (i = 0; i &lt; ARRAY_SIZE(iotype_array); i++) {
+ 		if (!(err = register_iotype(iotype_array[i])))
+-			eprintk(&quot;register %s\n&quot;, iotype_array[i]-&gt;name);
++			iprintk(&quot;Registered io type %s\n&quot;,
++						iotype_array[i]-&gt;name);
+ 		else {
+-			eprintk(&quot;failed to register %s\n&quot;, iotype_array[i]-&gt;name);
++			eprintk(&quot;Failed to register io type %s\n&quot;,
++						iotype_array[i]-&gt;name);
+ 			break;
+ 		}
+ 	}
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2007-08-14 04:11:04 UTC (rev 133)
++++ trunk/kernel/iscsi.c	2007-08-20 07:23:42 UTC (rev 134)
+@@ -1191,10 +1191,56 @@
+ 	}
+ }
+ 
++static inline char *tmf_desc(int fun)
++{
++	static char *tmf_desc[] = {
++		&quot;Unknown Function&quot;,
++		&quot;Abort Task&quot;,
++		&quot;Abort Task Set&quot;,
++		&quot;Clear ACA&quot;,
++		&quot;Clear Task Set&quot;,
++		&quot;Logical Unit Reset&quot;,
++		&quot;Target Warm Reset&quot;,
++		&quot;Target Cold Reset&quot;,
++		&quot;Task Reassign&quot;,
++        };
++
++	if ((fun &lt; ISCSI_FUNCTION_ABORT_TASK) || 
++				(fun &gt; ISCSI_FUNCTION_TASK_REASSIGN))
++		fun = 0;
++
++	return tmf_desc[fun];
++}
++
++static inline char *rsp_desc(int rsp)
++{
++	static char *rsp_desc[] = {
++		&quot;Function Complete&quot;,
++		&quot;Unknown Task&quot;,
++		&quot;Unknown LUN&quot;,
++		&quot;Task Allegiant&quot;,
++		&quot;Failover Unsupported&quot;,
++		&quot;Function Unsupported&quot;,
++		&quot;No Authorization&quot;,
++		&quot;Function Rejected&quot;,
++		&quot;Unknown Response&quot;,
++	};
++
++	if (((rsp &lt; ISCSI_RESPONSE_FUNCTION_COMPLETE) ||
++			(rsp &gt; ISCSI_RESPONSE_NO_AUTHORIZATION)) &amp;&amp;
++			(rsp != ISCSI_RESPONSE_FUNCTION_REJECTED))
++		rsp = 8;
++	else if (rsp == ISCSI_RESPONSE_FUNCTION_REJECTED)
++		rsp = 7;
++
++	return rsp_desc[rsp];
++}
++
+ static void execute_task_management(struct iscsi_cmnd *req)
+ {
+ 	struct iscsi_conn *conn = req-&gt;conn;
+-	struct iscsi_target *target = conn-&gt;session-&gt;target;
++	struct iscsi_session *session = conn-&gt;session;
++	struct iscsi_target *target = session-&gt;target;
+ 	struct iscsi_cmnd *rsp;
+ 	struct iscsi_task_mgt_hdr *req_hdr = (struct iscsi_task_mgt_hdr *)&amp;req-&gt;pdu.bhs;
+ 	struct iscsi_task_rsp_hdr *rsp_hdr;
+@@ -1209,8 +1255,6 @@
+ 	rsp_hdr-&gt;itt = req_hdr-&gt;itt;
+ 	rsp_hdr-&gt;response = ISCSI_RESPONSE_FUNCTION_COMPLETE;
+ 
+-	eprintk(&quot;%x %d %x\n&quot;, cmnd_itt(req), function, req_hdr-&gt;rtt);
+-
+ 	switch (function) {
+ 	case ISCSI_FUNCTION_ABORT_TASK:
+ 	case ISCSI_FUNCTION_ABORT_TASK_SET:
+@@ -1255,6 +1299,11 @@
+ 		break;
+ 	}
+ out:
++	iprintk(&quot;%s (%02x) issued on tid:%d lun:%d by sid:%llu (%s)\n&quot;,
++				tmf_desc(function), function, target-&gt;tid,
++				translate_lun(req_hdr-&gt;lun), session-&gt;sid,
++				rsp_desc(rsp_hdr-&gt;response));
++
+ 	iscsi_cmnd_init_write(rsp);
+ }
+ 
+
+Modified: trunk/kernel/iscsi_dbg.h
+===================================================================
+--- trunk/kernel/iscsi_dbg.h	2007-08-14 04:11:04 UTC (rev 133)
++++ trunk/kernel/iscsi_dbg.h	2007-08-20 07:23:42 UTC (rev 134)
+@@ -15,21 +15,25 @@
+ 
+ extern unsigned long debug_enable_flags;
+ 
+-#define dprintk(debug, fmt, args...)					\
+-do {									\
+-	if ((debug) &amp; debug_enable_flags) {				\
+-		printk(&quot;%s(%d) &quot; fmt, __FUNCTION__, __LINE__, args);	\
+-	}								\
++#define PFX &quot;iscsi_trgt: &quot;
++
++#define dprintk(debug, fmt, args...) do {			\
++	if ((debug) &amp; debug_enable_flags) {			\
++		printk(KERN_DEBUG PFX &quot;%s(%d) &quot; fmt, __FUNCTION__,\
++						__LINE__, args);\
++	}							\
+ } while (0)
+ 
+-#define eprintk(fmt, args...)					\
+-do {								\
+-	printk(&quot;%s(%d) &quot; fmt, __FUNCTION__, __LINE__, args);	\
++#define eprintk(fmt, args...) do {				\
++	printk(KERN_ERR PFX &quot;%s(%d) &quot; fmt, __FUNCTION__,	\
++						__LINE__, args);\
+ } while (0)
+ 
++#define iprintk(X...) printk(KERN_INFO PFX X)
++
+ #define assert(p) do {						\
+ 	if (!(p)) {						\
+-		printk(KERN_CRIT &quot;BUG at %s:%d assert(%s)\n&quot;,	\
++		printk(KERN_CRIT PFX &quot;BUG at %s:%d assert(%s)\n&quot;,\
+ 		       __FILE__, __LINE__, #p);			\
+ 		dump_stack();					\
+ 		BUG();						\
+@@ -40,9 +44,10 @@
+ static inline void iscsi_dump_iov(struct msghdr *msg)
+ {
+ 	int i;
+-	printk(&quot;%p, %d\n&quot;, msg-&gt;msg_iov, msg-&gt;msg_iovlen);
++	printk(PFX &quot;%p, %d\n&quot;, msg-&gt;msg_iov, msg-&gt;msg_iovlen);
+ 	for (i = 0; i &lt; min_t(size_t, msg-&gt;msg_iovlen, ISCSI_CONN_IOV_MAX); i++)
+-		printk(&quot;%d: %p,%d\n&quot;, i, msg-&gt;msg_iov[i].iov_base, msg-&gt;msg_iov[i].iov_len);
++		printk(PFX &quot;%d: %p,%d\n&quot;, i, msg-&gt;msg_iov[i].iov_base,
++						msg-&gt;msg_iov[i].iov_len);
+ }
+ #else
+ #define iscsi_dump_iov(x) do {} while (0)
+@@ -84,18 +89,18 @@
+ 	int i;
+ 
+ 	buf = (void *)&amp;pdu-&gt;bhs;
+-	printk(&quot;BHS: (%p,%d)\n&quot;, buf, sizeof(pdu-&gt;bhs));
++	printk(PFX &quot;BHS: (%p,%d)\n&quot;, buf, sizeof(pdu-&gt;bhs));
+ 	for (i = 0; i &lt; sizeof(pdu-&gt;bhs); i++)
+ 		iscsi_dump_char(*buf++);
+ 	iscsi_dump_char(-1);
+ 
+ 	buf = (void *)pdu-&gt;ahs;
+-	printk(&quot;AHS: (%p,%d)\n&quot;, buf, pdu-&gt;ahssize);
++	printk(PFX &quot;AHS: (%p,%d)\n&quot;, buf, pdu-&gt;ahssize);
+ 	for (i = 0; i &lt; pdu-&gt;ahssize; i++)
+ 		iscsi_dump_char(*buf++);
+ 	iscsi_dump_char(-1);
+ 
+-	printk(&quot;Data: (%d)\n&quot;, pdu-&gt;datasize);
++	printk(PFX &quot;Data: (%d)\n&quot;, pdu-&gt;datasize);
+ }
+ 
+ #else
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000045.html">[Iscsitarget-svn] r133 - trunk/patches
+</A></li>
+	<LI>Next message: <A HREF="000047.html">[Iscsitarget-svn] r135 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46">[ date ]</a>
+              <a href="thread.html#46">[ thread ]</a>
+              <a href="subject.html#46">[ subject ]</a>
+              <a href="author.html#46">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

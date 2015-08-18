@@ -1,0 +1,544 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[289] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B289%5D%20trunk&In-Reply-To=%3CE1NcO68-0002vG-2Y%403kljzd1.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000202.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[289] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B289%5D%20trunk&In-Reply-To=%3CE1NcO68-0002vG-2Y%403kljzd1.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[289] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Tue Feb  2 20:07:40 CET 2010</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000202.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[290] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#201">[ date ]</a>
+              <a href="thread.html#201">[ thread ]</a>
+              <a href="subject.html#201">[ subject ]</a>
+              <a href="author.html#201">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 289
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=289&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=289&amp;view=rev</A>
+Author:   agr1
+Date:     2010-02-02 19:07:39 +0000 (Tue, 02 Feb 2010)
+
+Log Message:
+-----------
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+clean up kernel-usr ioctls (kernel) [rev2]
+
+This patch cleans up the kernel ioctls.
+
+Revision 2:
+- renamed START_TARGET ioctl to GET_MODULE_INFO
+
+- renamed STOP_STARGET ioctl to DEL_TARGET_ALL
+
+- renumbered ioctl #s to start from 20 to prevent older non
+version checking daemons from running against newer version
+checking kernel modules
+
+- fixed a minor connection reinstatement bug in first revision
+where conn_add should return -EEXIST on reinstatement to
+prevent it from being improperly accounted for in ietd.
+
+Revision 1:
+- copy_from_user/copy_to_user returns only the byte count that it
+couldn't copy, not an errno
+
+- added ioctl_sem mutex to prevent race condition where daemon
+is killed and restarted, but kernel hasn't finished cleaning up
+
+- made START_TARGET ioctl functional, takes a version number and
+compares it to the kernel version number and returns EINVAL if
+it doesn't match, early kernel modules will return invalid ioctl
+
+- made STOP_TARGET ioctl functional, basically it calls
+target_del_all, wipes out kernel state
+
+- added simple connection reinstatement, if connection exists
+puts it into closing state while creating a connection with an
+identical CID. There will be duplicate CIDs for a brief moment,
+but it's all OK according to RFC.
+
+- fixed ADD_TARGET ioctl define because it both reads and writes
+to the ioctl (returns issued tid)
+
+- where applicable cleaned up coding standard
+
+This patch can be applied independently of the user patch.
+
+Tested on CentOS5
+
+Revision Links:
+--------------
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev</A>
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev</A>
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=1&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=1&amp;view=rev</A>
+
+Modified Paths:
+--------------
+    trunk/include/iet_u.h
+    trunk/kernel/config.c
+    trunk/kernel/conn.c
+
+Modified: trunk/include/iet_u.h
+===================================================================
+--- trunk/include/iet_u.h	2010-01-26 16:58:26 UTC (rev 288)
++++ trunk/include/iet_u.h	2010-02-02 19:07:39 UTC (rev 289)
+@@ -17,6 +17,10 @@
+ #define aligned_u64 unsigned long long __attribute__((aligned(8)))
+ #endif
+ 
++struct module_info {
++	char version[128];
++};
++
+ struct target_info {
+ 	u32 tid;
+ 	char name[ISCSI_NAME_LEN];
+@@ -131,19 +135,19 @@
+ 
+ #define NETLINK_IET	21
+ 
+-#define ADD_TARGET _IOW('i', 0, struct target_info)
+-#define DEL_TARGET _IOW('i', 1, struct target_info)
+-#define START_TARGET _IO('i', 2)
+-#define STOP_TARGET _IO('i', 3)
+-#define ADD_VOLUME _IOW('i', 4, struct volume_info)
+-#define DEL_VOLUME _IOW('i', 5, struct volume_info)
+-#define ADD_SESSION _IOW('i', 6, struct session_info)
+-#define DEL_SESSION _IOW('i', 7, struct session_info)
+-#define GET_SESSION_INFO _IOWR('i', 8, struct session_info)
+-#define ADD_CONN _IOW('i', 9, struct conn_info)
+-#define DEL_CONN _IOW('i', 10, struct conn_info)
+-#define GET_CONN_INFO _IOWR('i', 11, struct conn_info)
+-#define ISCSI_PARAM_SET _IOW('i', 12, struct iscsi_param_info)
+-#define ISCSI_PARAM_GET _IOWR('i', 13, struct iscsi_param_info)
++#define GET_MODULE_INFO _IOW('i', 20, struct module_info)
++#define ADD_TARGET _IOWR('i', 21, struct target_info)
++#define DEL_TARGET _IOW('i', 22, struct target_info)
++#define DEL_TARGET_ALL _IO('i', 23)
++#define ADD_VOLUME _IOW('i', 24, struct volume_info)
++#define DEL_VOLUME _IOW('i', 25, struct volume_info)
++#define ADD_SESSION _IOW('i', 26, struct session_info)
++#define DEL_SESSION _IOW('i', 27, struct session_info)
++#define GET_SESSION_INFO _IOWR('i', 28, struct session_info)
++#define ADD_CONN _IOW('i', 29, struct conn_info)
++#define DEL_CONN _IOW('i', 30, struct conn_info)
++#define GET_CONN_INFO _IOWR('i', 31, struct conn_info)
++#define ISCSI_PARAM_SET _IOW('i', 32, struct iscsi_param_info)
++#define ISCSI_PARAM_GET _IOWR('i', 33, struct iscsi_param_info)
+ 
+ #endif
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2010-01-26 16:58:26 UTC (rev 288)
++++ trunk/kernel/config.c	2010-02-02 19:07:39 UTC (rev 289)
+@@ -9,6 +9,8 @@
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+ 
++static DECLARE_MUTEX(ioctl_sem);
++
+ struct proc_entries {
+ 	const char *name;
+ 	struct file_operations *fops;
+@@ -60,26 +62,45 @@
+ 	return -ENOMEM;
+ }
+ 
++static int get_module_info(unsigned long ptr)
++{
++	struct module_info info;
++	int err;
++
++	snprintf(info.version, sizeof(info.version), &quot;%s&quot;, IET_VERSION_STRING);
++
++	err = copy_to_user((void *) ptr, &amp;info, sizeof(info));
++	if (err)
++		return -EFAULT;
++
++	return 0;
++}
++
+ static int get_conn_info(struct iscsi_target *target, unsigned long ptr)
+ {
+-	int err;
+ 	struct iscsi_session *session;
++	struct iscsi_conn *conn;
+ 	struct conn_info info;
+-	struct iscsi_conn *conn;
++	int err;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+ 	session = session_lookup(target, info.sid);
+ 	if (!session)
+ 		return -ENOENT;
++
+ 	conn = conn_lookup(session, info.cid);
++	if (!conn)
++		return -ENOENT;
+ 
+ 	info.cid = conn-&gt;cid;
+ 	info.stat_sn = conn-&gt;stat_sn;
+ 	info.exp_stat_sn = conn-&gt;exp_stat_sn;
+ 
+-	if (copy_to_user((void *) ptr, &amp;info, sizeof(info)))
++	err = copy_to_user((void *) ptr, &amp;info, sizeof(info));
++	if (err)
+ 		return -EFAULT;
+ 
+ 	return 0;
+@@ -87,14 +108,16 @@
+ 
+ static int add_conn(struct iscsi_target *target, unsigned long ptr)
+ {
+-	int err;
+ 	struct iscsi_session *session;
+ 	struct conn_info info;
++	int err;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+-	if (!(session = session_lookup(target, info.sid)))
++	session = session_lookup(target, info.sid);
++	if (!session)
+ 		return -ENOENT;
+ 
+ 	return conn_add(session, &amp;info);
+@@ -102,14 +125,16 @@
+ 
+ static int del_conn(struct iscsi_target *target, unsigned long ptr)
+ {
+-	int err;
+ 	struct iscsi_session *session;
+ 	struct conn_info info;
++	int err;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+-	if (!(session = session_lookup(target, info.sid)))
++	session = session_lookup(target, info.sid);
++	if (!session)
+ 		return -ENOENT;
+ 
+ 	return conn_del(session, &amp;info);
+@@ -117,22 +142,23 @@
+ 
+ static int get_session_info(struct iscsi_target *target, unsigned long ptr)
+ {
+-	int err;
+ 	struct iscsi_session *session;
+ 	struct session_info info;
++	int err;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+ 	session = session_lookup(target, info.sid);
+-
+ 	if (!session)
+ 		return -ENOENT;
+ 
+ 	info.exp_cmd_sn = session-&gt;exp_cmd_sn;
+ 	info.max_cmd_sn = session-&gt;max_cmd_sn;
+ 
+-	if (copy_to_user((void *) ptr, &amp;info, sizeof(info)))
++	err = copy_to_user((void *) ptr, &amp;info, sizeof(info));
++	if (err)
+ 		return -EFAULT;
+ 
+ 	return 0;
+@@ -140,78 +166,90 @@
+ 
+ static int add_session(struct iscsi_target *target, unsigned long ptr)
+ {
++	struct session_info info;
+ 	int err;
+-	struct session_info info;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+ 	return session_add(target, &amp;info);
+ }
+ 
+ static int del_session(struct iscsi_target *target, unsigned long ptr)
+ {
++	struct session_info info;
+ 	int err;
+-	struct session_info info;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+ 	return session_del(target, info.sid);
+ }
+ 
+ static int add_volume(struct iscsi_target *target, unsigned long ptr)
+ {
++	struct volume_info info;
+ 	int err;
+-	struct volume_info info;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+ 	return volume_add(target, &amp;info);
+ }
+ 
+ static int del_volume(struct iscsi_target *target, unsigned long ptr)
+ {
++	struct volume_info info;
+ 	int err;
+-	struct volume_info info;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		return err;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+ 	return iscsi_volume_del(target, &amp;info);
+ }
+ 
+ static int iscsi_param_config(struct iscsi_target *target, unsigned long ptr, int set)
+ {
++	struct iscsi_param_info info;
+ 	int err;
+-	struct iscsi_param_info info;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
+-		goto out;
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+-	if ((err = iscsi_param_set(target, &amp;info, set)) &lt; 0)
+-		goto out;
++	err = iscsi_param_set(target, &amp;info, set);
++	if (err &lt; 0 || set)
++		return err;
+ 
+-	if (!set)
+-		err = copy_to_user((void *) ptr, &amp;info, sizeof(info));
++	err = copy_to_user((void *) ptr, &amp;info, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+-out:
+-	return err;
++	return 0;
+ }
+ 
+ static int add_target(unsigned long ptr)
+ {
++	struct target_info info;
+ 	int err;
+-	struct target_info info;
+ 
+-	if ((err = copy_from_user(&amp;info, (void *) ptr, sizeof(info))) &lt; 0)
++	err = copy_from_user(&amp;info, (void *) ptr, sizeof(info));
++	if (err)
++		return -EFAULT;
++
++	err = target_add(&amp;info);
++	if (err &lt; 0)
+ 		return err;
+ 
+-	if (!(err = target_add(&amp;info)))
+-		err = copy_to_user((void *) ptr, &amp;info, sizeof(info));
++	err = copy_to_user((void *) ptr, &amp;info, sizeof(info));
++	if (err)
++		return -EFAULT;
+ 
+-	return err;
++	return 0;
+ }
+ 
+ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+@@ -220,40 +258,44 @@
+ 	long err;
+ 	u32 id;
+ 
+-	if ((err = get_user(id, (u32 *) arg)) != 0)
++	err = down_interruptible(&amp;ioctl_sem);
++	if (err &lt; 0)
++		return err;
++
++	if (cmd == GET_MODULE_INFO) {
++		err = get_module_info(arg);
+ 		goto done;
++	}
+ 
+-	if (cmd == DEL_TARGET) {
+-		err = target_del(id);
++	if (cmd == DEL_TARGET_ALL) {
++		target_del_all();
+ 		goto done;
+ 	}
+ 
+-	target = target_lookup_by_id(id);
++	if (cmd == ADD_TARGET) {
++		err = add_target(arg);
++		goto done;
++	}
+ 
+-	if (cmd == ADD_TARGET)
+-		if (target) {
+-			err = -EEXIST;
+-			eprintk(&quot;Target %u already exist!\n&quot;, id);
+-			goto done;
+-		}
++	err = get_user(id, (u32 *) arg);
++	if (err &lt; 0)
++		goto done;
+ 
+-	switch (cmd) {
+-	case ADD_TARGET:
+-		assert(!target);
+-		err = add_target(arg);
++	/* locking handled in target_del */
++	if (cmd == DEL_TARGET) {
++		err = target_del(id);
+ 		goto done;
+ 	}
+ 
++	target = target_lookup_by_id(id);
+ 	if (!target) {
+-		eprintk(&quot;can't find the target %u\n&quot;, id);
+-		err = -EINVAL;
++		err = -ENOENT;
+ 		goto done;
+ 	}
+ 
+-	if ((err = target_lock(target, 1)) &lt; 0) {
+-		eprintk(&quot;interrupted %ld %d\n&quot;, err, cmd);
++	err = target_lock(target, 1);
++	if (err &lt; 0)
+ 		goto done;
+-	}
+ 
+ 	switch (cmd) {
+ 	case ADD_VOLUME:
+@@ -300,17 +342,20 @@
+ 		err = -EINVAL;
+ 	}
+ 
+-	if (target)
+-		target_unlock(target);
++	target_unlock(target);
++done:
++	up(&amp;ioctl_sem);
+ 
+-done:
+ 	return err;
+ }
+ 
+ static int release(struct inode *i __attribute__((unused)),
+ 		   struct file *f __attribute__((unused)))
+ {
++	down(&amp;ioctl_sem);
+ 	target_del_all();
++	up(&amp;ioctl_sem);
++
+ 	return 0;
+ }
+ 
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2010-01-26 16:58:26 UTC (rev 288)
++++ trunk/kernel/conn.c	2010-02-02 19:07:39 UTC (rev 289)
+@@ -220,13 +220,17 @@
+ int conn_add(struct iscsi_session *session, struct conn_info *info)
+ {
+ 	struct iscsi_conn *conn;
+-	int err = -EEXIST;
++	int err;
+ 
+ 	conn = conn_lookup(session, info-&gt;cid);
+ 	if (conn)
+-		return err;
++		conn_close(conn);
+ 
+-	return iet_conn_alloc(session, info);
++	err = iet_conn_alloc(session, info);
++	if (!err &amp;&amp; conn)
++		err = -EEXIST;
++
++	return err;
+ }
+ 
+ int conn_del(struct iscsi_session *session, struct conn_info *info)
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000202.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[290] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#201">[ date ]</a>
+              <a href="thread.html#201">[ thread ]</a>
+              <a href="subject.html#201">[ subject ]</a>
+              <a href="author.html#201">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r233 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r233%20-%20trunk/usr&In-Reply-To=%3C200909211759.n8LHxa0B012629%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000144.html">
+   <LINK REL="Next"  HREF="000146.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r233 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r233%20-%20trunk/usr&In-Reply-To=%3C200909211759.n8LHxa0B012629%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r233 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 21 19:59:36 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000144.html">[Iscsitarget-svn] r232 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000146.html">[Iscsitarget-svn] r234 - in trunk: . usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#145">[ date ]</a>
+              <a href="thread.html#145">[ thread ]</a>
+              <a href="subject.html#145">[ subject ]</a>
+              <a href="author.html#145">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-21 19:59:36 +0200 (Mon, 21 Sep 2009)
+New Revision: 233
+
+Modified:
+   trunk/usr/iscsid.c
+Log:
+From: FUJITA Tomonori &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">fujita.tomonori at lab.ntt.co.jp</A>&gt;
+
+fix cmnd_reject() to set up the reason field
+
+Signed-off-by: FUJITA Tomonori &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">fujita.tomonori at lab.ntt.co.jp</A>&gt;
+
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-09-16 17:18:51 UTC (rev 232)
++++ trunk/usr/iscsid.c	2009-09-21 17:59:36 UTC (rev 233)
+@@ -499,7 +499,7 @@
+ 
+ 	memset(rej, 0x0, sizeof *rej);
+ 	rej-&gt;opcode = ISCSI_OP_REJECT_MSG;
+-	rej-&gt;reason = ISCSI_REASON_INVALID_PDU_FIELD;
++	rej-&gt;reason = reason;
+ 	rej-&gt;ffffffff = ISCSI_RESERVED_TAG;
+ 	rej-&gt;flags |= ISCSI_FLG_FINAL;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000144.html">[Iscsitarget-svn] r232 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000146.html">[Iscsitarget-svn] r234 - in trunk: . usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#145">[ date ]</a>
+              <a href="thread.html#145">[ thread ]</a>
+              <a href="subject.html#145">[ subject ]</a>
+              <a href="author.html#145">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[410]	trunk/etc/initd/initd
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B410%5D%0A%09trunk/etc/initd/initd&In-Reply-To=%3CE1PyNiX-0005Zt-2Y%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000321.html">
+   <LINK REL="Next"  HREF="000323.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[410]	trunk/etc/initd/initd</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B410%5D%0A%09trunk/etc/initd/initd&In-Reply-To=%3CE1PyNiX-0005Zt-2Y%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[410]	trunk/etc/initd/initd">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sat Mar 12 13:14:45 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000321.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[409] trunk/Makefile
+</A></li>
+        <LI>Next message: <A HREF="000323.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[411] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#322">[ date ]</a>
+              <a href="thread.html#322">[ thread ]</a>
+              <a href="subject.html#322">[ subject ]</a>
+              <a href="author.html#322">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 410
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=410&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=410&amp;view=rev</A>
+Author:   agr1
+Date:     2011-03-12 12:14:44 +0000 (Sat, 12 Mar 2011)
+
+Log Message:
+-----------
+don't use bash for initd script
+
+It looks like the debian and redhat files have already had
+this treatment.
+
+Signed-off-by: Martin Hicks &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">mort at bork.org</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/etc/initd/initd
+
+Modified: trunk/etc/initd/initd
+===================================================================
+--- trunk/etc/initd/initd	2011-03-12 12:14:25 UTC (rev 409)
++++ trunk/etc/initd/initd	2011-03-12 12:14:44 UTC (rev 410)
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/bin/sh
+ #
+ # Start the iSCSI Enterprise Target.
+ #
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000321.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[409] trunk/Makefile
+</A></li>
+	<LI>Next message: <A HREF="000323.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[411] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#322">[ date ]</a>
+              <a href="thread.html#322">[ thread ]</a>
+              <a href="subject.html#322">[ subject ]</a>
+              <a href="author.html#322">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

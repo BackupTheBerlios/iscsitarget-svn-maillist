@@ -1,0 +1,452 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[458] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B458%5D%20trunk/kernel&In-Reply-To=%3CE1R2ix7-00060Y-F1%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000368.html">
+   <LINK REL="Next"  HREF="000370.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[458] trunk/kernel</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B458%5D%20trunk/kernel&In-Reply-To=%3CE1R2ix7-00060Y-F1%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[458] trunk/kernel">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Sep 11 14:16:01 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000368.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[456] trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000370.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[459]	trunk/kernel/persist.h
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#369">[ date ]</a>
+              <a href="thread.html#369">[ thread ]</a>
+              <a href="subject.html#369">[ subject ]</a>
+              <a href="author.html#369">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 458
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=458&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=458&amp;view=rev</A>
+Author:   agr1
+Date:     2011-09-11 12:16:00 +0000 (Sun, 11 Sep 2011)
+Log Message:
+-----------
+Persistent Reservations: remove usage of bitfields again
+
+As much as bitfields improve readability - they're not portable.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/persist.c
+    trunk/kernel/persist.h
+
+Modified: trunk/kernel/persist.c
+===================================================================
+--- trunk/kernel/persist.c	2011-09-09 06:29:20 UTC (rev 457)
++++ trunk/kernel/persist.c	2011-09-11 12:16:00 UTC (rev 458)
+@@ -32,15 +32,8 @@
+ 
+ static const struct pr_in_report_capabilities_data pr_capabilities = {
+ 	.length = cpu_to_be16(8),
+-	.ptpl_c = 0,
+-	.atp_c = 0,
+-	.sip_c = 0,
+-	.crh = 0,
+-
+-	.ptpl_a = 0,
+-	.allow_commands = 0,
+-	.tmv = 1,
+-
++	.crh_sip_atp_ptpl_c = 0,
++	.tmv_ptpl_a = PR_IN_REPORT_CAP_TMV,
+ 	.type_mask = cpu_to_be16(PR_TYPE_WR_EX|
+ 				 PR_TYPE_EX_AC|
+ 				 PR_TYPE_WR_EX_RO|
+@@ -85,8 +78,7 @@
+ 
+ 	if (pr_is_reserved(reservation)) {
+ 		pin_data-&gt;reservation_key = reservation-&gt;reservation_key;
+-		pin_data-&gt;scope = PR_SCOPE_LU;
+-		pin_data-&gt;type = reservation-&gt;persistent_type;
++		pin_data-&gt;scope_type = PR_SCOPE_LU | reservation-&gt;persistent_type;
+ 		/*
+ 		 * SPC-3, 6.11.3.2
+ 		 * &quot;The ADDITIONAL LENGTH field contains a count of the number of
+@@ -146,17 +138,16 @@
+ 	list_for_each_entry(reg, &amp;reservation-&gt;registration_list, r_list) {
+ 		const size_t init_name_len = PAD_TO_4_BYTES(strlen(reg-&gt;init_name));
+ 		const struct iscsi_transport_id tid = {
+-			.format_code = 0,
+-			.protocol_identifier = PROTOCOL_IDENTIFIER_ISCSI,
++			.fmt_code_proto_id =
++			TRANSPORT_ID_FMT_CODE_ISCSI|TRANSPORT_ID_PROTO_ID_ISCSI,
+ 			.additional_length = cpu_to_be16(init_name_len),
+ 		};
+ 		const struct pr_in_full_status_descriptor desc = {
+ 			.reservation_key = reg-&gt;reservation_key,
+-			.all_tg_pt = 0,
+-			.r_holder = pr_is_reserved_by_session(reservation,
+-							      cmnd-&gt;conn-&gt;session),
+-			.scope = PR_SCOPE_LU,
+-			.type = reservation-&gt;persistent_type,
++			.all_tg_pt_r_holder =
++			pr_is_reserved_by_session(reservation,
++						  cmnd-&gt;conn-&gt;session),
++			.scope_type = PR_SCOPE_LU|reservation-&gt;persistent_type,
+ 			/* only rel_tgt_port_id 1 is supported */
+ 			.rel_tgt_port_id = cpu_to_be16(1),
+ 			.additional_desc_length = cpu_to_be32(sizeof(tid) + init_name_len),
+@@ -177,13 +168,13 @@
+ 		addl_data_len += sizeof(desc) + sizeof(tid) + init_name_len;
+ 
+ 		dprintk_pr(cmnd,
+-			   &quot;init name %s, sess %#Lx, key %#Lx, rtype %d, ptype %d, r_holder %d, desc.addlen %u, tid.addlen %u, addlen %u, left %u\n&quot;,
++			   &quot;init name %s, sess %#Lx, key %#Lx, rtype %d, scope_type %x, all_tg_pt_r_holder %x, desc.addlen %u, tid.addlen %u, addlen %u, left %u\n&quot;,
+ 			   reg-&gt;init_name,
+ 			   reg-&gt;sid,
+ 			   reg-&gt;reservation_key,
+ 			   reservation-&gt;reservation_type,
+-			   desc.type,
+-			   desc.r_holder,
++			   desc.scope_type,
++			   desc.all_tg_pt_r_holder,
+ 			   be32_to_cpu(desc.additional_desc_length),
+ 			   be16_to_cpu(tid.additional_length),
+ 			   addl_data_len,
+@@ -270,10 +261,12 @@
+ 	const struct persistent_reserve_in *pr_in =
+ 		(const struct persistent_reserve_in *)(cmnd_hdr(cmnd)-&gt;scb);
+ 	const u16 allocation_length = be16_to_cpu(pr_in-&gt;allocation_length);
++	const enum pr_in_service_actions action =
++		pr_in-&gt;service_action &amp; PR_SERVICE_ACTION_MASK;
+ 
+ 	dprintk_pr(cmnd,
+ 		   &quot;svc action %x, alloc len %u\n&quot;,
+-		   pr_in-&gt;service_action,
++		   action,
+ 		   allocation_length);
+ 
+ 	if (allocation_length &lt; 8) {
+@@ -284,7 +277,7 @@
+ 		return;
+ 	}
+ 
+-	switch (pr_in-&gt;service_action) {
++	switch (action) {
+ 	case SERVICE_ACTION_READ_KEYS:
+ 		pr_in_read_keys(cmnd, allocation_length);
+ 		break;
+@@ -355,7 +348,7 @@
+ 			goto out;
+ 		}
+ 
+-		if (param-&gt;spec_i_pt) {
++		if ((param-&gt;spec_i_pt_all_tg_pt_aptl &amp; PR_OUT_PARAM_SPEC_I_PT)) {
+ 			iscsi_cmnd_set_sense(cmnd,
+ 					     ILLEGAL_REQUEST,
+ 					     INVALID_FIELD_IN_CDB_ASC,
+@@ -494,8 +487,7 @@
+ 
+ static void
+ pr_out_release(struct iscsi_cmnd *cmnd,
+-	       enum persistent_reservation_type type,
+-	       enum persistent_reservation_scope scope)
++	       enum persistent_reservation_type type)
+ {
+ 	const struct pr_out_param_list *param =
+ 		(const struct pr_out_param_list *)page_address(cmnd-&gt;tio-&gt;pvec[0]);
+@@ -523,15 +515,6 @@
+ 		goto out;
+ 	}
+ 
+-	if (scope != PR_SCOPE_LU ||
+-	    (reservation-&gt;persistent_type != type)) {
+-		iscsi_cmnd_set_sense(cmnd,
+-				     ILLEGAL_REQUEST,
+-				     INVALID_RELEASE_OF_PERSISTENT_RESERVATION_ASC,
+-				     INVALID_RELEASE_OF_PERSISTENT_RESERVATION_ASCQ);
+-		goto out;
+-	}
+-
+ 	switch (reservation-&gt;persistent_type) {
+ 	case PR_TYPE_WRITE_EXCLUSIVE_REGISTRANTS_ONLY:
+ 	case PR_TYPE_EXCLUSIVE_ACCESS_REGISTRANTS_ONLY:
+@@ -696,15 +679,16 @@
+ {
+ 	const struct persistent_reserve_out *pr_out =
+ 		(const struct persistent_reserve_out *)(cmnd_hdr(cmnd)-&gt;scb);
++	const enum pr_out_service_actions action =
++		pr_out-&gt;service_action &amp; PR_SERVICE_ACTION_MASK;
+ 
+ 	dprintk_pr(cmnd,
+-		   &quot;svc action %x, scope %x, type %x, param len %u\n&quot;,
+-		   pr_out-&gt;service_action,
+-		   pr_out-&gt;scope,
+-		   pr_out-&gt;type,
++		   &quot;svc action %x, scope_type %x, param len %u\n&quot;,
++		   action,
++		   pr_out-&gt;scope_type,
+ 		   be32_to_cpu(pr_out-&gt;parameter_list_length));
+ 
+-	if (pr_out-&gt;scope) {
++	if ((pr_out-&gt;scope_type &amp; PR_SCOPE_MASK)) {
+ 		iscsi_cmnd_set_sense(cmnd,
+ 				     ILLEGAL_REQUEST,
+ 				     INVALID_FIELD_IN_CDB_ASC,
+@@ -720,7 +704,7 @@
+ 		return;
+ 	}
+ 
+-	switch (pr_out-&gt;service_action) {
++	switch (action) {
+ 	case SERVICE_ACTION_REGISTER:
+ 		pr_out_register(cmnd, false);
+ 		break;
+@@ -728,19 +712,23 @@
+ 		pr_out_register(cmnd, true);
+ 		break;
+ 	case SERVICE_ACTION_RESERVE:
+-		pr_out_reserve(cmnd, pr_out-&gt;type);
++		pr_out_reserve(cmnd, pr_out-&gt;scope_type &amp; PR_TYPE_MASK);
+ 		break;
+ 	case SERVICE_ACTION_RELEASE:
+-		pr_out_release(cmnd, pr_out-&gt;type, pr_out-&gt;scope);
++		pr_out_release(cmnd, pr_out-&gt;scope_type &amp; PR_TYPE_MASK);
+ 		break;
+ 	case SERVICE_ACTION_CLEAR:
+ 		pr_out_clear(cmnd);
+ 		break;
+ 	case SERVICE_ACTION_PREEMPT:
+-		pr_out_preempt(cmnd, pr_out-&gt;type, false);
++		pr_out_preempt(cmnd,
++			       pr_out-&gt;scope_type &amp; PR_TYPE_MASK,
++			       false);
+ 		break;
+ 	case SERVICE_ACTION_PREEMPT_ABORT:
+-		pr_out_preempt(cmnd, pr_out-&gt;type, true);
++		pr_out_preempt(cmnd,
++			       pr_out-&gt;scope_type &amp; PR_TYPE_MASK,
++			       true);
+ 		break;
+ 	default:
+ 		iscsi_cmnd_set_sense(cmnd,
+
+Modified: trunk/kernel/persist.h
+===================================================================
+--- trunk/kernel/persist.h	2011-09-09 06:29:20 UTC (rev 457)
++++ trunk/kernel/persist.h	2011-09-11 12:16:00 UTC (rev 458)
+@@ -43,7 +43,7 @@
+ #define INSUFFICIENT_REGISTRATION_RESOURCES_ASC		0x55
+ #define INSUFFICIENT_REGISTRATION_RESOURCES_ASCQ	0x04
+ 
+-enum persistent_reserve_in_service_actions {
++enum pr_in_service_actions {
+ 	SERVICE_ACTION_READ_KEYS = 0x0,
+ 	SERVICE_ACTION_READ_RESERVATION = 0x1,
+ 	SERVICE_ACTION_REPORT_CAPABILITIES = 0x2,
+@@ -52,9 +52,8 @@
+ 
+ struct persistent_reserve_in {
+ 	u8 opcode; /* PERSISTENT_RESERVE_IN == 0x5e */
+-	u8 service_action:5;
+-	u8 rsvd1:3;
+-	u8 rsvd2[5];
++	u8 service_action;
++	u8 rsvd[5];
+ 	__be16 allocation_length;
+ 	u8 control;
+ } __packed;
+@@ -69,65 +68,73 @@
+ 	PR_TYPE_EX_AC_AR = 0x1,    /* Excl. Access, All Registrants */
+ };
+ 
++enum {
++	PR_IN_REPORT_CAP_PTPL_C = 1,     /* Persist Through Power Loss Capable */
++	PR_IN_REPORT_CAP_ATP_C = 1 &lt;&lt; 2, /* All Target Ports Capable */
++	PR_IN_REPOER_CAP_SIP_C = 1 &lt;&lt; 3, /* Specify Initiator Ports Capable */
++	PR_IN_REPORT_CAP_CRH = 1 &lt;&lt; 4    /* Compatible Reservation Handling */
++};
++
++
++enum {
++	PR_IN_REPORT_CAP_CAP_PTPL_A = 1, /* Persist Through Power Loss Activated */
++	PR_IN_REPORT_CAP_TMV = 1 &lt;&lt; 7,   /* Type Mask Valid */
++};
++
+ struct pr_in_report_capabilities_data {
+ 	__be16 length;
+ 
+-	u8 ptpl_c:1;          /* Persist Through Power Loss Capable */
+-	u8 rsvd1:1;
+-	u8 atp_c:1;           /* All Target Ports Capable */
+-	u8 sip_c:1;           /* Specify Initiator Ports Capable */
+-	u8 crh:1;             /* Compatible Reservation Handling */
+-	u8 rsvd2:3;
++	u8 crh_sip_atp_ptpl_c;
++	u8 tmv_ptpl_a;	/* SPC-4 has allow_commands here - don't care for now */
+ 
+-	u8 ptpl_a:1;          /* Persist Through Power Loss Activated */
+-	u8 rsvd3:3;
+-	u8 allow_commands:3; /* SPC-4, reserved in SPC-3 */
+-	u8 tmv:1;            /* Type Mask Valid */
+-
+ 	__be16 type_mask;
+ 	u8  rsvd4[2];
+ } __packed;
+ 
++enum {
++	PR_SERVICE_ACTION_MASK = 0x1f,
++	PR_TYPE_MASK = 0xf,
++	PR_SCOPE_MASK = 0xf &lt;&lt; 4,
++};
++
+ struct pr_in_read_reservation_data {
+ 	__be32 generation;
+ 	__be32 additional_length;
+ 	__be64 reservation_key;
+ 	u8 obsolete1[4];
+ 	u8 rsvd;
+-
+-	u8 type:4;
+-	u8 scope:4;
+-
++	u8 scope_type;
+ 	u8 obsolete2[2];
+ } __packed;
+ 
+-enum protocol_identifier {
+-	PROTOCOL_IDENTIFIER_ISCSI = 0x5,
++enum {
++	TRANSPORT_ID_FMT_CODE_MASK = 0xc0,
++	TRANSPORT_ID_FMT_CODE_ISCSI = 0x0,
++	TRANSPORT_ID_PROTO_ID_MASK = 0xf,
++	TRANSPORT_ID_PROTO_ID_ISCSI = 0x5,
+ };
+ 
+ struct iscsi_transport_id {
+-	u8 protocol_identifier:4;
+-	u8 rsvd1:2;
+-	u8 format_code:2;
+-
+-	u8 rsvd2;
++	u8 fmt_code_proto_id;
++	u8 rsvd;
+ 	__be16 additional_length;
+ 	u8 iscsi_name[0];
+ } __packed;
+ 
++enum {
++	PR_OUT_STATUS_DESC_R_HOLDER = 1,
++	PR_OUT_STATUS_DESC_ALL_TG_PT = 1 &lt;&lt; 1,
++};
++
+ /* this is iscsi specific */
+ struct pr_in_full_status_descriptor {
+ 	__be64 reservation_key;
+ 	u8 rsvd1[4];
+ 
+-	u8 r_holder:1;
+-	u8 all_tg_pt:1;
+-	u8 rsvd2:6;
++	u8 all_tg_pt_r_holder;
++	u8 scope_type;
+ 
+-	u8 type:4;
+-	u8 scope:4;
+-
+-	u8 rsvd3[4];
++	u8 rsvd2[4];
+ 	__be16 rel_tgt_port_id;
+ 	__be32 additional_desc_length;
+ 	struct iscsi_transport_id iscsi_transport_id[0];
+@@ -145,7 +152,7 @@
+ 	__be64 keys[0];
+ } __packed;
+ 
+-enum persistent_reserve_out_service_actions {
++enum pr_out_service_actions {
+ 	SERVICE_ACTION_REGISTER = 0x0,
+ 	SERVICE_ACTION_RESERVE = 0x1,
+ 	SERVICE_ACTION_RELEASE = 0x2,
+@@ -172,31 +179,25 @@
+ 
+ struct persistent_reserve_out {
+ 	u8 opcode; /* PERSISTENT_RESERVE_OUT == 0x5f */
+-	u8 service_action:5;
+-	u8 rsvd1:3;
+-
+-	u8 type:4;
+-	u8 scope:4;
+-
+-	u8 rsvd2[2];
++	u8 service_action;
++	u8 scope_type;
++	u8 rsvd[2];
+ 	__be32 parameter_list_length;
+ 	u8 control;
+ } __packed;
+ 
++enum {
++	PR_OUT_PARAM_APTPL = 1,
++	PR_OUT_PARAM_ALL_TG_PT = 1 &lt;&lt; 2,
++	PR_OUT_PARAM_SPEC_I_PT = 1 &lt;&lt; 3,
++};
++
+ struct pr_out_param_list {
+ 	__be64 reservation_key;
+ 	__be64 service_action_key;
+-
+ 	u8 obsolete1[4];
+-
+-	u8 aptpl:1;
+-	u8 rsvd2:1;
+-	u8 all_tg_pt:1;
+-	u8 spec_i_pt:1;
+-
+-	u8 rsvd1:4;
+-
+-	u8 rsvd3;
++	u8 spec_i_pt_all_tg_pt_aptl;
++	u8 rsvd;
+ 	u8 obsolete2[2];
+ 	u8 additional_parameter_data[0];
+ } __packed;
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000368.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[456] trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000370.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[459]	trunk/kernel/persist.h
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#369">[ date ]</a>
+              <a href="thread.html#369">[ thread ]</a>
+              <a href="subject.html#369">[ subject ]</a>
+              <a href="author.html#369">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

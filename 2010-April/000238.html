@@ -1,0 +1,677 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[326] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B326%5D%20trunk&In-Reply-To=%3CE1O1hUY-0001GT-UU%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000237.html">
+   <LINK REL="Next"  HREF="000239.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[326] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B326%5D%20trunk&In-Reply-To=%3CE1O1hUY-0001GT-UU%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[326] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Apr 13 16:53:30 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000237.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[325] trunk/usr/message.c
+</A></li>
+        <LI>Next message: <A HREF="000239.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[327] trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#238">[ date ]</a>
+              <a href="thread.html#238">[ thread ]</a>
+              <a href="subject.html#238">[ subject ]</a>
+              <a href="author.html#238">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 326
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=326&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=326&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-13 14:53:30 +0000 (Tue, 13 Apr 2010)
+
+Log Message:
+-----------
+This patch removes the openssl dependency by utilizing the md5/sha1
+code from the current kernel version.
+
+The code has been minimally modified to work in user space and to
+provide clean consistent implementation between both md5 and sha1.
+
+Fixes from original posting:
+- padding was defined as size_t when it needed a signed type
+- final md5 endian conversion should be MD5_DIGEST_WORDS not
+  MD5_BLOCK_WORDS
+- made sha1 workspace array allocate on the call stack instead
+  of allocating it globally
+
+Tested on CentOS5 against MS initiator.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/README
+    trunk/iscsitarget.spec
+    trunk/usr/Makefile
+    trunk/usr/chap.c
+    trunk/usr/types.h
+
+Added Paths:
+-----------
+    trunk/usr/md5.c
+    trunk/usr/md5.h
+    trunk/usr/sha1.c
+    trunk/usr/sha1.h
+
+Modified: trunk/README
+===================================================================
+--- trunk/README	2010-04-12 18:05:00 UTC (rev 325)
++++ trunk/README	2010-04-13 14:53:30 UTC (rev 326)
+@@ -27,9 +27,7 @@
+ default (most kernels have this enabled). If you do need to enable the
+ &quot;Cryptographic API&quot; you will also need to enable &quot;CRC32c CRC algorithm&quot;
+ if you use header or data digests. They are the kernel options,
+-CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively. The user-space
+-code requires OpenSSL library (<A HREF="http://www.openssl.org/">http://www.openssl.org/</A>) and developer
+-headers (usually openssl-devel package).
++CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
+ 
+ The iSCSI target consists of a kernel module (iscsi_trgt.ko) , daemon
+ (ietd) and control utility (ietadm).
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2010-04-12 18:05:00 UTC (rev 325)
++++ trunk/iscsitarget.spec	2010-04-13 14:53:30 UTC (rev 326)
+@@ -405,6 +405,9 @@
+   if you install weak built module, all per-kernels are uninstalled,
+   you cannot install a per-kernel while a weak built is installed.
+ 
++* Mon Mar 08 2010 Ross Walker &lt;rswwalker at gmail dot com&gt; - 1.4.19
++- removed openssl-devel build requirement
++
+ * Wed Oct 14 2009 Ross Walker &lt;rswwalker at gmail dot com&gt; - 1.4.18
+ - Added more macros for better cross-distro support
+ - Modified Matt's update for better Redhat-SuSE compatibility
+
+Modified: trunk/usr/Makefile
+===================================================================
+--- trunk/usr/Makefile	2010-04-12 18:05:00 UTC (rev 325)
++++ trunk/usr/Makefile	2010-04-13 14:53:30 UTC (rev 326)
+@@ -1,11 +1,11 @@
+ CFLAGS += -O2 -fno-inline -Wall -Wstrict-prototypes -g -I../include
+ CFLAGS += -D_GNU_SOURCE # required for glibc &gt;= 2.8
+ PROGRAMS = ietd ietadm
+-LIBS = -lcrypto
++LIBS =
+ 
+ all: $(PROGRAMS)
+ 
+-ietd: ietd.o iscsid.o conn.o session.o target.o message.o ctldev.o log.o chap.o event.o param.o plain.o isns.o
++ietd: ietd.o iscsid.o conn.o session.o target.o message.o ctldev.o log.o chap.o event.o param.o plain.o isns.o md5.o sha1.o
+ 
+ 	$(CC) $^ -o $@ $(LIBS)
+ 
+
+Modified: trunk/usr/chap.c
+===================================================================
+--- trunk/usr/chap.c	2010-04-12 18:05:00 UTC (rev 325)
++++ trunk/usr/chap.c	2010-04-13 14:53:30 UTC (rev 326)
+@@ -17,8 +17,8 @@
+ #include &lt;stdio.h&gt;
+ #include &lt;stdlib.h&gt;
+ #include &lt;string.h&gt;
+-#include &lt;openssl/sha.h&gt;
+-#include &lt;openssl/md5.h&gt;
++#include &quot;sha1.h&quot;
++#include &quot;md5.h&quot;
+ 
+ #include &quot;iscsid.h&quot;
+ 
+@@ -300,24 +300,24 @@
+ 
+ static inline void chap_calc_digest_md5(char chap_id, char *secret, int secret_len, u8 *challenge, int challenge_len, u8 *digest)
+ {
+-	MD5_CTX ctx;
++	struct md5_ctx ctx;
+ 
+-	MD5_Init(&amp;ctx);
+-	MD5_Update(&amp;ctx, &amp;chap_id, 1);
+-	MD5_Update(&amp;ctx, secret, secret_len);
+-	MD5_Update(&amp;ctx, challenge, challenge_len);
+-	MD5_Final(digest, &amp;ctx);
++	md5_init(&amp;ctx);
++	md5_update(&amp;ctx, &amp;chap_id, 1);
++	md5_update(&amp;ctx, secret, secret_len);
++	md5_update(&amp;ctx, challenge, challenge_len);
++	md5_final(&amp;ctx, digest);
+ }
+ 
+ static inline void chap_calc_digest_sha1(char chap_id, char *secret, int secret_len, u8 *challenge, int challenge_len, u8 *digest)
+ {
+-	SHA_CTX ctx;
++	struct sha1_ctx ctx;
+ 
+-	SHA1_Init(&amp;ctx);
+-	SHA1_Update(&amp;ctx, &amp;chap_id, 1);
+-	SHA1_Update(&amp;ctx, secret, secret_len);
+-	SHA1_Update(&amp;ctx, challenge, challenge_len);
+-	SHA1_Final(digest, &amp;ctx);
++	sha1_init(&amp;ctx);
++	sha1_update(&amp;ctx, &amp;chap_id, 1);
++	sha1_update(&amp;ctx, secret, secret_len);
++	sha1_update(&amp;ctx, challenge, challenge_len);
++	sha1_final(&amp;ctx, digest);
+ }
+ 
+ static int chap_initiator_auth_create_challenge(struct connection *conn)
+
+Added: trunk/usr/md5.c
+===================================================================
+--- trunk/usr/md5.c	                        (rev 0)
++++ trunk/usr/md5.c	2010-04-13 14:53:30 UTC (rev 326)
+@@ -0,0 +1,192 @@
++/* 
++ * MD5 Message Digest Algorithm (RFC1321).
++ *
++ * Derived from cryptoapi implementation, originally based on the
++ * public domain implementation written by Colin Plumb in 1993.
++ *
++ * Copyright (c) Cryptoapi developers.
++ * Copyright (c) 2002 James Morris &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jmorris at intercode.com.au</A>&gt;
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the Free
++ * Software Foundation; either version 2 of the License, or (at your option) 
++ * any later version.
++ *
++ */
++
++#include &quot;md5.h&quot;
++
++/* MD5 Transforms */
++#define F1(x, y, z)	(z ^ (x &amp; (y ^ z)))
++#define F2(x, y, z)	F1(z, x, y)
++#define F3(x, y, z)	(x ^ y ^ z)
++#define F4(x, y, z)	(y ^ (x | ~z))
++
++/* Macro for applying transforms */
++#define MD5STEP(f, w, x, y, z, i, k, s) \
++	(w += f(x, y, z) + i + k, w = (w &lt;&lt; s | w &gt;&gt; (32 - s)) + x)
++
++static void __md5_transform(u32 hash[MD5_DIGEST_WORDS],
++		      const u32 in[MD5_BLOCK_WORDS])
++{
++	register u32 a, b, c, d;
++
++	a = hash[0];
++	b = hash[1];
++	c = hash[2];
++	d = hash[3];
++
++	MD5STEP(F1, a, b, c, d, in[0], 0xD76AA478UL, 7);
++	MD5STEP(F1, d, a, b, c, in[1], 0xE8C7B756UL, 12);
++	MD5STEP(F1, c, d, a, b, in[2], 0x242070DBUL, 17);
++	MD5STEP(F1, b, c, d, a, in[3], 0xC1BDCEEEUL, 22);
++	MD5STEP(F1, a, b, c, d, in[4], 0xF57C0FAFUL, 7);
++	MD5STEP(F1, d, a, b, c, in[5], 0x4787C62AUL, 12);
++	MD5STEP(F1, c, d, a, b, in[6], 0xA8304613UL, 17);
++	MD5STEP(F1, b, c, d, a, in[7], 0xFD469501UL, 22);
++	MD5STEP(F1, a, b, c, d, in[8], 0x698098D8UL, 7);
++	MD5STEP(F1, d, a, b, c, in[9], 0x8B44F7AFUL, 12);
++	MD5STEP(F1, c, d, a, b, in[10], 0xFFFF5BB1UL, 17);
++	MD5STEP(F1, b, c, d, a, in[11], 0x895CD7BEUL, 22);
++	MD5STEP(F1, a, b, c, d, in[12], 0x6B901122UL, 7);
++	MD5STEP(F1, d, a, b, c, in[13], 0xFD987193UL, 12);
++	MD5STEP(F1, c, d, a, b, in[14], 0xA679438EUL, 17);
++	MD5STEP(F1, b, c, d, a, in[15], 0x49B40821UL, 22);
++
++	MD5STEP(F2, a, b, c, d, in[1], 0xF61E2562UL, 5);
++	MD5STEP(F2, d, a, b, c, in[6], 0xC040B340UL, 9);
++	MD5STEP(F2, c, d, a, b, in[11], 0x265E5A51UL, 14);
++	MD5STEP(F2, b, c, d, a, in[0], 0xE9B6C7AAUL, 20);
++	MD5STEP(F2, a, b, c, d, in[5], 0xD62F105DUL, 5);
++	MD5STEP(F2, d, a, b, c, in[10], 0x02441453UL, 9);
++	MD5STEP(F2, c, d, a, b, in[15], 0xD8A1E681UL, 14);
++	MD5STEP(F2, b, c, d, a, in[4], 0xE7D3FBC8UL, 20);
++	MD5STEP(F2, a, b, c, d, in[9], 0x21E1CDE6UL, 5);
++	MD5STEP(F2, d, a, b, c, in[14], 0xC33707D6UL, 9);
++	MD5STEP(F2, c, d, a, b, in[3], 0xF4D50D87UL, 14);
++	MD5STEP(F2, b, c, d, a, in[8], 0x455A14EDUL, 20);
++	MD5STEP(F2, a, b, c, d, in[13], 0xA9E3E905UL, 5);
++	MD5STEP(F2, d, a, b, c, in[2], 0xFCEFA3F8UL, 9);
++	MD5STEP(F2, c, d, a, b, in[7], 0x676F02D9UL, 14);
++	MD5STEP(F2, b, c, d, a, in[12], 0x8D2A4C8AUL, 20);
++
++	MD5STEP(F3, a, b, c, d, in[5], 0xFFFA3942UL, 4);
++	MD5STEP(F3, d, a, b, c, in[8], 0x8771F681UL, 11);
++	MD5STEP(F3, c, d, a, b, in[11], 0x6D9D6122UL, 16);
++	MD5STEP(F3, b, c, d, a, in[14], 0xFDE5380CUL, 23);
++	MD5STEP(F3, a, b, c, d, in[1], 0xA4BEEA44UL, 4);
++	MD5STEP(F3, d, a, b, c, in[4], 0x4BDECFA9UL, 11);
++	MD5STEP(F3, c, d, a, b, in[7], 0xF6BB4B60UL, 16);
++	MD5STEP(F3, b, c, d, a, in[10], 0xBEBFBC70UL, 23);
++	MD5STEP(F3, a, b, c, d, in[13], 0x289B7EC6UL, 4);
++	MD5STEP(F3, d, a, b, c, in[0], 0xEAA127FAUL, 11);
++	MD5STEP(F3, c, d, a, b, in[3], 0xD4EF3085UL, 16);
++	MD5STEP(F3, b, c, d, a, in[6], 0x04881D05UL, 23);
++	MD5STEP(F3, a, b, c, d, in[9], 0xD9D4D039UL, 4);
++	MD5STEP(F3, d, a, b, c, in[12], 0xE6DB99E5UL, 11);
++	MD5STEP(F3, c, d, a, b, in[15], 0x1FA27CF8UL, 16);
++	MD5STEP(F3, b, c, d, a, in[2], 0xC4AC5665UL, 23);
++
++	MD5STEP(F4, a, b, c, d, in[0], 0xF4292244UL, 6);
++	MD5STEP(F4, d, a, b, c, in[7], 0x432AFF97UL, 10);
++	MD5STEP(F4, c, d, a, b, in[14], 0xAB9423A7UL, 15);
++	MD5STEP(F4, b, c, d, a, in[5], 0xFC93A039UL, 21);
++	MD5STEP(F4, a, b, c, d, in[12], 0x655B59C3UL, 6);
++	MD5STEP(F4, d, a, b, c, in[3], 0x8F0CCC92UL, 10);
++	MD5STEP(F4, c, d, a, b, in[10], 0xFFEFF47DUL, 15);
++	MD5STEP(F4, b, c, d, a, in[1], 0x85845DD1UL, 21);
++	MD5STEP(F4, a, b, c, d, in[8], 0x6FA87E4FUL, 6);
++	MD5STEP(F4, d, a, b, c, in[15], 0xFE2CE6E0UL, 10);
++	MD5STEP(F4, c, d, a, b, in[6], 0xA3014314UL, 15);
++	MD5STEP(F4, b, c, d, a, in[13], 0x4E0811A1UL, 21);
++	MD5STEP(F4, a, b, c, d, in[4], 0xF7537E82UL, 6);
++	MD5STEP(F4, d, a, b, c, in[11], 0xBD3AF235UL, 10);
++	MD5STEP(F4, c, d, a, b, in[2], 0x2AD7D2BBUL, 15);
++	MD5STEP(F4, b, c, d, a, in[9], 0xEB86D391UL, 21);
++
++	hash[0] += a;
++	hash[1] += b;
++	hash[2] += c;
++	hash[3] += d;
++}
++
++static inline void md5_transform(u32 digest[MD5_DIGEST_WORDS],
++				 u32 block[MD5_BLOCK_WORDS])
++{
++	int i;
++
++	for (i = 0; i &lt; MD5_BLOCK_WORDS; i++)
++		block[i] = cpu_to_le32(block[i]);
++
++	__md5_transform(digest, block);
++}
++
++void md5_init(struct md5_ctx *ctx)
++{
++	ctx-&gt;digest[0] = 0x67452301UL;
++	ctx-&gt;digest[1] = 0xEFCDAB89UL;
++	ctx-&gt;digest[2] = 0x98BADCFEUL;
++	ctx-&gt;digest[3] = 0x10325476UL;
++
++	ctx-&gt;count = 0;
++}
++
++void md5_update(struct md5_ctx *ctx, const void *data_in, size_t len)
++{
++	const size_t offset = ctx-&gt;count &amp; 0x3f;
++	const size_t avail = MD5_BLOCK_BYTES - offset;
++	const u8 *data = data_in;
++
++	ctx-&gt;count += len;
++
++	if (avail &gt; len) {
++		memcpy((u8 *)ctx-&gt;block + offset, data, len);
++		return;
++	}
++
++	memcpy((u8 *)ctx-&gt;block + offset, data, avail);
++	md5_transform(ctx-&gt;digest, ctx-&gt;block);
++	data += avail;
++	len -= avail;
++
++	while (len &gt;= MD5_BLOCK_BYTES) {
++		memcpy(ctx-&gt;block, data, MD5_BLOCK_BYTES);
++		md5_transform(ctx-&gt;digest, ctx-&gt;block);
++		data += MD5_BLOCK_BYTES;
++		len -= MD5_BLOCK_BYTES;
++	}
++
++	if (len)
++		memcpy(ctx-&gt;block, data, len);
++}
++
++void md5_final(struct md5_ctx *ctx, u8 *out)
++{
++	const size_t offset = ctx-&gt;count &amp; 0x3f;
++	char *p = (char *)ctx-&gt;block + offset;
++	int padding = (MD5_BLOCK_BYTES - MD5_COUNTER_BYTES) - (offset + 1);
++	int i;
++
++	*p++ = 0x80;
++
++	if (padding &lt; 0) {
++		memset(p, 0, (padding + MD5_COUNTER_BYTES));
++		md5_transform(ctx-&gt;digest, ctx-&gt;block);
++		p = (char *)ctx-&gt;block;
++		padding = (MD5_BLOCK_BYTES - MD5_COUNTER_BYTES);
++	}
++
++	memset(p, 0, padding);
++
++	/* 64-bit bit counter stored in LSW/LSB format */
++	ctx-&gt;block[14] = ctx-&gt;count &lt;&lt; 3;
++	ctx-&gt;block[15] = ctx-&gt;count &gt;&gt; 29;
++
++	md5_transform(ctx-&gt;digest, ctx-&gt;block);
++
++	for (i = 0; i &lt; MD5_DIGEST_WORDS; i++)
++		ctx-&gt;digest[i] = le32_to_cpu(ctx-&gt;digest[i]);
++	memcpy(out, ctx-&gt;digest, MD5_DIGEST_BYTES);
++	memset(ctx, 0, sizeof(*ctx));
++}
++
+
+Added: trunk/usr/md5.h
+===================================================================
+--- trunk/usr/md5.h	                        (rev 0)
++++ trunk/usr/md5.h	2010-04-13 14:53:30 UTC (rev 326)
+@@ -0,0 +1,45 @@
++/*
++ * This is the header file for the MD5 message-digest algorithm.
++ * The algorithm is due to Ron Rivest.  This code was
++ * written by Colin Plumb in 1993, no copyright is claimed.
++ * This code is in the public domain; do with it what you wish.
++ *
++ * Equivalent code is available from RSA Data Security, Inc.
++ * This code has been tested against that, and is equivalent,
++ * except that you don't need to include two pages of legalese
++ * with every copy.
++ *
++ * To compute the message digest of a chunk of bytes, declare an
++ * MD5Context structure, pass it to MD5Init, call MD5Update as
++ * needed on buffers full of bytes, and then call MD5Final, which
++ * will fill a supplied 16-byte array with the digest.
++ *
++ * Changed so as no longer to depend on Colin Plumb's `usual.h'
++ * header definitions; now uses stuff from dpkg's config.h
++ *  - Ian Jackson &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">ijackson at nyx.cs.du.edu</A>&gt;.
++ * Still in the public domain.
++ */
++
++#ifndef MD5_H
++#define MD5_H
++
++#include &quot;types.h&quot;
++#include &lt;string.h&gt;
++
++#define MD5_BLOCK_WORDS		16
++#define MD5_BLOCK_BYTES		(MD5_BLOCK_WORDS * 4)
++#define MD5_DIGEST_WORDS	4
++#define MD5_DIGEST_BYTES	(MD5_DIGEST_WORDS * 4)
++#define MD5_COUNTER_BYTES	8
++
++struct md5_ctx {
++	u32 block[MD5_BLOCK_WORDS];
++	u32 digest[MD5_DIGEST_WORDS];
++	u64 count;
++};
++
++void md5_init(struct md5_ctx *ctx);
++void md5_update(struct md5_ctx *ctx, const void *data_in, size_t len);
++void md5_final(struct md5_ctx *ctx, u8 *out);
++
++#endif /* !MD5_H */
+
+Added: trunk/usr/sha1.c
+===================================================================
+--- trunk/usr/sha1.c	                        (rev 0)
++++ trunk/usr/sha1.c	2010-04-13 14:53:30 UTC (rev 326)
+@@ -0,0 +1,158 @@
++/*
++ * SHA1 Secure Hash Algorithm.
++ *
++ * Derived from cryptoapi implementation.
++ *
++ * Copyright (c) Alan Smithee.
++ * Copyright (c) Andrew McDonald &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">andrew at mcdonald.org.uk</A>&gt;
++ * Copyright (c) Jean-Francois Dive &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jef at linuxbe.org</A>&gt;
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the Free
++ * Software Foundation; either version 2 of the License, or (at your option)
++ * any later version.
++ *
++ */
++
++#include &quot;sha1.h&quot;
++
++/* SHA1 transforms */
++#define F1(x,y,z)   (z ^ (x &amp; (y ^ z)))		/* x ? y : z */
++#define F2(x,y,z)   (x ^ y ^ z)			/* XOR */
++#define F3(x,y,z)   ((x &amp; y) + (z &amp; (x ^ y)))	/* majority */
++
++/* SHA1 per-round constants */
++#define K1  0x5A827999UL		/* Rounds  0-19: sqrt(2) * 2^30 */
++#define K2  0x6ED9EBA1UL		/* Rounds 20-39: sqrt(3) * 2^30 */
++#define K3  0x8F1BBCDCUL		/* Rounds 40-59: sqrt(5) * 2^30 */
++#define K4  0xCA62C1D6UL		/* Rounds 60-79: sqrt(10) * 2^30 */
++
++static inline u32 rol32(u32 word, unsigned int shift)
++{
++	return (word &lt;&lt; shift) | (word &gt;&gt; (32 - shift));
++}
++
++static void __sha1_transform(u32 hash[SHA1_DIGEST_WORDS],
++		       const u32 in[SHA1_BLOCK_WORDS],
++			     u32 W[SHA1_WORKSPACE_WORDS])
++{
++	register u32 a, b, c, d, e, t;
++	int i;
++
++	for (i = 0; i &lt; SHA1_BLOCK_WORDS; i++)
++		W[i] = cpu_to_be32(in[i]);
++
++	for (i = 0; i &lt; 64; i++)
++		W[i+16] = rol32(W[i+13] ^ W[i+8] ^ W[i+2] ^ W[i], 1);
++
++	a = hash[0];
++	b = hash[1];
++	c = hash[2];
++	d = hash[3];
++	e = hash[4];
++
++	for (i = 0; i &lt; 20; i++) {
++		t = F1(b, c, d) + K1 + rol32(a, 5) + e + W[i];
++		e = d; d = c; c = rol32(b, 30); b = a; a = t;
++	}
++
++	for (; i &lt; 40; i ++) {
++		t = F2(b, c, d) + K2 + rol32(a, 5) + e + W[i];
++		e = d; d = c; c = rol32(b, 30); b = a; a = t;
++	}
++
++	for (; i &lt; 60; i ++) {
++		t = F3(b, c, d) + K3 + rol32(a, 5) + e + W[i];
++		e = d; d = c; c = rol32(b, 30); b = a; a = t;
++	}
++
++	for (; i &lt; 80; i ++) {
++		t = F2(b, c, d) + K4 + rol32(a, 5) + e + W[i];
++		e = d; d = c; c = rol32(b, 30); b = a; a = t;
++	}
++
++	hash[0] += a;
++	hash[1] += b;
++	hash[2] += c;
++	hash[3] += d;
++	hash[4] += e;
++}
++
++static inline void sha1_transform(u32 digest[SHA1_DIGEST_WORDS],
++			    const u32 block[SHA1_BLOCK_WORDS])
++{
++	u32 workspace[SHA1_WORKSPACE_WORDS];
++
++	__sha1_transform(digest, block, workspace);
++}
++
++void sha1_init(struct sha1_ctx *ctx)
++{
++	ctx-&gt;digest[0] = 0x67452301UL;
++	ctx-&gt;digest[1] = 0xEFCDAB89UL;
++	ctx-&gt;digest[2] = 0x98BADCFEUL;
++	ctx-&gt;digest[3] = 0x10325476UL;
++	ctx-&gt;digest[4] = 0xC3D2E1F0UL;
++
++	ctx-&gt;count = 0;
++}
++
++void sha1_update(struct sha1_ctx *ctx, const void *data_in, size_t len)
++{
++	const size_t offset = ctx-&gt;count &amp; 0x3f;
++	const size_t avail = SHA1_BLOCK_BYTES - offset;
++	const u8 *data = data_in;
++
++	ctx-&gt;count += len;
++
++	if (avail &gt; len) {
++		memcpy((u8 *)ctx-&gt;block + offset, data, len);
++		return;
++	}
++
++	memcpy((u8 *)ctx-&gt;block + offset, data, avail);
++	sha1_transform(ctx-&gt;digest, ctx-&gt;block);
++	data += avail;
++	len -= avail;
++
++	while (len &gt;= SHA1_BLOCK_BYTES) {
++		memcpy(ctx-&gt;block, data, SHA1_BLOCK_BYTES);
++		sha1_transform(ctx-&gt;digest, ctx-&gt;block);
++		data += SHA1_BLOCK_BYTES;
++		len -= SHA1_BLOCK_BYTES;
++	}
++
++	if (len)
++		memcpy(ctx-&gt;block, data, len);
++}
++
++void sha1_final(struct sha1_ctx *ctx, u8 *out)
++{
++	const size_t offset = ctx-&gt;count &amp; 0x3f;
++	char *p = (char *)ctx-&gt;block + offset;
++	int padding = (SHA1_BLOCK_BYTES - SHA1_COUNTER_BYTES) - (offset + 1);
++	int i;
++
++	*p++ = 0x80;
++
++	if (padding &lt; 0) {
++		memset(p, 0, (padding + SHA1_COUNTER_BYTES));
++		sha1_transform(ctx-&gt;digest, ctx-&gt;block);
++		p = (char *)ctx-&gt;block;
++		padding = (SHA1_BLOCK_BYTES - SHA1_COUNTER_BYTES);
++	}
++
++	memset(p, 0, padding);
++
++	/* 64-bit bit counter stored in MSW/LSB format (RFC bug?) */
++	ctx-&gt;block[14] = bswap_32(ctx-&gt;count &gt;&gt; 29);
++	ctx-&gt;block[15] = bswap_32(ctx-&gt;count &lt;&lt; 3);
++
++	sha1_transform(ctx-&gt;digest, ctx-&gt;block);
++
++	for (i = 0; i &lt; SHA1_DIGEST_WORDS; i++)
++		ctx-&gt;digest[i] = be32_to_cpu(ctx-&gt;digest[i]);
++	memcpy(out, ctx-&gt;digest, SHA1_DIGEST_BYTES);
++	memset(ctx, 0, sizeof(*ctx));
++}
++
+
+Added: trunk/usr/sha1.h
+===================================================================
+--- trunk/usr/sha1.h	                        (rev 0)
++++ trunk/usr/sha1.h	2010-04-13 14:53:30 UTC (rev 326)
+@@ -0,0 +1,28 @@
++/*
++ * Common values for SHA algorithms
++ */
++
++#ifndef SHA1_H
++#define SHA1_H
++
++#include &quot;types.h&quot;
++#include &lt;string.h&gt;
++
++#define SHA1_DIGEST_WORDS	5
++#define SHA1_DIGEST_BYTES	(SHA1_DIGEST_WORDS * 4)
++#define SHA1_BLOCK_WORDS	16
++#define SHA1_BLOCK_BYTES	(SHA1_BLOCK_WORDS * 4)
++#define SHA1_WORKSPACE_WORDS	80
++#define SHA1_COUNTER_BYTES	8
++
++struct sha1_ctx {
++	u32 digest[SHA1_DIGEST_WORDS];
++	u32 block[SHA1_BLOCK_WORDS];
++	u64 count;
++};
++
++void sha1_init(struct sha1_ctx *ctx);
++void sha1_update(struct sha1_ctx *ctx, const void *data_in, size_t len);
++void sha1_final(struct sha1_ctx *ctx, u8 *out);
++
++#endif
+
+Modified: trunk/usr/types.h
+===================================================================
+--- trunk/usr/types.h	2010-04-12 18:05:00 UTC (rev 325)
++++ trunk/usr/types.h	2010-04-13 14:53:30 UTC (rev 326)
+@@ -14,11 +14,19 @@
+ #include &lt;inttypes.h&gt;
+ 
+ #if __BYTE_ORDER == __BIG_ENDIAN
++#define cpu_to_le16(x)		bswap_16(x)
++#define le16_to_cpu(x)		bswap_16(x)
++#define cpu_to_le32(x)		bswap_32(x)
++#define le32_to_cpu(x)		bswap_32(x)
+ #define cpu_to_be16(x)		(x)
+ #define be16_to_cpu(x)		(x)
+ #define cpu_to_be32(x)		(x)
+ #define be32_to_cpu(x)		(x)
+ #elif __BYTE_ORDER == __LITTLE_ENDIAN
++#define cpu_to_le16(x)		(x)
++#define le16_to_cpu(x)		(x)
++#define cpu_to_le32(x)		(x)
++#define le32_to_cpu(x)		(x)
+ #define cpu_to_be16(x)		bswap_16(x)
+ #define be16_to_cpu(x)		bswap_16(x)
+ #define cpu_to_be32(x)		bswap_32(x)
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000237.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[325] trunk/usr/message.c
+</A></li>
+	<LI>Next message: <A HREF="000239.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[327] trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#238">[ date ]</a>
+              <a href="thread.html#238">[ thread ]</a>
+              <a href="subject.html#238">[ subject ]</a>
+              <a href="author.html#238">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

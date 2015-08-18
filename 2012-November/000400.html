@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[489] trunk/usr/iscsid.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B489%5D%20trunk/usr/iscsid.c&In-Reply-To=%3CE1TU0g4-000860-2Z%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000399.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[489] trunk/usr/iscsid.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B489%5D%20trunk/usr/iscsid.c&In-Reply-To=%3CE1TU0g4-000860-2Z%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[489] trunk/usr/iscsid.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Thu Nov  1 20:43:44 CET 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000399.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[488]	trunk/kernel/target_disk.c
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#400">[ date ]</a>
+              <a href="thread.html#400">[ thread ]</a>
+              <a href="subject.html#400">[ subject ]</a>
+              <a href="author.html#400">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 489
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=489&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=489&amp;view=rev</A>
+Author:   agr1
+Date:     2012-11-01 19:43:43 +0000 (Thu, 01 Nov 2012)
+Log Message:
+-----------
+Fix session use after free
+
+From: Shivaram Upadhyayula <A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">shivaram.u at quadstor.com</A>
+
+During a login request, in case a previous session is found but tsih
+of the request is zero (new request), the previous session is freed.
+However the session pointer is still used after the free. Below patch
+is a possible fix.
+
+Modified Paths:
+--------------
+    trunk/usr/iscsid.c
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2012-11-01 19:43:24 UTC (rev 488)
++++ trunk/usr/iscsid.c	2012-11-01 19:43:43 UTC (rev 489)
+@@ -491,6 +491,7 @@
+ 						ISCSI_STATUS_TARGET_ERROR);
+ 					return;
+ 				}
++				session = NULL;
+ 			} else if (req-&gt;sid.id.tsih != session-&gt;sid.id.tsih) {
+ 				/* fail the login */
+ 				login_rsp_ini_err(conn,
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000399.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[488]	trunk/kernel/target_disk.c
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#400">[ date ]</a>
+              <a href="thread.html#400">[ thread ]</a>
+              <a href="subject.html#400">[ subject ]</a>
+              <a href="author.html#400">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

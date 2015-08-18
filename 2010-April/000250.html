@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[338] branches/1.4.20
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B338%5D%20branches/1.4.20&In-Reply-To=%3CE1O5zxe-0001dt-Kn%40sfp-svn-5.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000249.html">
+   <LINK REL="Next"  HREF="000251.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[338] branches/1.4.20</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B338%5D%20branches/1.4.20&In-Reply-To=%3CE1O5zxe-0001dt-Kn%40sfp-svn-5.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[338] branches/1.4.20">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr 25 13:25:18 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000249.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[337]	branches/1.4.20/Makefile
+</A></li>
+        <LI>Next message: <A HREF="000251.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[339] tags/1.4.20.1/
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#250">[ date ]</a>
+              <a href="thread.html#250">[ thread ]</a>
+              <a href="subject.html#250">[ subject ]</a>
+              <a href="author.html#250">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 338
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=338&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=338&amp;view=rev</A>
+Author:   agr1
+Date:     2010-04-25 11:25:18 +0000 (Sun, 25 Apr 2010)
+
+Log Message:
+-----------
+Prepare 1.4.20.1
+
+Update version (dkms.conf, iet_u.h, iscsitarget.spec), ChangeLog
+and RELEASE NOTES.
+
+Modified Paths:
+--------------
+    branches/1.4.20/ChangeLog
+    branches/1.4.20/RELEASE_NOTES
+    branches/1.4.20/dkms.conf
+    branches/1.4.20/include/iet_u.h
+    branches/1.4.20/iscsitarget.spec
+
+Modified: branches/1.4.20/ChangeLog
+===================================================================
+--- branches/1.4.20/ChangeLog	2010-04-25 11:12:31 UTC (rev 337)
++++ branches/1.4.20/ChangeLog	2010-04-25 11:25:18 UTC (rev 338)
+@@ -1,3 +1,11 @@
++Summary of changes from v1.4.20 to v1.4.20.1
++=================================
++Arne Redlich
++  o adapt backward compat mechanism in Makefile to kernels &gt;= 2.6.33
++
++Ross Walker
++  o restore SCSI SN behaviour of IET &lt; 1.4.20 (VMWare compatibility)
++
+ Summary of changes from v1.4.19 to v1.4.20
+ =================================
+ Minh Tran
+@@ -23,7 +31,7 @@
+   o UA handling on aborted/terminated connections
+   o removed OpenSSL dependency by borrowing kernel md5/sha1 code
+   o code cleanups
+- 
++
+ Arne Redlich
+   o multiple kernel compatibility updates
+   o code cleanups
+
+Modified: branches/1.4.20/RELEASE_NOTES
+===================================================================
+--- branches/1.4.20/RELEASE_NOTES	2010-04-25 11:12:31 UTC (rev 337)
++++ branches/1.4.20/RELEASE_NOTES	2010-04-25 11:25:18 UTC (rev 338)
+@@ -2,6 +2,23 @@
+                Release Notes for iSCSI Enterprise Target
+                =========================================
+ 
++                            April 25th, 2010
++                            Version 1.4.20.1
++                            ----------------
++
++The IET development team is pleased to announce the release of version
++1.4.20.1 of the iSCSI Enterprise Target.
++
++This release is a bugfix release. The following issues were fixed:
++- VMWare ESX does not recognize existing IET LUs after upgrading from older IET
++  versions to 1.4.20 because of a change in the SCSI SN. The old behaviour from
++  IET versions &lt; 1.4.20 is restored with this release. Thanks to Steffen Plotner
++  for pointing it out and helping in debugging / testing.
++- With kernel 2.6.33 the utsrelease.h used by IETs backward compatibility
++  infrastructure was moved to a new location. This lead to compilation issues
++  with kernels &gt;= 2.6.33.
++
++
+                             April 13th, 2010
+                              Version 1.4.20
+                              --------------
+
+Modified: branches/1.4.20/dkms.conf
+===================================================================
+--- branches/1.4.20/dkms.conf	2010-04-25 11:12:31 UTC (rev 337)
++++ branches/1.4.20/dkms.conf	2010-04-25 11:25:18 UTC (rev 338)
+@@ -3,7 +3,7 @@
+ #
+ 
+ PACKAGE_NAME=&quot;iscsitarget&quot;
+-PACKAGE_VERSION=&quot;1.4.20&quot;
++PACKAGE_VERSION=&quot;1.4.20.1&quot;
+ MOD_PATH=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}
+ 
+ BUILT_MODULE_NAME=&quot;iscsi_trgt&quot;
+
+Modified: branches/1.4.20/include/iet_u.h
+===================================================================
+--- branches/1.4.20/include/iet_u.h	2010-04-25 11:12:31 UTC (rev 337)
++++ branches/1.4.20/include/iet_u.h	2010-04-25 11:25:18 UTC (rev 338)
+@@ -1,7 +1,7 @@
+ #ifndef _IET_U_H
+ #define _IET_U_H
+ 
+-#define IET_VERSION_STRING	&quot;1.4.20&quot;
++#define IET_VERSION_STRING	&quot;1.4.20.1&quot;
+ 
+ /* The maximum length of 223 bytes in the RFC. */
+ #define ISCSI_NAME_LEN	256
+
+Modified: branches/1.4.20/iscsitarget.spec
+===================================================================
+--- branches/1.4.20/iscsitarget.spec	2010-04-25 11:12:31 UTC (rev 337)
++++ branches/1.4.20/iscsitarget.spec	2010-04-25 11:25:18 UTC (rev 338)
+@@ -3,7 +3,7 @@
+ ##
+ 
+ ## IET Release
+-%define iet_version 1.4.20
++%define iet_version 1.4.20.1
+ 
+ ## Package Revision
+ %define revision 1
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000249.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[337]	branches/1.4.20/Makefile
+</A></li>
+	<LI>Next message: <A HREF="000251.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[339] tags/1.4.20.1/
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#250">[ date ]</a>
+              <a href="thread.html#250">[ thread ]</a>
+              <a href="subject.html#250">[ subject ]</a>
+              <a href="author.html#250">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

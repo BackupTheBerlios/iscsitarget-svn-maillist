@@ -1,0 +1,233 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[303] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B303%5D%20trunk/kernel&In-Reply-To=%3CE1NmIHR-000816-UC%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000214.html">
+   <LINK REL="Next"  HREF="000216.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[303] trunk/kernel</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B303%5D%20trunk/kernel&In-Reply-To=%3CE1NmIHR-000816-UC%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[303] trunk/kernel">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Mar  2 03:56:17 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000214.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[302]	trunk/kernel/file-io.c
+</A></li>
+        <LI>Next message: <A HREF="000216.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[304] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#213">[ date ]</a>
+              <a href="thread.html#213">[ thread ]</a>
+              <a href="subject.html#213">[ subject ]</a>
+              <a href="author.html#213">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 303
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=303&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=303&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-03-02 02:56:17 +0000 (Tue, 02 Mar 2010)
+
+Log Message:
+-----------
+I always got confused with ScsiSn and ScsiID.
+No, wait, it was ScsiId and ScsiSN. Or was it?
+
+Signed-off-by: Lars Ellenberg &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">lars.ellenberg at linbit.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/block-io.c
+    trunk/kernel/file-io.c
+    trunk/kernel/iotype.h
+    trunk/kernel/null-io.c
+    trunk/kernel/volume.c
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2010-03-02 02:47:57 UTC (rev 302)
++++ trunk/kernel/block-io.c	2010-03-02 02:56:17 UTC (rev 303)
+@@ -240,12 +240,12 @@
+ 
+ /* Create a match table using our action enums and their matching options */
+ static match_table_t tokens = {
+-	{Opt_scsiid, &quot;ScsiId=%s&quot;},
+-	{Opt_scsisn, &quot;ScsiSN=%s&quot;},
+-	{Opt_path, &quot;Path=%s&quot;},
+-	{Opt_ignore, &quot;Type=%s&quot;},
+-	{Opt_ignore, &quot;IOMode=%s&quot;},
+-	{Opt_ignore, &quot;BlockSize=%s&quot;},
++	{Opt_scsiid, &quot;scsiid=%s&quot;},
++	{Opt_scsisn, &quot;scsisn=%s&quot;},
++	{Opt_path, &quot;path=%s&quot;},
++	{Opt_ignore, &quot;type=%s&quot;},
++	{Opt_ignore, &quot;iomode=%s&quot;},
++	{Opt_ignore, &quot;blocksize=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+@@ -264,6 +264,7 @@
+ 		int token;
+ 		if (!*p)
+ 			continue;
++		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+ 		case Opt_scsiid:
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2010-03-02 02:47:57 UTC (rev 302)
++++ trunk/kernel/file-io.c	2010-03-02 02:56:17 UTC (rev 303)
+@@ -176,12 +176,12 @@
+ };
+ 
+ static match_table_t tokens = {
+-	{Opt_scsiid, &quot;ScsiId=%s&quot;},
+-	{Opt_scsisn, &quot;ScsiSN=%s&quot;},
+-	{Opt_path, &quot;Path=%s&quot;},
+-	{Opt_ignore, &quot;Type=%s&quot;},
+-	{Opt_ignore, &quot;IOMode=%s&quot;},
+-	{Opt_ignore, &quot;BlockSize=%s&quot;},
++	{Opt_scsiid, &quot;scsiid=%s&quot;},
++	{Opt_scsisn, &quot;scsisn=%s&quot;},
++	{Opt_path, &quot;path=%s&quot;},
++	{Opt_ignore, &quot;type=%s&quot;},
++	{Opt_ignore, &quot;iomode=%s&quot;},
++	{Opt_ignore, &quot;blocksize=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+@@ -196,6 +196,7 @@
+ 		int token;
+ 		if (!*p)
+ 			continue;
++		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+ 		case Opt_scsiid:
+
+Modified: trunk/kernel/iotype.h
+===================================================================
+--- trunk/kernel/iotype.h	2010-03-02 02:47:57 UTC (rev 302)
++++ trunk/kernel/iotype.h	2010-03-02 02:56:17 UTC (rev 303)
+@@ -3,6 +3,7 @@
+  * This code is licenced under the GPL.
+  */
+ 
++#include &lt;linux/ctype.h&gt;
+ #include &quot;iscsi.h&quot;
+ 
+ #ifndef __IOTYPE_H__
+@@ -26,4 +27,16 @@
+ extern int iotype_init(void);
+ extern void iotype_exit(void);
+ 
++/* For option parameter parsing.
++ * This is slightly iet specific: we only tolower() up to the first '='.
++ * Note that this changes *c _in place_, but our parsing
++ * routines copy the input to a scratch page before parsing anyways. */
++static inline void iet_strtolower(char *c)
++{
++	if (!c)
++		return;
++	for (; *c &amp;&amp; *c != '='; c++)
++		*c = tolower(*c);
++}
++
+ #endif
+
+Modified: trunk/kernel/null-io.c
+===================================================================
+--- trunk/kernel/null-io.c	2010-03-02 02:47:57 UTC (rev 302)
++++ trunk/kernel/null-io.c	2010-03-02 02:56:17 UTC (rev 303)
+@@ -22,12 +22,12 @@
+ 
+ static match_table_t tokens = {
+ 	/* alias for compatibility with existing setups and documentation */
+-	{Opt_blk_cnt, &quot;Sectors=%u&quot;},
++	{Opt_blk_cnt, &quot;sectors=%u&quot;},
+ 	/* but actually it is the scsi block count, now that we can
+ 	 * specify the block size. */
+-	{Opt_blk_cnt, &quot;Blocks=%u&quot;},
+-	{Opt_ignore, &quot;BlockSize=%s&quot;},
+-	{Opt_ignore, &quot;Type=%s&quot;},
++	{Opt_blk_cnt, &quot;blocks=%u&quot;},
++	{Opt_ignore, &quot;blocksize=%s&quot;},
++	{Opt_ignore, &quot;type=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+@@ -41,6 +41,7 @@
+ 		int token;
+ 		if (!*p)
+ 			continue;
++		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+ 		case Opt_blk_cnt:
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2010-03-02 02:47:57 UTC (rev 302)
++++ trunk/kernel/volume.c	2010-03-02 02:56:17 UTC (rev 303)
+@@ -31,9 +31,9 @@
+ };
+ 
+ static match_table_t tokens = {
+-	{Opt_type, &quot;Type=%s&quot;},
+-	{Opt_iomode, &quot;IOMode=%s&quot;},
+-	{Opt_blk_size, &quot;BlockSize=%u&quot;},
++	{Opt_type, &quot;type=%s&quot;},
++	{Opt_iomode, &quot;iomode=%s&quot;},
++	{Opt_blk_size, &quot;blocksize=%u&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+@@ -53,6 +53,7 @@
+ 
+ 		if (!*p)
+ 			continue;
++		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+ 		case Opt_type:
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000214.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[302]	trunk/kernel/file-io.c
+</A></li>
+	<LI>Next message: <A HREF="000216.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[304] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#213">[ date ]</a>
+              <a href="thread.html#213">[ thread ]</a>
+              <a href="subject.html#213">[ subject ]</a>
+              <a href="author.html#213">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

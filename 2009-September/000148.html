@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r236 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r236%20-%20trunk/usr&In-Reply-To=%3C200909211939.n8LJd4Wd029640%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000147.html">
+   <LINK REL="Next"  HREF="000149.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r236 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r236%20-%20trunk/usr&In-Reply-To=%3C200909211939.n8LJd4Wd029640%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r236 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 21 21:39:04 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000147.html">[Iscsitarget-svn] r235 - trunk/etc/initd
+</A></li>
+        <LI>Next message: <A HREF="000149.html">[Iscsitarget-svn] r237 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#148">[ date ]</a>
+              <a href="thread.html#148">[ thread ]</a>
+              <a href="subject.html#148">[ subject ]</a>
+              <a href="author.html#148">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-21 21:39:03 +0200 (Mon, 21 Sep 2009)
+New Revision: 236
+
+Modified:
+   trunk/usr/plain.c
+Log:
+Replace strndup + strncat with snprintf
+
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-09-21 18:28:14 UTC (rev 235)
++++ trunk/usr/plain.c	2009-09-21 19:39:03 UTC (rev 236)
+@@ -387,18 +387,19 @@
+ {
+ 	int err = -EPERM;
+ 	FILE *fp;
+-	char buf[BUFSIZE], file1[PATH_MAX], file2[PATH_MAX], *p, *q;
++	char buf[BUFSIZE], fname[PATH_MAX], *p, *q;
+ 
+-	strncpy(file1, CONFIG_DIR, PATH_MAX - 1);
+-	strncat(file1, filename, PATH_MAX - (strlen(CONFIG_DIR) + 1));
++	snprintf(fname, sizeof(fname), &quot;%s%s&quot;, CONFIG_DIR, filename);
++	if (!(fp = fopen(fname, &quot;r&quot;))) {
++		if (errno != ENOENT)
++			return -errno;
+ 
+-	strncpy(file2, &quot;/etc/&quot;, PATH_MAX - 1);
+-	strncat(file2, filename, PATH_MAX - 6);
++		snprintf(fname, sizeof(fname), &quot;%s%s&quot;, &quot;/etc/&quot;, filename);
++		fp = fopen(fname, &quot;r&quot;);
++		if (!fp)
++			return -errno;
++	}
+ 
+-	if (!(fp = fopen(file1, &quot;r&quot;)))
+-		if (!(fp = fopen(file2, &quot;r&quot;)))
+-			return -ENOENT;
+-
+ 	/*
+ 	 * Every time we are called, we read the file. So we don't need to
+ 	 * implement 'reload feature'. It's slow, however, it doesn't matter.
+@@ -670,21 +671,15 @@
+ 		INIT_LIST_HEAD(&amp;trgt_acct_out[i]);
+ 	}
+ 
+-	strncpy(file1, CONFIG_DIR, PATH_MAX - 1);
+-	strncat(file1, INI_DENY_FILE, PATH_MAX - (strlen(CONFIG_DIR) + 1));
++	snprintf(file1, sizeof(file1), &quot;%s%s&quot;, CONFIG_DIR, INI_DENY_FILE);
++	snprintf(file2, sizeof(file2), &quot;/etc/%s&quot;, INI_DENY_FILE);
+ 
+-	strncpy(file2, &quot;/etc/&quot;, PATH_MAX - 1);
+-	strncat(file2, INI_DENY_FILE, PATH_MAX - 6);
+-
+ 	if (!stat(file1, &amp;st) || !stat(file2, &amp;st))
+ 		log_warning(&quot;%s is depreciated and will be obsoleted in the next release, please see README.initiators for more information&quot;, INI_DENY_FILE);
+ 
+-	strncpy(file1, CONFIG_DIR, PATH_MAX - 1);
+-	strncat(file1, CONFIG_FILE, PATH_MAX - (strlen(CONFIG_DIR) + 1));
++	snprintf(file1, sizeof(file1), &quot;%s%s&quot;, CONFIG_DIR, CONFIG_FILE);
++	snprintf(file2, sizeof(file2), &quot;/etc/%s&quot;, CONFIG_FILE);
+ 
+-	strncpy(file2, &quot;/etc/&quot;, PATH_MAX - 1);
+-	strncat(file2, CONFIG_FILE, PATH_MAX - 6);
+-
+ 	if (!(fp = fopen(params ? params : file1, &quot;r&quot;))) {
+ 		if ((fp = fopen(file2, &quot;r&quot;)))
+ 			log_warning(&quot;%s's location is depreciated and will be moved in the next release to %s&quot;, file2, file1);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000147.html">[Iscsitarget-svn] r235 - trunk/etc/initd
+</A></li>
+	<LI>Next message: <A HREF="000149.html">[Iscsitarget-svn] r237 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#148">[ date ]</a>
+              <a href="thread.html#148">[ thread ]</a>
+              <a href="subject.html#148">[ subject ]</a>
+              <a href="author.html#148">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

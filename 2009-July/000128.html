@@ -1,0 +1,290 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r216 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r216%20-%20trunk&In-Reply-To=%3C200907290640.n6T6erG7024666%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000127.html">
+   <LINK REL="Next"  HREF="000129.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r216 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r216%20-%20trunk&In-Reply-To=%3C200907290640.n6T6erG7024666%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r216 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul 29 08:40:53 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000127.html">[Iscsitarget-svn] r215 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000129.html">[Iscsitarget-svn] r217 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#128">[ date ]</a>
+              <a href="thread.html#128">[ thread ]</a>
+              <a href="subject.html#128">[ subject ]</a>
+              <a href="author.html#128">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-07-29 08:40:53 +0200 (Wed, 29 Jul 2009)
+New Revision: 216
+
+Added:
+   trunk/iscsitarget.spec
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+iscsitarget.spec
+
+This patch adds a simple iscsitarget.spec file for building
+RPM files.
+
+With rpm-build you can build your RPM files right from the
+tarball with a:
+
+rpmbuild -ta iscsitarget-&lt;version&gt;.tar.gz
+
+And the RPMs and SRPM should appear in /usr/src/redhat/RPMS
+and /usr/src/redhat/SRPMS.
+
+
+Added: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-07-29 06:38:17 UTC (rev 215)
++++ trunk/iscsitarget.spec	2009-07-29 06:40:53 UTC (rev 216)
+@@ -0,0 +1,200 @@
++##
++## Global Package Definitions
++##
++
++## Package Definitions
++# Revision number of the package
++%define revision 1
++
++## Platform Definitions
++# Define kernel version information
++%{!?kernel:	%define kernel %(uname -r)}
++
++%define kver	%(echo %{kernel} | sed -e 's/smp//' -e 's/bigmem//' -e 's/enterprise//')
++%define ktype	%(echo kernel-%{kernel} | sed -e 's/%{kver}//' -e 's/-$//')
++%define krel	%(echo %{kver} | sed -e 's/-/_/g')
++%define kminor	%(echo %{kernel} | sed -e 's/.*\\([0-9][0-9]*\\)-.*/\\1/')
++
++
++##
++## Main Package
++##
++
++## Information
++Summary: iSCSI Enterprise Target 
++Name: iscsitarget
++Version: 0.4.17
++Release: %{?revision: %{revision}}
++License: GPL
++Group: System Environment/Daemons
++URL: <A HREF="http://sourceforge.net/projects/iscsitarget/">http://sourceforge.net/projects/iscsitarget/</A>
++Packager: Iscsitarget Developer [<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">iscsitarget-devel at lists.sourceforge.net</A>]
++
++## Source files
++Source0: %{name}-%{version}.tar.gz
++
++## Patches
++
++## Install Requirements
++Requires: kmod-%{name} = %{version}
++
++## Build Requirements
++BuildRequires: kernel &gt;= 2.6
++BuildRequires: %{ktype}-devel = %{kver}, gcc, /usr/bin/install, openssl-devel
++
++## Build Definitions
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++## Description
++%description
++iSCSI Enterprise Target
++
++
++##
++## Kernel Module
++##
++%package -n kmod-%{name}
++
++## Information
++Summary: iSCSI Enterprise Target kernel module
++Group: System Environment/Kernel
++Release: %{release}_%{krel}
++
++## Install Requirements
++Requires: %{ktype} = %{kver}
++
++## Install Provides
++Provides: kmod-%{name}
++
++## Description
++%description -n kmod-%{name}
++iSCSI Enterprise Target kernel module
++
++
++##
++## Package Creation
++##
++
++## Preparation
++%prep
++
++
++## Setup
++%setup -q -n %{name}-%{version}
++
++
++## Build
++%build
++%{__make} KERNELSRC=/lib/modules/%{kernel}/build
++
++
++## Installation
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install KERNELSRC=/lib/modules/%{kernel}/build DISTDIR=%{buildroot}
++mkdir -p %{buildroot}/etc/rc.d
++mv %{buildroot}/etc/init.d %{buildroot}/etc/rc.d
++rm -rf %{buildroot}/usr/share/doc/iscsitarget
++rm -f %{buildroot}/lib/modules/%{kernel}/modules.*
++
++
++## Cleaning
++%clean
++%{__rm} -rf %{buildroot}
++
++
++## Post-Install Script
++%post
++/sbin/chkconfig --add iscsi-target
++
++
++## Pre-Uninstall Script
++%preun
++if [ &quot;$1&quot; = 0 ]; then
++    /sbin/service iscsi-target stop &amp;&gt;/dev/null
++    /sbin/chkconfig --del iscsi-target
++fi
++
++
++## Post-Uninstall Script
++%postun
++if [ &quot;$1&quot; != 0 ]; then
++    /sbin/service iscsi-target condrestart 2&gt;&amp;1 &gt; /dev/null
++fi
++
++
++## Post-Install Script (Kernel Module)
++%post -n kmod-%{name}
++/sbin/depmod %{kernel} -A
++
++
++## Pre-Uninstall Script (Kernel Module)
++%preun -n kmod-%{name}
++modprobe -r -q --set-version %{kernel} iscsi_trgt
++/sbin/depmod %{kernel} -A
++
++
++## File Catalog
++%files
++%defattr(-, root, root)
++%{_sbindir}/*
++%{_mandir}/man?/*
++%{_sysconfdir}/rc.d/init.d/*
++%config(noreplace) %{_sysconfdir}/ietd.conf
++%config(noreplace) %{_sysconfdir}/initiators.allow
++%config(noreplace) %{_sysconfdir}/initiators.deny
++%doc ChangeLog COPYING README README.vmware
++
++
++## File Catalog (Kernel Module)
++%files -n kmod-%{name}
++%defattr(-, root, root)
++/lib/modules/%{kernel}/kernel/iscsi/iscsi_trgt.ko
++
++
++%changelog
++* Mon Nov 10 2008 Ross Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rswwalker at gmail.com</A>&gt; - 0.4.17-177
++- Changed kernel-module naming to kmod
++- Updated versioning
++
++* Fri Feb 16 2007 Ross Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rswwalker at gmail.com</A>&gt; - 0.4.14-96
++- Reworked spec file for latest release
++- Commented and cleaned up sections
++- Added additional documents to %files
++
++* Mon Nov 21 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.13-0.1266.1
++- upstream snapshot 1266
++- added condrestart patch
++- stop and start service on update or removal
++
++* Sun Nov 13 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.13-0.1264.2
++- run %post and %preun for kernel package, not main package
++
++* Sun Nov 13 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.13-0.1264.1
++- updated to snapshot 1264
++
++* Thu Nov 03 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.12-6
++- added openssl-devel build requirement
++- removed '.ko' extension in modprobe command
++
++* Wed Nov 02 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.12-5
++- fixed kernel-devel BuildRequires
++
++* Fri Sep 23 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.12-4
++- fixed modprobe -r 'FATAL' message
++- run depmod with correct kernel version
++
++* Fri Sep 23 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.12-3
++- added config files
++- set kernel module file permissions to 744
++- fixed provides/requires of kernel module
++- removed BuildArch restriction
++
++* Thu Sep 22 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt; - 0.4.12-2
++- create separate subpackage for kernel module
++- include man pages
++- added kernel compatibility patch for kernels &lt; 2.6.11
++
++* Wed Aug 03 2005 Bastiaan Bakker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bastiaan.bakker at lifeline.nl</A>&gt;
++- First version.
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000127.html">[Iscsitarget-svn] r215 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000129.html">[Iscsitarget-svn] r217 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#128">[ date ]</a>
+              <a href="thread.html#128">[ thread ]</a>
+              <a href="subject.html#128">[ subject ]</a>
+              <a href="author.html#128">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

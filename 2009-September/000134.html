@@ -1,0 +1,735 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r222 - in trunk: kernel patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r222%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200909041527.n84FRnrn022978%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000133.html">
+   <LINK REL="Next"  HREF="000135.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r222 - in trunk: kernel patches</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r222%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200909041527.n84FRnrn022978%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r222 - in trunk: kernel patches">agr at mail.berlios.de
+       </A><BR>
+    <I>Fri Sep  4 17:27:49 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000133.html">[Iscsitarget-svn] r221 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000135.html">[Iscsitarget-svn] r223 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#134">[ date ]</a>
+              <a href="thread.html#134">[ thread ]</a>
+              <a href="subject.html#134">[ subject ]</a>
+              <a href="author.html#134">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-04 17:27:48 +0200 (Fri, 04 Sep 2009)
+New Revision: 222
+
+Added:
+   trunk/kernel/ua.c
+Modified:
+   trunk/kernel/Makefile
+   trunk/kernel/config.c
+   trunk/kernel/conn.c
+   trunk/kernel/iscsi.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/iscsi_dbg.h
+   trunk/kernel/session.c
+   trunk/kernel/target.c
+   trunk/kernel/target_disk.c
+   trunk/patches/compat-2.6.19-2.6.21.patch
+   trunk/patches/compat-2.6.22.patch
+Log:
+Unit Attention support
+
+UA infrastructure + generation of &quot;power-on, reset or bus-device reset occurred&quot;
+UA on session startup / device reset.
+
+Based on the UA patch from Xie Gang &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">xiegang112 at gmail.com</A>&gt;
+
+Additional fixes:
+* fix size of iscsi_cmnd-&gt;sense_buffer (introduced with r220),
+* whitespace cleanups
+
+
+Modified: trunk/kernel/Makefile
+===================================================================
+--- trunk/kernel/Makefile	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/Makefile	2009-09-04 15:27:48 UTC (rev 222)
+@@ -13,5 +13,5 @@
+ iscsi_trgt-objs	:= tio.o iscsi.o nthread.o wthread.o config.o digest.o \
+ 			conn.o session.o target.o volume.o iotype.o \
+ 			file-io.o null-io.o target_disk.o event.o param.o \
+-			block-io.o
++			block-io.o ua.o
+ 
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/config.c	2009-09-04 15:27:48 UTC (rev 222)
+@@ -43,6 +43,8 @@
+ 	if (!(proc_iet_dir = proc_mkdir(&quot;iet&quot;, init_net.proc_net)))
+ 		goto err;
+ 
++	proc_iet_dir-&gt;owner = THIS_MODULE;
++
+ 	for (i = 0; i &lt; ARRAY_SIZE(iet_proc_entries); i++) {
+ 		ent = create_proc_entry(iet_proc_entries[i].name, 0, proc_iet_dir);
+ 		if (ent)
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/conn.c	2009-09-04 15:27:48 UTC (rev 222)
+@@ -46,8 +46,9 @@
+ 				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;daddr));
+ 			break;
+ 		case AF_INET6:
+-			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
+-				 &amp;inet6_sk(sk)-&gt;daddr);
++			snprintf(buf, sizeof(buf),
++				 &quot;[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]&quot;,
++				 NIP6(inet6_sk(sk)-&gt;daddr));
+ 			break;
+ 		default:
+ 			break;
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/iscsi.c	2009-09-04 15:27:48 UTC (rev 222)
+@@ -139,7 +139,7 @@
+ /**
+  * create a new command.
+  *
+- * iscsi_cmnd_create - 
++ * iscsi_cmnd_create -
+  * @conn: ptr to connection (for i/o)
+  *
+  * @return    ptr to command or NULL
+@@ -173,7 +173,7 @@
+ /**
+  * create a new command used as response.
+  *
+- * iscsi_cmnd_create_rsp_cmnd - 
++ * iscsi_cmnd_create_rsp_cmnd -
+  * @cmnd: ptr to request command
+  *
+  * @return    ptr to response command or NULL
+@@ -396,7 +396,7 @@
+  * Free a command.
+  * Also frees the additional header.
+  *
+- * iscsi_cmnd_remove - 
++ * iscsi_cmnd_remove -
+  * @cmnd: ptr to command
+  */
+ 
+@@ -1154,7 +1154,7 @@
+ 	struct iscsi_session *session;
+ 	struct iscsi_conn *conn;
+ 	struct iscsi_cmnd *cmnd, *tmp;
+-	struct iet_volume *volumes;
++	struct iet_volume *volume;
+ 
+ 	list_for_each_entry(session, &amp;target-&gt;session_list, list) {
+ 		list_for_each_entry(conn, &amp;session-&gt;conn_list, list) {
+@@ -1170,10 +1170,15 @@
+ 		}
+ 	}
+ 
+-	list_for_each_entry(volumes, &amp;target-&gt;volumes, list)
+-		if (all || volumes-&gt;lun == lun)
++	list_for_each_entry(volume, &amp;target-&gt;volumes, list) {
++		if (all || volume-&gt;lun == lun) {
+ 			/* force release */
+-			volume_release(volumes, 0, 1);
++			volume_release(volume, 0, 1);
++			/* power-on, reset, or bus device reset occurred */
++			ua_establish_for_all_sessions(target, volume-&gt;lun,
++						      0x29, 0x0);
++		}
++	}
+ 
+ 	return 0;
+ }
+@@ -1206,7 +1211,7 @@
+ 		&quot;Task Reassign&quot;,
+         };
+ 
+-	if ((fun &lt; ISCSI_FUNCTION_ABORT_TASK) || 
++	if ((fun &lt; ISCSI_FUNCTION_ABORT_TASK) ||
+ 				(fun &gt; ISCSI_FUNCTION_TASK_REASSIGN))
+ 		fun = 0;
+ 
+@@ -1570,7 +1575,7 @@
+  * This functions reorders the commands.
+  * Called from the read thread.
+  *
+- * iscsi_session_push_cmnd - 
++ * iscsi_session_push_cmnd -
+  * @cmnd: ptr to command
+  */
+ 
+@@ -1739,6 +1744,8 @@
+ 
+ 	iotype_exit();
+ 
++	ua_exit();
++
+ 	if (iscsi_cmnd_cache)
+ 		kmem_cache_destroy(iscsi_cmnd_cache);
+ }
+@@ -1764,6 +1771,10 @@
+ 	if (!iscsi_cmnd_cache)
+ 		goto err;
+ 
++	err = ua_init();
++	if (err &lt; 0)
++		goto err;
++
+ 	if ((err = tio_init()) &lt; 0)
+ 		goto err;
+ 
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/iscsi.h	2009-09-04 15:27:48 UTC (rev 222)
+@@ -17,7 +17,7 @@
+ #include &quot;iscsi_hdr.h&quot;
+ #include &quot;iet_u.h&quot;
+ 
+-#define IET_SENSE_BUF_SIZE      14
++#define IET_SENSE_BUF_SIZE      18
+ 
+ struct iscsi_sess_param {
+ 	int initial_r2t;
+@@ -115,6 +115,9 @@
+ 	struct list_head volumes;
+ 	struct list_head session_list;
+ 
++	/* Prevents races between add/del session and adding UAs */
++	spinlock_t session_list_lock;
++
+ 	struct network_thread_info nthread_info;
+ 	/* Points either to own list or global pool */
+ 	struct worker_thread_info * wthread_info;
+@@ -175,6 +178,8 @@
+ #define IET_HASH_ORDER		8
+ #define	cmnd_hashfn(itt)	hash_long((itt), IET_HASH_ORDER)
+ 
++#define UA_HASH_LEN 8
++
+ struct iscsi_session {
+ 	struct list_head list;
+ 	struct iscsi_target *target;
+@@ -195,6 +200,9 @@
+ 	spinlock_t cmnd_hash_lock;
+ 	struct list_head cmnd_hash[1 &lt;&lt; IET_HASH_ORDER];
+ 
++	spinlock_t ua_hash_lock;
++	struct list_head ua_hash[UA_HASH_LEN];
++
+ 	u32 next_ttt;
+ };
+ 
+@@ -288,6 +296,14 @@
+ 	unsigned char sense_buf[IET_SENSE_BUF_SIZE];
+ };
+ 
++struct ua_entry {
++	struct list_head entry;
++	struct iscsi_session *session; /* only used for debugging ATM */
++	u32 lun;
++	u8 asc;
++	u8 ascq;
++};
++
+ #define ISCSI_OP_SCSI_REJECT	ISCSI_OP_VENDOR1_CMD
+ #define ISCSI_OP_PDU_REJECT	ISCSI_OP_VENDOR2_CMD
+ #define ISCSI_OP_DATA_REJECT	ISCSI_OP_VENDOR3_CMD
+@@ -388,6 +404,21 @@
+ extern int event_init(void);
+ extern void event_exit(void);
+ 
++/* ua.c */
++int ua_init(void);
++void ua_exit(void);
++struct ua_entry * ua_get_first(struct iscsi_session *, u32 lun);
++struct ua_entry * ua_get_match(struct iscsi_session *, u32 lun, u8 asc,
++			       u8 ascq);
++void ua_free(struct ua_entry *);
++int ua_pending(struct iscsi_session *, u32 lun);
++void ua_establish_for_session(struct iscsi_session *, u32 lun, u8 asc,
++			     u8 ascq);
++void ua_establish_for_other_sessions(struct iscsi_session *, u32 lun, u8 asc,
++				     u8 ascq);
++void ua_establish_for_all_sessions(struct iscsi_target *, u32 lun, u8 asc,
++				   u8 ascq);
++
+ #define get_pgcnt(size, offset)	((((size) + ((offset) &amp; ~PAGE_CACHE_MASK)) + PAGE_CACHE_SIZE - 1) &gt;&gt; PAGE_CACHE_SHIFT)
+ 
+ static inline void iscsi_cmnd_get_length(struct iscsi_pdu *pdu)
+
+Modified: trunk/kernel/iscsi_dbg.h
+===================================================================
+--- trunk/kernel/iscsi_dbg.h	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/iscsi_dbg.h	2009-09-04 15:27:48 UTC (rev 222)
+@@ -10,6 +10,7 @@
+ #define D_THREAD	(1UL &lt;&lt; 6)
+ #define D_TASK_MGT	(1UL &lt;&lt; 7)
+ #define D_IOMODE	(1UL &lt;&lt; 8)
++#define D_UAC           (1UL &lt;&lt; 9)
+ 
+ #define D_DATA		(D_READ | D_WRITE)
+ 
+@@ -24,6 +25,12 @@
+ 	}							\
+ } while (0)
+ 
++#define dprintk_ua(ua, sess, lun)					\
++	dprintk(D_UAC, &quot;sess %llu, lun %u: %p %x %x\n&quot;,			\
++		(sess)-&gt;sid, lun, ua,					\
++		(ua) ? (ua)-&gt;asc : 0,					\
++		(ua) ? (ua)-&gt;ascq : 0)
++
+ #define eprintk(fmt, args...) do {				\
+ 	printk(KERN_ERR PFX &quot;%s(%d) &quot; fmt, __FUNCTION__,	\
+ 						__LINE__, args);\
+
+Modified: trunk/kernel/session.c
+===================================================================
+--- trunk/kernel/session.c	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/session.c	2009-09-04 15:27:48 UTC (rev 222)
+@@ -23,6 +23,7 @@
+ {
+ 	int i;
+ 	struct iscsi_session *session;
++	struct iet_volume *vol;
+ 
+ 	dprintk(D_SETUP, &quot;%p %u %#Lx\n&quot;, target, target-&gt;tid,
+ 		(unsigned long long) info-&gt;sid);
+@@ -52,9 +53,19 @@
+ 	for (i = 0; i &lt; ARRAY_SIZE(session-&gt;cmnd_hash); i++)
+ 		INIT_LIST_HEAD(&amp;session-&gt;cmnd_hash[i]);
+ 
++	spin_lock_init(&amp;session-&gt;ua_hash_lock);
++	for (i = 0; i &lt; ARRAY_SIZE(session-&gt;ua_hash); i++)
++		INIT_LIST_HEAD(&amp;session-&gt;ua_hash[i]);
++
++	list_for_each_entry(vol, &amp;target-&gt;volumes, list)
++		/* power-on, reset, or bus device reset occurred */
++		ua_establish_for_session(session, vol-&gt;lun, 0x29, 0x0);
++
+ 	session-&gt;next_ttt = 1;
+ 
++	spin_lock(&amp;target-&gt;session_list_lock);
+ 	list_add(&amp;session-&gt;list, &amp;target-&gt;session_list);
++	spin_unlock(&amp;target-&gt;session_list_lock);
+ 
+ 	return session;
+ }
+@@ -62,9 +73,14 @@
+ static int session_free(struct iscsi_session *session)
+ {
+ 	int i;
++	struct ua_entry *ua, *tmp;
++	struct list_head *l;
++	struct iscsi_target *target = session-&gt;target;
+ 
+ 	dprintk(D_SETUP, &quot;%#Lx\n&quot;, (unsigned long long) session-&gt;sid);
+ 
++	spin_lock(&amp;target-&gt;session_list_lock);
++
+ 	assert(list_empty(&amp;session-&gt;conn_list));
+ 
+ 	for (i = 0; i &lt; ARRAY_SIZE(session-&gt;cmnd_hash); i++) {
+@@ -72,11 +88,21 @@
+ 			BUG();
+ 	}
+ 
++	for (i = 0; i &lt; ARRAY_SIZE(session-&gt;ua_hash); i++) {
++		l = &amp;session-&gt;ua_hash[i];
++		list_for_each_entry_safe(ua, tmp, l, entry) {
++			list_del_init(&amp;ua-&gt;entry);
++			ua_free(ua);
++		}
++	}
++
+ 	list_del(&amp;session-&gt;list);
+ 
+ 	kfree(session-&gt;initiator);
+ 	kfree(session);
+ 
++	spin_unlock(&amp;target-&gt;session_list_lock);
++
+ 	return 0;
+ }
+ 
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/target.c	2009-09-04 15:27:48 UTC (rev 222)
+@@ -158,6 +158,7 @@
+ 	strncpy(target-&gt;name, name, sizeof(target-&gt;name) - 1);
+ 
+ 	init_MUTEX(&amp;target-&gt;target_sem);
++	spin_lock_init(&amp;target-&gt;session_list_lock);
+ 
+ 	INIT_LIST_HEAD(&amp;target-&gt;session_list);
+ 	INIT_LIST_HEAD(&amp;target-&gt;volumes);
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/target_disk.c	2009-09-04 15:27:48 UTC (rev 222)
+@@ -442,12 +442,39 @@
+ 	cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
+ }
+ 
+-static int disk_execute_cmnd(struct iscsi_cmnd *cmnd)
++static int disk_check_ua(struct iscsi_cmnd *cmnd)
+ {
+ 	struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
++	struct ua_entry *ua;
+ 
+-	req-&gt;opcode &amp;= ISCSI_OPCODE_MASK;
++	if (cmnd-&gt;lun &amp;&amp; ua_pending(cmnd-&gt;conn-&gt;session, cmnd-&gt;lun-&gt;lun)) {
++		switch(req-&gt;scb[0]){
++		case INQUIRY:
++		case REQUEST_SENSE:
++			break;
++		case REPORT_LUNS:
++			ua = ua_get_match(cmnd-&gt;conn-&gt;session,
++					  cmnd-&gt;lun-&gt;lun,
++					  /* reported luns data has changed */
++					  0x3f, 0x0e);
++			ua_free(ua);
++			break;
++		default:
++			ua = ua_get_first(cmnd-&gt;conn-&gt;session, cmnd-&gt;lun-&gt;lun);
++			iscsi_cmnd_set_sense(cmnd, UNIT_ATTENTION, ua-&gt;asc,
++					     ua-&gt;ascq);
++			ua_free(ua);
++			send_scsi_rsp(cmnd, build_generic_response);
++			return 1;
++		}
++	}
++	return 0;
++}
+ 
++static int disk_check_reservation(struct iscsi_cmnd *cmnd)
++{
++	struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
++
+ 	if (is_volume_reserved(cmnd-&gt;lun,
+ 			       cmnd-&gt;conn-&gt;session-&gt;sid)) {
+ 		switch (req-&gt;scb[0]) {
+@@ -461,10 +488,25 @@
+ 			/* return reservation conflict for all others */
+ 			send_scsi_rsp(cmnd,
+ 				      build_reservation_conflict_response);
+-			return 0;
++			return 1;
+ 		}
+ 	}
+ 
++	return 0;
++}
++
++static int disk_execute_cmnd(struct iscsi_cmnd *cmnd)
++{
++	struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
++
++	req-&gt;opcode &amp;= ISCSI_OPCODE_MASK;
++
++	if (disk_check_ua(cmnd))
++		return 0;
++
++	if (disk_check_reservation(cmnd))
++		return 0;
++
+ 	switch (req-&gt;scb[0]) {
+ 	case INQUIRY:
+ 		send_data_rsp(cmnd, build_inquiry_response);
+
+Added: trunk/kernel/ua.c
+===================================================================
+--- trunk/kernel/ua.c	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/kernel/ua.c	2009-09-04 15:27:48 UTC (rev 222)
+@@ -0,0 +1,165 @@
++/*
++ * IET Unit Attention support
++ *
++ * Copyright (C) 2009 Xie Gang &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">xiegang112 at gmail.com</A>&gt;
++ * Copyright (C) 2009 Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
++ *
++ * Released under the terms of the GNU GPL v2.0.
++ */
++
++#include &lt;scsi/scsi.h&gt;
++
++#include &quot;iscsi.h&quot;
++#include &quot;iscsi_dbg.h&quot;
++
++#define ua_hashfn(lun) ((lun % UA_HASH_LEN))
++
++static struct kmem_cache *ua_cache;
++
++int ua_init(void)
++{
++	ua_cache = KMEM_CACHE(ua_entry, 0);
++	if (!ua_cache) {
++		eprintk(&quot;%s&quot;, &quot;Failed to create ua cache\n&quot;);
++		return -ENOMEM;
++	}
++
++	return 0;
++}
++
++void ua_exit(void)
++{
++	if (ua_cache)
++		kmem_cache_destroy(ua_cache);
++}
++
++/* sess-&gt;ua_hash_lock needs to be held */
++static struct ua_entry * ua_find_hash(struct iscsi_session *sess, u32 lun,
++				      u8 asc, u8 ascq, int match)
++{
++	struct ua_entry *ua;
++	struct list_head *h = &amp;sess-&gt;ua_hash[ua_hashfn(lun)];
++
++	list_for_each_entry(ua, h, entry) {
++		if (ua-&gt;lun == lun) {
++			if (!match)
++				return ua;
++			if (ua-&gt;asc == asc &amp;&amp; ua-&gt;ascq == ascq)
++				return ua;
++		}
++	}
++
++	return NULL;
++}
++
++int ua_pending(struct iscsi_session *sess, u32 lun)
++{
++	struct ua_entry *ua;
++
++	spin_lock(&amp;sess-&gt;ua_hash_lock);
++	ua = ua_find_hash(sess, lun, 0, 0, false);
++	spin_unlock(&amp;sess-&gt;ua_hash_lock);
++
++	dprintk_ua(ua, sess, lun);
++
++	return ua ? 1 : 0;
++}
++
++/* sess-&gt;ua_hash_lock needs to be held */
++static struct ua_entry * __ua_get_hash(struct iscsi_session *sess, u32 lun,
++				       u8 asc, u8 ascq, int match)
++{
++	struct ua_entry *ua;
++
++	ua = ua_find_hash(sess, lun, asc, ascq, match);
++	if (ua)
++		list_del_init(&amp;ua-&gt;entry);
++
++	return ua;
++}
++
++struct ua_entry * ua_get_first(struct iscsi_session *sess, u32 lun)
++{
++	struct ua_entry *ua;
++
++	spin_lock(&amp;sess-&gt;ua_hash_lock);
++	ua = __ua_get_hash(sess, lun, 0, 0, false);
++	spin_unlock(&amp;sess-&gt;ua_hash_lock);
++
++	dprintk_ua(ua, sess, lun);
++
++	return ua;
++}
++
++struct ua_entry * ua_get_match(struct iscsi_session *sess, u32 lun,
++			       u8 asc, u8 ascq)
++{
++	struct ua_entry *ua;
++
++	spin_lock(&amp;sess-&gt;ua_hash_lock);
++	ua = __ua_get_hash(sess, lun, asc, ascq, true);
++	spin_unlock(&amp;sess-&gt;ua_hash_lock);
++
++	dprintk_ua(ua, sess, lun);
++
++	return ua;
++}
++
++void ua_establish_for_session(struct iscsi_session *sess, u32 lun,
++			      u8 asc, u8 ascq)
++{
++	struct list_head *l = &amp;sess-&gt;ua_hash[ua_hashfn(lun)];
++	struct ua_entry *ua = kmem_cache_alloc(ua_cache, GFP_KERNEL);
++
++	if (!ua) {
++		eprintk(&quot;%s&quot;, &quot;Failed to alloc ua&quot;);
++		return;
++	}
++
++	ua-&gt;asc = asc;
++	ua-&gt;ascq = ascq;
++	ua-&gt;lun = lun;
++	ua-&gt;session = sess;
++
++	spin_lock(&amp;sess-&gt;ua_hash_lock);
++	list_add_tail(&amp;ua-&gt;entry, l);
++	spin_unlock(&amp;sess-&gt;ua_hash_lock);
++
++	dprintk_ua(ua, sess, lun);
++}
++
++void ua_establish_for_other_sessions(struct iscsi_session *sess, u32 lun,
++				     u8 asc, u8 ascq)
++{
++	struct list_head *l = &amp;sess-&gt;target-&gt;session_list;
++	struct iscsi_session *s;
++
++	spin_lock(&amp;sess-&gt;target-&gt;session_list_lock);
++	list_for_each_entry(s, l, list)
++		if (s-&gt;sid != sess-&gt;sid)
++			ua_establish_for_session(s, lun, asc, ascq);
++	spin_unlock(&amp;sess-&gt;target-&gt;session_list_lock);
++}
++
++void ua_establish_for_all_sessions(struct iscsi_target *target, u32 lun,
++				   u8 asc, u8 ascq)
++{
++	struct list_head *l = &amp;target-&gt;session_list;
++	struct iscsi_session *s;
++
++	spin_lock(&amp;target-&gt;session_list_lock);
++	list_for_each_entry(s, l, list)
++		ua_establish_for_session(s, lun, asc, ascq);
++	spin_unlock(&amp;target-&gt;session_list_lock);
++
++}
++
++void ua_free(struct ua_entry *ua)
++{
++	if (!ua)
++		return;
++
++	dprintk_ua(ua, ua-&gt;session, ua-&gt;lun);
++	BUG_ON(!list_empty(&amp;ua-&gt;entry));
++	kmem_cache_free(ua_cache, ua);
++}
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2009-09-04 15:27:48 UTC (rev 222)
+@@ -3,7 +3,7 @@
+ --- 1/kernel/event.c	(working copy)
+ +++ 2/kernel/event.c	(revision 122)
+ @@ -95,8 +95,7 @@ int event_send(u32 tid, u64 sid, u32 cid
+- 
++
+  int event_init(void)
+  {
+ -	nl = netlink_kernel_create(NETLINK_IET, 1, event_recv, NULL,
+@@ -19,19 +19,19 @@
+ @@ -1762,7 +1762,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+- 
++
+ -	iscsi_cmnd_cache = KMEM_CACHE(iscsi_cmnd, 0);
+ +	iscsi_cmnd_cache = kmem_cache_create(&quot;iscsi_cmnd&quot;, sizeof(struct iscsi_cmnd),
+ +					     0, 0, NULL, NULL);
+  	if (!iscsi_cmnd_cache)
+  		goto err;
+- 
++
+ Index: kernel/tio.c
+ ===================================================================
+ --- 1/kernel/tio.c	(working copy)
+ +++ 2/kernel/tio.c	(revision 137)
+-@@ -110,7 +110,8 @@ int tio_sync(struct iet_volume *lu, stru
+- 
++@@ -110,6 +110,7 @@ int tio_sync(struct iet_volume *lu, stru
++
+  int tio_init(void)
+  {
+ -	tio_cache = KMEM_CACHE(tio, 0);
+@@ -39,3 +39,15 @@
+ +				      0, 0, NULL, NULL);
+  	return  tio_cache ? 0 : -ENOMEM;
+  }
++--- a/kernel/ua.c
+++++ b/kernel/ua.c
++@@ -18,7 +18,8 @@ static struct kmem_cache *ua_cache;
++
++ int ua_init(void)
++ {
++-	ua_cache = KMEM_CACHE(ua_entry, 0);
+++	ua_cache = kmem_cache_create(&quot;iet_ua_cache&quot;, sizeof(struct ua_entry),
+++				     0, 0, NULL, NULL);
++ 	if (!ua_cache) {
++ 		eprintk(&quot;%s&quot;, &quot;Failed to create ua cache\n&quot;);
++ 		return -ENOMEM;
+
+Modified: trunk/patches/compat-2.6.22.patch
+===================================================================
+--- trunk/patches/compat-2.6.22.patch	2009-09-04 14:46:49 UTC (rev 221)
++++ trunk/patches/compat-2.6.22.patch	2009-09-04 15:27:48 UTC (rev 222)
+@@ -90,6 +90,6 @@
+  iscsi_trgt-objs	:= tio.o iscsi.o nthread.o wthread.o config.o digest.o \
+  			conn.o session.o target.o volume.o iotype.o \
+  			file-io.o null-io.o target_disk.o event.o param.o \
+--			block-io.o
+-+			block-io.o seq_list.o
++-			block-io.o ua.o
+++			block-io.o ua.o seq_list.o
+  
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000133.html">[Iscsitarget-svn] r221 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000135.html">[Iscsitarget-svn] r223 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#134">[ date ]</a>
+              <a href="thread.html#134">[ thread ]</a>
+              <a href="subject.html#134">[ subject ]</a>
+              <a href="author.html#134">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

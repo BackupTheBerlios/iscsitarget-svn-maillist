@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r109 - trunk/patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r109%20-%20trunk/patches&In-Reply-To=%3C200703220308.l2M384X5014300%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000020.html">
+   <LINK REL="Next"  HREF="000022.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r109 - trunk/patches</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r109%20-%20trunk/patches&In-Reply-To=%3C200703220308.l2M384X5014300%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r109 - trunk/patches">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Mar 22 04:08:04 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000020.html">[Iscsitarget-svn] r108 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000022.html">[Iscsitarget-svn] r110 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21">[ date ]</a>
+              <a href="thread.html#21">[ thread ]</a>
+              <a href="subject.html#21">[ subject ]</a>
+              <a href="author.html#21">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-03-22 04:08:04 +0100 (Thu, 22 Mar 2007)
+New Revision: 109
+
+Modified:
+   trunk/patches/compat-2.6.14-2.6.18.patch
+Log:
+Subject: Patch to compat-2.6.14-2.6.18.patch for rev105 updates
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rwalker at medallion.com</A>&gt;
+Date: Wed, 21 Mar 2007 13:07:03 -0400
+
+This is the same patch Arne posted a couple of weeks ago that fixes the breakage
+in compat-2.6.14-2.6.18.patch due to rev105 source code changes.
+
+It has been thoroughly tested by both Arne and myself.
+
+If it has already been applied then please disregard, but an svn update today
+shows it has not.
+
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2007-03-22 03:06:07 UTC (rev 108)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2007-03-22 03:08:04 UTC (rev 109)
+@@ -1,8 +1,8 @@
+ Index: kernel/iscsi.h
+ ===================================================================
+---- kernel/iscsi.h	(working copy)
+-+++ kernel/iscsi.h	(revision 88)
+-@@ -237,8 +237,8 @@ struct iscsi_conn {
++--- kernel/iscsi.h	(revision 105)
+++++ kernel/iscsi.h	(working copy)
++@@ -238,8 +238,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+  
+@@ -10,21 +10,13 @@
+ -	struct hash_desc tx_hash;
+ +	struct crypto_tfm *rx_digest_tfm;
+ +	struct crypto_tfm *tx_digest_tfm;
++ 	struct scatterlist hash_sg[ISCSI_CONN_IOV_MAX];
+  };
+  
+- struct iscsi_pdu {
+ Index: kernel/digest.c
+ ===================================================================
+---- kernel/digest.c	(working copy)
+-+++ kernel/digest.c	(revision 88)
+-@@ -1,6 +1,6 @@
+- /*
+-  * iSCSI digest handling.
+-- * (C) 2004 - 2006 Xiranet Communications GmbH &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at xiranet.com</A>&gt;
+-+ * (C) 2004 Xiranet Communications GmbH &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at xiranet.com</A>&gt;
+-  * This code is licensed under the GPL.
+-  */
+- 
++--- kernel/digest.c	(revision 105)
+++++ kernel/digest.c	(working copy)
+ @@ -13,8 +13,7 @@
+  
+  void digest_alg_available(unsigned int *val)
+@@ -129,7 +121,7 @@
+ +static void digest_data(struct crypto_tfm *tfm, struct iscsi_cmnd *cmnd,
+  			struct tio *tio, u32 offset, u8 *crc)
+  {
+- 	struct scatterlist sg[ISCSI_CONN_IOV_MAX];
++ 	struct scatterlist *sg = cmnd-&gt;conn-&gt;hash_sg;
+  	u32 size, length;
+  	int i, idx, count;
+ -	unsigned int nbytes;
+@@ -183,8 +175,8 @@
+  }
+ Index: kernel/file-io.c
+ ===================================================================
+---- kernel/file-io.c	(working copy)
+-+++ kernel/file-io.c	(revision 88)
++--- kernel/file-io.c	(revision 105)
+++++ kernel/file-io.c	(working copy)
+ @@ -52,9 +52,9 @@ static int fileio_make_request(struct ie
+  		set_fs(get_ds());
+  
+@@ -199,8 +191,8 @@
+  
+ Index: kernel/iscsi.c
+ ===================================================================
+---- kernel/iscsi.c	(working copy)
+-+++ kernel/iscsi.c	(revision 88)
++--- kernel/iscsi.c	(revision 105)
+++++ kernel/iscsi.c	(working copy)
+ @@ -15,7 +15,7 @@
+  
+  unsigned long debug_enable_flags;
+@@ -212,8 +204,8 @@
+  static int ctr_major;
+ Index: kernel/tio.c
+ ===================================================================
+---- kernel/tio.c	(working copy)
+-+++ kernel/tio.c	(revision 88)
++--- kernel/tio.c	(revision 105)
+++++ kernel/tio.c	(working copy)
+ @@ -35,7 +35,7 @@ static int tio_add_pages(struct tio *tio
+  	return 0;
+  }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000020.html">[Iscsitarget-svn] r108 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000022.html">[Iscsitarget-svn] r110 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21">[ date ]</a>
+              <a href="thread.html#21">[ thread ]</a>
+              <a href="subject.html#21">[ subject ]</a>
+              <a href="author.html#21">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,85 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r174 - trunk/patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r174%20-%20trunk/patches&In-Reply-To=%3C200809281137.m8SBbbLL000681%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000085.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r174 - trunk/patches</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r174%20-%20trunk/patches&In-Reply-To=%3C200809281137.m8SBbbLL000681%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r174 - trunk/patches">agr at mail.berlios.de
+       </A><BR>
+    <I>Sun Sep 28 13:37:37 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000085.html">[Iscsitarget-svn] r173 - trunk/kernel
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#86">[ date ]</a>
+              <a href="thread.html#86">[ thread ]</a>
+              <a href="subject.html#86">[ subject ]</a>
+              <a href="author.html#86">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-09-28 13:37:37 +0200 (Sun, 28 Sep 2008)
+New Revision: 174
+
+Modified:
+   trunk/patches/compat-2.6.14-2.6.18.patch
+Log:
+Fix compat-2.6.14-2.6.18.patch (fallout of rev. 173).
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2008-09-28 11:03:44 UTC (rev 173)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2008-09-28 11:37:37 UTC (rev 174)
+@@ -199,7 +199,7 @@
+  
+ -static struct kmem_cache *iscsi_cmnd_cache;
+ +static kmem_cache_t *iscsi_cmnd_cache;
+- static char dummy_data[1024];
++ static u8 dummy_data[PAGE_SIZE];
+  
+  static int ctr_major;
+ Index: kernel/tio.c
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000085.html">[Iscsitarget-svn] r173 - trunk/kernel
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#86">[ date ]</a>
+              <a href="thread.html#86">[ thread ]</a>
+              <a href="subject.html#86">[ subject ]</a>
+              <a href="author.html#86">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

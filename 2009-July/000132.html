@@ -1,0 +1,519 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r220 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r220%20-%20trunk/kernel&In-Reply-To=%3C200907291755.n6THtQUE009902%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000131.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r220 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r220%20-%20trunk/kernel&In-Reply-To=%3C200907291755.n6THtQUE009902%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r220 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul 29 19:55:26 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000131.html">[Iscsitarget-svn] r219 - trunk/usr
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#132">[ date ]</a>
+              <a href="thread.html#132">[ thread ]</a>
+              <a href="subject.html#132">[ subject ]</a>
+              <a href="author.html#132">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-07-29 19:55:26 +0200 (Wed, 29 Jul 2009)
+New Revision: 220
+
+Modified:
+   trunk/kernel/iscsi.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/target_disk.c
+Log:
+Rework sense data handling, fixing memleaks
+
+Refactor the sense data handling by adding a status field and a sense_buf to
+struct iscsi_cmnd. This allows for a more flexible sense data creation instead
+of solely relying on a &quot;return value &lt;-&gt; sense key / asc / ascq&quot; mapping as
+before.
+
+This also plugs leaks of struct tio: on several occasions a tio wasn't freed
+in error paths. Instead the pointer to it was modified to point to a newly
+created tio carrying sense data, leaking the original tio.
+
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2009-07-29 17:50:43 UTC (rev 219)
++++ trunk/kernel/iscsi.c	2009-07-29 17:55:26 UTC (rev 220)
+@@ -302,6 +302,7 @@
+ 	struct iscsi_cmnd *rsp;
+ 	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
+ 	struct iscsi_scsi_rsp_hdr *rsp_hdr;
++	struct iscsi_sense_data *sense;
+ 
+ 	rsp = iscsi_cmnd_create_rsp_cmnd(req, 1);
+ 
+@@ -309,92 +310,86 @@
+ 	rsp_hdr-&gt;opcode = ISCSI_OP_SCSI_RSP;
+ 	rsp_hdr-&gt;flags = ISCSI_FLG_FINAL;
+ 	rsp_hdr-&gt;response = ISCSI_RESPONSE_COMMAND_COMPLETED;
+-	rsp_hdr-&gt;cmd_status = SAM_STAT_GOOD;
++	rsp_hdr-&gt;cmd_status = req-&gt;status;
+ 	rsp_hdr-&gt;itt = req_hdr-&gt;itt;
+ 
+-	return rsp;
+-}
++	if (req-&gt;status == SAM_STAT_CHECK_CONDITION) {
++		assert(!rsp-&gt;tio);
++		rsp-&gt;tio = tio_alloc(1);
++		sense = (struct iscsi_sense_data *)
++			page_address(rsp-&gt;tio-&gt;pvec[0]);
+ 
+-static struct iscsi_cmnd *create_sense_rsp(struct iscsi_cmnd *req,
+-					   u8 sense_key, u8 asc, u8 ascq)
+-{
+-	struct iscsi_cmnd *rsp;
+-	struct iscsi_scsi_rsp_hdr *rsp_hdr;
+-	struct tio *tio;
+-	struct iscsi_sense_data *sense;
++		assert(sense);
++		clear_page(sense);
++		sense-&gt;length = cpu_to_be16(IET_SENSE_BUF_SIZE);
+ 
+-	rsp = iscsi_cmnd_create_rsp_cmnd(req, 1);
++		memcpy(sense-&gt;data, req-&gt;sense_buf, IET_SENSE_BUF_SIZE);
++		rsp-&gt;pdu.datasize = sizeof(struct iscsi_sense_data) +
++			IET_SENSE_BUF_SIZE;
+ 
+-	rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&amp;rsp-&gt;pdu.bhs;
+-	rsp_hdr-&gt;opcode = ISCSI_OP_SCSI_RSP;
+-	rsp_hdr-&gt;flags = ISCSI_FLG_FINAL;
+-	rsp_hdr-&gt;response = ISCSI_RESPONSE_COMMAND_COMPLETED;
+-	rsp_hdr-&gt;cmd_status = SAM_STAT_CHECK_CONDITION;
+-	rsp_hdr-&gt;itt = cmnd_hdr(req)-&gt;itt;
++		rsp-&gt;tio-&gt;size = (rsp-&gt;pdu.datasize + 3) &amp; -4;
++		rsp-&gt;tio-&gt;offset = 0;
++	}
+ 
+-	tio = rsp-&gt;tio = tio_alloc(1);
+-	sense = (struct iscsi_sense_data *) page_address(tio-&gt;pvec[0]);
+-	assert(sense);
+-	clear_page(sense);
+-	sense-&gt;length = cpu_to_be16(14);
+-	sense-&gt;data[0] = 0xf0;
+-	sense-&gt;data[2] = sense_key;
+-	sense-&gt;data[7] = 6;	// Additional sense length
+-	sense-&gt;data[12] = asc;
+-	sense-&gt;data[13] = ascq;
++	return rsp;
++}
+ 
+-	rsp-&gt;pdu.datasize = sizeof(struct iscsi_sense_data) + 14;
+-	tio-&gt;size = (rsp-&gt;pdu.datasize + 3) &amp; -4;
+-	tio-&gt;offset = 0;
++void iscsi_cmnd_set_sense(struct iscsi_cmnd *cmnd, u8 sense_key, u8 asc,
++			  u8 ascq)
++{
++	cmnd-&gt;status = SAM_STAT_CHECK_CONDITION;
+ 
+-	return rsp;
++	cmnd-&gt;sense_buf[0] = 0xf0;
++	cmnd-&gt;sense_buf[2] = sense_key;
++	cmnd-&gt;sense_buf[7] = 6;	// Additional sense length
++	cmnd-&gt;sense_buf[12] = asc;
++	cmnd-&gt;sense_buf[13] = ascq;
+ }
+ 
+-void send_scsi_rsp(struct iscsi_cmnd *req, int (*func)(struct iscsi_cmnd *))
++static struct iscsi_cmnd *create_sense_rsp(struct iscsi_cmnd *req,
++					   u8 sense_key, u8 asc, u8 ascq)
+ {
++	iscsi_cmnd_set_sense(req, sense_key, asc, ascq);
++	return create_scsi_rsp(req);
++}
++
++void send_scsi_rsp(struct iscsi_cmnd *req, void (*func)(struct iscsi_cmnd *))
++{
+ 	struct iscsi_cmnd *rsp;
+ 	struct iscsi_scsi_rsp_hdr *rsp_hdr;
+ 	u32 size;
+-	int ret = func(req);
+ 
+-	switch (ret) {
+-	case 0:
+-	case -EBUSY:
+-		rsp = create_scsi_rsp(req);
++	func(req);
++	rsp = create_scsi_rsp(req);
++
++	switch (req-&gt;status) {
++	case SAM_STAT_GOOD:
++	case SAM_STAT_RESERVATION_CONFLICT:
+ 		rsp_hdr = (struct iscsi_scsi_rsp_hdr *) &amp;rsp-&gt;pdu.bhs;
+ 		if ((size = cmnd_read_size(req)) != 0) {
+ 			rsp_hdr-&gt;flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
+ 			rsp_hdr-&gt;residual_count = cpu_to_be32(size);
+ 		}
+-		if (ret == -EBUSY)
+-			rsp_hdr-&gt;cmd_status = SAM_STAT_RESERVATION_CONFLICT;
+ 		break;
+-	case -EIO:
+-		/* Medium Error/Write Fault */
+-		rsp = create_sense_rsp(req, MEDIUM_ERROR, 0x03, 0x0);
+-		break;
+ 	default:
+-		rsp = create_sense_rsp(req, ILLEGAL_REQUEST, 0x24, 0x0);
++		break;
+ 	}
++
+ 	iscsi_cmnd_init_write(rsp);
+ }
+ 
+-void send_data_rsp(struct iscsi_cmnd *req, int (*func)(struct iscsi_cmnd *))
++void send_data_rsp(struct iscsi_cmnd *req, void (*func)(struct iscsi_cmnd *))
+ {
+ 	struct iscsi_cmnd *rsp;
+ 
+-	switch (func(req)) {
+-	case 0:
++	func(req);
++
++	if (req-&gt;status == SAM_STAT_GOOD)
+ 		do_send_data_rsp(req);
+-		return;
+-	case -EIO:
+-		/* Medium Error/Unrecovered Read Error */
+-		rsp = create_sense_rsp(req, MEDIUM_ERROR, 0x11, 0x0);
+-		break;
+-	default:
+-		rsp = create_sense_rsp(req, ILLEGAL_REQUEST, 0x24, 0x0);
++	else {
++		rsp = create_scsi_rsp(req);
++		iscsi_cmnd_init_write(rsp);
+ 	}
+-	iscsi_cmnd_init_write(rsp);
+ }
+ 
+ /**
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2009-07-29 17:50:43 UTC (rev 219)
++++ trunk/kernel/iscsi.h	2009-07-29 17:55:26 UTC (rev 220)
+@@ -17,6 +17,8 @@
+ #include &quot;iscsi_hdr.h&quot;
+ #include &quot;iet_u.h&quot;
+ 
++#define IET_SENSE_BUF_SIZE      14
++
+ struct iscsi_sess_param {
+ 	int initial_r2t;
+ 	int immediate_data;
+@@ -270,6 +272,8 @@
+ 
+ 	struct tio *tio;
+ 
++	u8 status;
++
+ 	u32 r2t_sn;
+ 	u32 r2t_length;
+ 	u32 is_unsolicited_data;
+@@ -280,6 +284,8 @@
+ 	u32 ddigest;
+ 
+ 	struct iscsi_cmnd *req;
++
++	unsigned char sense_buf[IET_SENSE_BUF_SIZE];
+ };
+ 
+ #define ISCSI_OP_SCSI_REJECT	ISCSI_OP_VENDOR1_CMD
+@@ -295,8 +301,10 @@
+ extern void cmnd_tx_start(struct iscsi_cmnd *);
+ extern void cmnd_tx_end(struct iscsi_cmnd *);
+ extern void cmnd_release(struct iscsi_cmnd *, int);
+-extern void send_data_rsp(struct iscsi_cmnd *, int (*)(struct iscsi_cmnd *));
+-extern void send_scsi_rsp(struct iscsi_cmnd *, int (*)(struct iscsi_cmnd *));
++extern void send_data_rsp(struct iscsi_cmnd *, void (*)(struct iscsi_cmnd *));
++extern void send_scsi_rsp(struct iscsi_cmnd *, void (*)(struct iscsi_cmnd *));
++extern void iscsi_cmnd_set_sense(struct iscsi_cmnd *, u8 sense_key, u8 asc,
++				 u8 ascq);
+ 
+ /* conn.c */
+ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2009-07-29 17:50:43 UTC (rev 219)
++++ trunk/kernel/target_disk.c	2009-07-29 17:55:26 UTC (rev 220)
+@@ -84,7 +84,7 @@
+ 	return sizeof(geo_m_pg);
+ }
+ 
+-static int build_mode_sense_response(struct iscsi_cmnd *cmnd)
++static void build_mode_sense_response(struct iscsi_cmnd *cmnd)
+ {
+ 	struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
+ 	struct tio *tio = cmnd-&gt;tio;
+@@ -94,7 +94,7 @@
+ 
+ 	/* changeable parameter mode pages are unsupported */
+ 	if ((scb[2] &amp; 0xc0) &gt;&gt; 6 == 0x1)
+-		return -1;
++		goto set_sense;
+ 
+ 	pcode = req-&gt;scb[2] &amp; 0x3f;
+ 
+@@ -152,14 +152,20 @@
+ 		err = -1;
+ 	}
+ 
+-	data[0] = len - 1;
++	if (!err) {
++		data[0] = len - 1;
++		tio_set(tio, len, 0);
++		return;
++	}
+ 
+-	tio_set(tio, len, 0);
+-
+-	return err;
++	tio_put(tio);
++	cmnd-&gt;tio = NULL;
++ set_sense:
++	/* Invalid Field In CDB */
++	iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x24, 0x0);
+ }
+ 
+-static int build_inquiry_response(struct iscsi_cmnd *cmnd)
++static void build_inquiry_response(struct iscsi_cmnd *cmnd)
+ {
+ 	struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
+ 	struct tio *tio = cmnd-&gt;tio;
+@@ -172,7 +178,7 @@
+ 	 * - CmdDt set: not supported
+ 	 */
+ 	if ((scb[1] &amp; 0x3) &gt; 0x1 || (!(scb[1] &amp; 0x3) &amp;&amp; scb[2]))
+-		return err;
++		goto set_sense;
+ 
+ 	assert(!tio);
+ 	tio = cmnd-&gt;tio = tio_alloc(1);
+@@ -245,14 +251,21 @@
+ 		}
+ 	}
+ 
+-	tio_set(tio, min_t(u8, tio-&gt;size, scb[4]), 0);
+-	if (!cmnd-&gt;lun)
+-		data[0] = TYPE_NO_LUN;
++	if (!err) {
++		tio_set(tio, min_t(u8, tio-&gt;size, scb[4]), 0);
++		if (!cmnd-&gt;lun)
++			data[0] = TYPE_NO_LUN;
++		return;
++	}
+ 
+-	return err;
++	tio_put(tio);
++	cmnd-&gt;tio = NULL;
++ set_sense:
++	/* Invalid Field In CDB */
++	iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x24, 0x0);
+ }
+ 
+-static int build_report_luns_response(struct iscsi_cmnd *cmnd)
++static void build_report_luns_response(struct iscsi_cmnd *cmnd)
+ {
+ 	struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
+ 	struct tio *tio = cmnd-&gt;tio;
+@@ -262,8 +275,11 @@
+ 
+ 	size = (u32)req-&gt;scb[6] &lt;&lt; 24 | (u32)req-&gt;scb[7] &lt;&lt; 16 |
+ 		(u32)req-&gt;scb[8] &lt;&lt; 8 | (u32)req-&gt;scb[9];
+-	if (size &lt; 16)
+-		return -1;
++	if (size &lt; 16) {
++		/* Invalid Field In CDB */
++		iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x24, 0x0);
++		return;
++	}
+ 
+ 	len = atomic_read(&amp;cmnd-&gt;conn-&gt;session-&gt;target-&gt;nr_volumes) * 8;
+ 	size = min(size &amp; ~(8 - 1), len + 8);
+@@ -293,11 +309,9 @@
+ 			rest = PAGE_CACHE_SIZE;
+ 		}
+ 	}
+-
+-	return 0;
+ }
+ 
+-static int build_read_capacity_response(struct iscsi_cmnd *cmnd)
++static void build_read_capacity_response(struct iscsi_cmnd *cmnd)
+ {
+ 	struct tio *tio = cmnd-&gt;tio;
+ 	u32 *data;
+@@ -313,10 +327,9 @@
+ 	data[1] = cpu_to_be32(1U &lt;&lt; cmnd-&gt;lun-&gt;blk_shift);
+ 
+ 	tio_set(tio, 8, 0);
+-	return 0;
+ }
+ 
+-static int build_request_sense_response(struct iscsi_cmnd *cmnd)
++static void build_request_sense_response(struct iscsi_cmnd *cmnd)
+ {
+ 	struct tio *tio = cmnd-&gt;tio;
+ 	u8 *data;
+@@ -331,11 +344,9 @@
+ 	data[2] = NO_SENSE;
+ 	data[7] = 10;
+ 	tio_set(tio, 18, 0);
+-
+-	return 0;
+ }
+ 
+-static int build_service_action_in_response(struct iscsi_cmnd *cmnd)
++static void build_service_action_in_response(struct iscsi_cmnd *cmnd)
+ {
+ 	struct tio *tio = cmnd-&gt;tio;
+ 	u32 *data;
+@@ -344,8 +355,11 @@
+ 	assert(!tio);
+ 
+ 	/* only READ_CAPACITY_16 service action is currently supported */
+-	if ((cmnd_hdr(cmnd)-&gt;scb[1] &amp; 0x1F) != 0x10)
+-		return -1;
++	if ((cmnd_hdr(cmnd)-&gt;scb[1] &amp; 0x1F) != 0x10) {
++		/* Invalid Field In CDB */
++		iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x24, 0x0);
++		return;
++	}
+ 
+ 	tio = cmnd-&gt;tio = tio_alloc(1);
+ 	data = page_address(tio-&gt;pvec[0]);
+@@ -356,20 +370,21 @@
+ 	data[2] = cpu_to_be32(1UL &lt;&lt; cmnd-&gt;lun-&gt;blk_shift);
+ 
+ 	tio_set(tio, 12, 0);
+-	return 0;
+ }
+ 
+-static int build_read_response(struct iscsi_cmnd *cmnd)
++static void build_read_response(struct iscsi_cmnd *cmnd)
+ {
+ 	struct tio *tio = cmnd-&gt;tio;
+ 
+ 	assert(tio);
+ 	assert(cmnd-&gt;lun);
+ 
+-	return tio_read(cmnd-&gt;lun, tio);
++	if (tio_read(cmnd-&gt;lun, tio))
++		/* Medium Error/Unrecovered Read Error */
++		iscsi_cmnd_set_sense(cmnd, MEDIUM_ERROR, 0x11, 0x0);
+ }
+ 
+-static int build_write_response(struct iscsi_cmnd *cmnd)
++static void build_write_response(struct iscsi_cmnd *cmnd)
+ {
+ 	int err;
+ 	struct tio *tio = cmnd-&gt;tio;
+@@ -382,34 +397,49 @@
+ 	if (!err &amp;&amp; !LUWCache(cmnd-&gt;lun))
+ 		err = tio_sync(cmnd-&gt;lun, tio);
+ 
+-	return err;
++	if (err)
++		/* Medium Error/Write Fault */
++		iscsi_cmnd_set_sense(cmnd, MEDIUM_ERROR, 0x03, 0x0);
+ }
+ 
+-static int build_sync_cache_response(struct iscsi_cmnd *cmnd)
++static void build_sync_cache_response(struct iscsi_cmnd *cmnd)
+ {
+ 	assert(cmnd-&gt;lun);
+-	return tio_sync(cmnd-&gt;lun, NULL);
++	if (tio_sync(cmnd-&gt;lun, NULL))
++		/* Medium Error/Write Fault */
++		iscsi_cmnd_set_sense(cmnd, MEDIUM_ERROR, 0x03, 0x0);
+ }
+ 
+-static int build_generic_response(struct iscsi_cmnd *cmnd)
++static void build_generic_response(struct iscsi_cmnd *cmnd)
+ {
+-	return 0;
++	return;
+ }
+ 
+-static int build_reserve_response(struct iscsi_cmnd *cmnd)
++static void build_reserve_response(struct iscsi_cmnd *cmnd)
+ {
+-	return volume_reserve(cmnd-&gt;lun, cmnd-&gt;conn-&gt;session-&gt;sid);
++	switch (volume_reserve(cmnd-&gt;lun, cmnd-&gt;conn-&gt;session-&gt;sid)) {
++	case -ENOENT:
++		/* Logical Unit Not Supported (?) */
++		iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x25, 0x0);
++		break;
++	case -EBUSY:
++		cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
++		break;
++	default:
++		break;
++	}
+ }
+ 
+-static int build_release_response(struct iscsi_cmnd *cmnd)
++static void build_release_response(struct iscsi_cmnd *cmnd)
+ {
+-	return volume_release(cmnd-&gt;lun,
+-			      cmnd-&gt;conn-&gt;session-&gt;sid, 0);
++	if (volume_release(cmnd-&gt;lun,
++			   cmnd-&gt;conn-&gt;session-&gt;sid, 0))
++		cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
+ }
+ 
+-static int build_reservation_conflict_response(struct iscsi_cmnd *cmnd)
++static void build_reservation_conflict_response(struct iscsi_cmnd *cmnd)
+ {
+-	return -EBUSY;
++	cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
+ }
+ 
+ static int disk_execute_cmnd(struct iscsi_cmnd *cmnd)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000131.html">[Iscsitarget-svn] r219 - trunk/usr
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#132">[ date ]</a>
+              <a href="thread.html#132">[ thread ]</a>
+              <a href="subject.html#132">[ subject ]</a>
+              <a href="author.html#132">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

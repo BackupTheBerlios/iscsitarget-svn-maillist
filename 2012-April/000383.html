@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[472] trunk/usr/isns.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B472%5D%20trunk/usr/isns.c&In-Reply-To=%3CE1SEIX4-0002Qy-6E%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000382.html">
+   <LINK REL="Next"  HREF="000384.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[472] trunk/usr/isns.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B472%5D%20trunk/usr/isns.c&In-Reply-To=%3CE1SEIX4-0002Qy-6E%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[472] trunk/usr/isns.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr  1 13:01:14 CEST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000382.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[471] trunk
+</A></li>
+        <LI>Next message: <A HREF="000384.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[473] trunk/usr/plain.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#383">[ date ]</a>
+              <a href="thread.html#383">[ thread ]</a>
+              <a href="subject.html#383">[ subject ]</a>
+              <a href="author.html#383">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 472
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=472&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=472&amp;view=rev</A>
+Author:   agr1
+Date:     2012-04-01 11:01:13 +0000 (Sun, 01 Apr 2012)
+Log Message:
+-----------
+isns: fix compiler warnings
+
+The get_hdr_param macro is used exuberantly, leading to variables
+having to be defined and set that are never actually used afterwards.
+Pointed out by gcc-4.6.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/usr/isns.c
+
+Modified: trunk/usr/isns.c
+===================================================================
+--- trunk/usr/isns.c	2012-04-01 11:00:55 UTC (rev 471)
++++ trunk/usr/isns.c	2012-04-01 11:01:13 UTC (rev 472)
+@@ -593,11 +593,9 @@
+ static char *print_scn_pdu(struct isns_hdr *hdr)
+ {
+ 	struct isns_tlv *tlv = (struct isns_tlv *) hdr-&gt;pdu;
+-	uint16_t function, length, flags, transaction, sequence;
++	uint16_t length = ntohs(hdr-&gt;length);
+ 	char *name = NULL;
+ 
+-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+-
+ 	while (length) {
+ 		uint32_t vlen = ntohl(tlv-&gt;length);
+ 
+@@ -644,15 +642,14 @@
+ static void qry_rsp_handle(struct isns_hdr *hdr)
+ {
+ 	struct isns_tlv *tlv;
+-	uint16_t function, length, flags, transaction, sequence;
++	uint16_t length = ntohs(hdr-&gt;length);
++	uint16_t transaction = ntohs(hdr-&gt;transaction);
+ 	uint32_t status = (uint32_t) (*hdr-&gt;pdu);
+ 	struct isns_qry_mgmt *mgmt, *n;
+ 	struct target *target;
+ 	struct isns_initiator *ini;
+ 	char *name = NULL;
+ 
+-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+-
+ 	list_for_each_entry_safe(mgmt, n, &amp;qry_list, qlist) {
+ 		if (mgmt-&gt;transaction == transaction) {
+ 			remque(&amp;mgmt-&gt;qlist);
+@@ -751,8 +748,7 @@
+ 	int err;
+ 	struct isns_io *rx = &amp;isns_rx;
+ 	struct isns_hdr *hdr = (struct isns_hdr *) rx-&gt;buf;
+-	uint32_t result;
+-	uint16_t function, length, flags, transaction, sequence;
++	uint16_t function;
+ 	char *name = NULL;
+ 
+ 	if (is_timeout)
+@@ -770,8 +766,7 @@
+ 		return err;
+ 	}
+ 
+-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+-	result = ntohl((uint32_t) hdr-&gt;pdu[0]);
++	function = ntohs(hdr-&gt;function);
+ 
+ 	switch (function) {
+ 	case ISNS_FUNC_DEV_ATTR_REG_RSP:
+@@ -852,7 +847,7 @@
+ 	int err;
+ 	struct isns_io *rx = &amp;scn_rx;
+ 	struct isns_hdr *hdr = (struct isns_hdr *) rx-&gt;buf;
+-	uint16_t function, length, flags, transaction, sequence;
++	uint16_t function, transaction;
+ 	char *name = NULL;
+ 
+ 	log_error(&quot;%s %d: %d&quot;, __FUNCTION__, __LINE__, is_accept);
+@@ -872,7 +867,8 @@
+ 		return err;
+ 	}
+ 
+-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
++	function = ntohs(hdr-&gt;function);
++	transaction = ntohs(hdr-&gt;transaction);
+ 
+ 	switch (function) {
+ 	case ISNS_FUNC_SCN:
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000382.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[471] trunk
+</A></li>
+	<LI>Next message: <A HREF="000384.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[473] trunk/usr/plain.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#383">[ date ]</a>
+              <a href="thread.html#383">[ thread ]</a>
+              <a href="subject.html#383">[ subject ]</a>
+              <a href="author.html#383">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

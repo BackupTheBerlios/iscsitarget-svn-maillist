@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r163 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r163%20-%20trunk/usr&In-Reply-To=%3C200808261855.m7QItx7e013662%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000076.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r163 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r163%20-%20trunk/usr&In-Reply-To=%3C200808261855.m7QItx7e013662%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r163 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug 26 20:56:00 CEST 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000076.html">[Iscsitarget-svn] r164 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75">[ date ]</a>
+              <a href="thread.html#75">[ thread ]</a>
+              <a href="subject.html#75">[ subject ]</a>
+              <a href="author.html#75">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-08-26 20:55:59 +0200 (Tue, 26 Aug 2008)
+New Revision: 163
+
+Modified:
+   trunk/usr/ietadm.c
+Log:
+Refactor ietadm's user_handle()
+
+Split ietadm's user_handle() to smaller chunks to allow better error handling
+(and in preparation of supporting &quot;--op show --user&quot;).
+
+
+Modified: trunk/usr/ietadm.c
+===================================================================
+--- trunk/usr/ietadm.c	2008-06-26 15:11:53 UTC (rev 162)
++++ trunk/usr/ietadm.c	2008-08-26 18:55:59 UTC (rev 163)
+@@ -29,6 +29,8 @@
+ #define	SET_LUNIT	(1 &lt;&lt; 3)
+ #define	SET_USER	(1 &lt;&lt; 4)
+ 
++typedef int (user_handle_fn_t)(struct ietadm_req *req, char *user, char *pass);
++
+ enum ietadm_op {
+ 	OP_NEW,
+ 	OP_DELETE,
+@@ -395,31 +397,11 @@
+ 	return err;
+ }
+ 
+-static int user_handle(int op, u32 set, u32 tid, char *params)
++static int parse_user_params(char *params, u32 *auth_dir, char **user,
++			     char **pass)
+ {
+-	int err = -EINVAL;
+-	char *p, *q, *user = NULL, *pass = NULL;
+-	struct ietadm_req req;
++	char *p, *q;
+ 
+-	if (set &amp; ~(SET_TARGET | SET_USER))
+-		goto out;
+-
+-	memset(&amp;req, 0, sizeof(req));
+-	req.tid = tid;
+-
+-	switch (op) {
+-	case OP_NEW:
+-		req.rcmnd = C_ACCT_NEW;
+-		break;
+-	case OP_DELETE:
+-		req.rcmnd = C_ACCT_DEL;
+-		break;
+-	case OP_UPDATE:
+-	case OP_SHOW:
+-		fprintf(stderr, &quot;Unsupported.\n&quot;);
+-		goto out;
+-	}
+-
+ 	while ((p = strsep(&amp;params, &quot;,&quot;)) != NULL) {
+ 		if (!*p)
+ 			continue;
+@@ -431,37 +413,92 @@
+ 			q++;
+ 
+ 		if (!strcasecmp(p, &quot;IncomingUser&quot;)) {
+-			if (user)
+-				fprintf(stderr, &quot;Already specified user %s\n&quot;, q);
+-			user = q;
+-			req.u.acnt.auth_dir = AUTH_DIR_INCOMING;
++			if (*user)
++				fprintf(stderr,
++					&quot;Already specified IncomingUser %s\n&quot;,
++					q);
++			*user = q;
++			*auth_dir = AUTH_DIR_INCOMING;
+ 		} else if (!strcasecmp(p, &quot;OutgoingUser&quot;)) {
+-			if (user)
+-				fprintf(stderr, &quot;Already specified user %s\n&quot;, q);
+-			user = q;
+-			req.u.acnt.auth_dir = AUTH_DIR_OUTGOING;
++			if (*user)
++				fprintf(stderr,
++					&quot;Already specified OutgoingUser %s\n&quot;,
++					q);
++			*user = q;
++			*auth_dir = AUTH_DIR_OUTGOING;
+ 		} else if (!strcasecmp(p, &quot;Password&quot;)) {
+-			if (pass)
+-				fprintf(stderr, &quot;Already specified pass %s\n&quot;, q);
+-			pass = q;
++			if (*pass)
++				fprintf(stderr,
++					&quot;Already specified Password %s\n&quot;, q);
++			*pass = q;
+ 		} else {
+ 			fprintf(stderr, &quot;Unknown parameter %p\n&quot;, q);
+-			goto out;
++			return -EINVAL;
+ 		}
+ 	}
++	return 0;
++}
+ 
+-	if ((op == OP_NEW &amp;&amp; ((user &amp;&amp; !pass) || (!user &amp;&amp; pass) || (!user &amp;&amp; !pass))) ||
+-	    (op == OP_DELETE &amp;&amp; ((!user &amp;&amp; pass) || (!user &amp;&amp; !pass)))) {
+-		fprintf(stderr,
+-			&quot;You need to specify a user and its password %s %s\n&quot;, pass, user);
+-		goto out;
++static int user_handle_new(struct ietadm_req *req, char *user, char *pass)
++{
++	if (!user || !pass) {
++		fprintf(stderr, &quot;Username and password must be specified\n&quot;);
++		return -EINVAL;
+ 	}
+ 
+-	strncpy(req.u.acnt.user, user, sizeof(req.u.acnt.user) - 1);
++	req-&gt;rcmnd = C_ACCT_NEW;
++
++	strncpy(req-&gt;u.acnt.user, user, sizeof(req-&gt;u.acnt.user) - 1);
++	strncpy(req-&gt;u.acnt.pass, pass,	sizeof(req-&gt;u.acnt.pass) - 1);
++
++	return ietd_request(req);
++}
++
++static int user_handle_del(struct ietadm_req *req, char *user, char *pass)
++{
++	if (!user) {
++		fprintf(stderr, &quot;Username must be specified\n&quot;);
++		return -EINVAL;
++	}
+ 	if (pass)
+-		strncpy(req.u.acnt.pass, pass, sizeof(req.u.acnt.pass) - 1);
++		fprintf(stderr, &quot;Ignoring specified password\n&quot;);
+ 
+-	err = ietd_request(&amp;req);
++	req-&gt;rcmnd = C_ACCT_DEL;
++
++	strncpy(req-&gt;u.acnt.user, user, sizeof(req-&gt;u.acnt.user) - 1);
++
++	return ietd_request(req);
++}
++
++static int user_handle(int op, u32 set, u32 tid, char *params)
++{
++	int err = -EINVAL;
++	char *user = NULL, *pass = NULL;
++	struct ietadm_req req;
++	static user_handle_fn_t *user_handle_fn[] = {
++		user_handle_new,
++		user_handle_del,
++		NULL,
++		NULL
++	}, *fn;
++
++	if (set &amp; ~(SET_TARGET | SET_USER))
++		goto out;
++
++	memset(&amp;req, 0, sizeof(req));
++	req.tid = tid;
++
++	err = parse_user_params(params, &amp;req.u.acnt.auth_dir, &amp;user, &amp;pass);
++	if (err)
++		goto out;
++
++	fn = user_handle_fn[op];
++	if (!fn) {
++		fprintf(stderr, &quot;Unsupported\n&quot;);
++		goto out;
++	}
++
++	err = fn(&amp;req, user, pass);
+ out:
+ 	return err;
+ }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000076.html">[Iscsitarget-svn] r164 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75">[ date ]</a>
+              <a href="thread.html#75">[ thread ]</a>
+              <a href="subject.html#75">[ subject ]</a>
+              <a href="author.html#75">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

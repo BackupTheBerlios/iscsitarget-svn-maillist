@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r201 - in trunk: . kernel patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r201%20-%20in%20trunk%3A%20.%20kernel%20patches&In-Reply-To=%3C200901241308.n0OD8oJh008162%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000112.html">
+   <LINK REL="Next"  HREF="000114.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r201 - in trunk: . kernel patches</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r201%20-%20in%20trunk%3A%20.%20kernel%20patches&In-Reply-To=%3C200901241308.n0OD8oJh008162%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r201 - in trunk: . kernel patches">agr at mail.berlios.de
+       </A><BR>
+    <I>Sat Jan 24 14:08:50 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000112.html">[Iscsitarget-svn] r200 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000114.html">[Iscsitarget-svn] r202 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#113">[ date ]</a>
+              <a href="thread.html#113">[ thread ]</a>
+              <a href="subject.html#113">[ subject ]</a>
+              <a href="author.html#113">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-01-24 14:08:41 +0100 (Sat, 24 Jan 2009)
+New Revision: 201
+
+Added:
+   trunk/patches/compat-2.6.24.patch
+   trunk/patches/compat-2.6.25-2.6.27.patch
+Removed:
+   trunk/patches/compat-2.6.24-2.6.27.patch
+Modified:
+   trunk/Makefile
+   trunk/kernel/event.c
+Log:
+Fix netlink socket cleanup
+
+2.6.25 introduced netlink_socket_release(), to be used to clean up netlink
+sockets correctly (taking care of namespaces).
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2009-01-22 16:00:16 UTC (rev 200)
++++ trunk/Makefile	2009-01-24 13:08:41 UTC (rev 201)
+@@ -51,11 +51,16 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
+-# Compatibility patch for kernels &gt;= 2.6.24 and &lt;= 2.6.27
++# Compatibility patch for kernels &gt;= 2.6.25 and &lt;= 2.6.27
+ ifeq ($(call kver_le,2,6,27),1)
+-	PATCHES := $(PATCHES) compat-2.6.24-2.6.27.patch
++	PATCHES := $(PATCHES) compat-2.6.25-2.6.27.patch
+ endif
+ 
++# Compatibility patch for kernels &lt;= 2.6.24
++ifeq ($(call kver_le,2,6,27),1)
++	PATCHES := $(PATCHES) compat-2.6.24.patch
++endif
++
+ # Compatibility patch for kernels &gt;= 2.6.22 and &lt;= 2.6.23
+ ifeq ($(call kver_le,2,6,23),1)
+ 	PATCHES := $(PATCHES) compat-2.6.22-2.6.23.patch
+
+Modified: trunk/kernel/event.c
+===================================================================
+--- trunk/kernel/event.c	2009-01-22 16:00:16 UTC (rev 200)
++++ trunk/kernel/event.c	2009-01-24 13:08:41 UTC (rev 201)
+@@ -92,6 +92,5 @@
+ 
+ void event_exit(void)
+ {
+-	if (nl)
+-		sock_release(nl-&gt;sk_socket);
++	netlink_kernel_release(nl);
+ }
+
+Deleted: trunk/patches/compat-2.6.24-2.6.27.patch
+===================================================================
+--- trunk/patches/compat-2.6.24-2.6.27.patch	2009-01-22 16:00:16 UTC (rev 200)
++++ trunk/patches/compat-2.6.24-2.6.27.patch	2009-01-24 13:08:41 UTC (rev 201)
+@@ -1,33 +0,0 @@
+-diff --git a/kernel/block-io.c b/kernel/block-io.c
+-index 708f101..e4a25f7 100644
+---- a/kernel/block-io.c
+-+++ b/kernel/block-io.c
+-@@ -154,14 +154,14 @@ blockio_open_path(struct iet_volume *volume, const char *path)
+- {
+- 	struct blockio_data *bio_data = volume-&gt;private;
+- 	struct block_device *bdev;
+--	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
+-+	int flags = LUReadonly(volume) ? MS_RDONLY : 0;
+- 	int err = 0;
+- 
+- 	bio_data-&gt;path = kstrdup(path, GFP_KERNEL);
+- 	if (!bio_data-&gt;path)
+- 		return -ENOMEM;
+- 
+--	bdev = open_bdev_exclusive(path, flags, THIS_MODULE);
+-+	bdev = open_bdev_excl(path, flags, THIS_MODULE);
+- 	if (IS_ERR(bdev)) {
+- 		err = PTR_ERR(bdev);
+- 		eprintk(&quot;Can't open device %s, error %d\n&quot;, path, err);
+-@@ -323,10 +323,9 @@ static void
+- blockio_detach(struct iet_volume *volume)
+- {
+- 	struct blockio_data *bio_data = volume-&gt;private;
+--	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
+- 
+- 	if (bio_data-&gt;bdev)
+--		close_bdev_exclusive(bio_data-&gt;bdev, flags);
+-+		close_bdev_excl(bio_data-&gt;bdev);
+- 	kfree(bio_data-&gt;path);
+- 
+- 	kfree(volume-&gt;private);
+
+Added: trunk/patches/compat-2.6.24.patch
+===================================================================
+--- trunk/patches/compat-2.6.24.patch	2009-01-22 16:00:16 UTC (rev 200)
++++ trunk/patches/compat-2.6.24.patch	2009-01-24 13:08:41 UTC (rev 201)
+@@ -0,0 +1,12 @@
++diff --git a/kernel/event.c b/kernel/event.c
++index 240404d..e45ed67 100644
++--- a/kernel/event.c
+++++ b/kernel/event.c
++@@ -92,5 +92,6 @@ int event_init(void)
++ 
++ void event_exit(void)
++ {
++-	netlink_kernel_release(nl);
+++	if (nl)
+++		sock_release(nl-&gt;sk_socket);
++ }
+
+Copied: trunk/patches/compat-2.6.25-2.6.27.patch (from rev 200, trunk/patches/compat-2.6.24-2.6.27.patch)
+
+
+Property changes on: trunk/patches/compat-2.6.25-2.6.27.patch
+___________________________________________________________________
+Name: svn:mergeinfo
+   + 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000112.html">[Iscsitarget-svn] r200 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000114.html">[Iscsitarget-svn] r202 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#113">[ date ]</a>
+              <a href="thread.html#113">[ thread ]</a>
+              <a href="subject.html#113">[ subject ]</a>
+              <a href="author.html#113">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

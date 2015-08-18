@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r269 - trunk/etc
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r269%20-%20trunk/etc&In-Reply-To=%3C200911101835.nAAIZOfO001815%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000180.html">
+   <LINK REL="Next"  HREF="000182.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r269 - trunk/etc</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r269%20-%20trunk/etc&In-Reply-To=%3C200911101835.nAAIZOfO001815%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r269 - trunk/etc">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov 10 19:35:24 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000180.html">[Iscsitarget-svn] r268 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000182.html">[Iscsitarget-svn] r270 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#181">[ date ]</a>
+              <a href="thread.html#181">[ thread ]</a>
+              <a href="subject.html#181">[ subject ]</a>
+              <a href="author.html#181">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-11-10 19:35:24 +0100 (Tue, 10 Nov 2009)
+New Revision: 269
+
+Modified:
+   trunk/etc/ietd.conf
+Log:
+Update the sample ietd.conf with comments on MaxSessions and the NOP-In params
+
+
+Modified: trunk/etc/ietd.conf
+===================================================================
+--- trunk/etc/ietd.conf	2009-11-10 18:28:15 UTC (rev 268)
++++ trunk/etc/ietd.conf	2009-11-10 18:35:24 UTC (rev 269)
+@@ -93,6 +93,15 @@
+ 						# or the connection will fail
+ 	#DataDigest		None,CRC32C	# PDU data checksum algo list
+ 						# Same as above
++	#MaxSessions		0		# Maximum number of sessions to
++						# this target - 0 = unlimited
++	#NOPInterval		0		# Send a NOP-In ping each after
++						# that many seconds if the conn
++						# is otherwise idle - 0 = off
++	#NOPTimeout		0 		# Wait that many seconds for a
++						# response on a NOP-In ping
++						# If 0 or &gt; NOPInterval, NOPInterval
++						# is used!
+ 	#
+ 	# Various target parameters
+ 	#
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000180.html">[Iscsitarget-svn] r268 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000182.html">[Iscsitarget-svn] r270 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#181">[ date ]</a>
+              <a href="thread.html#181">[ thread ]</a>
+              <a href="subject.html#181">[ subject ]</a>
+              <a href="author.html#181">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

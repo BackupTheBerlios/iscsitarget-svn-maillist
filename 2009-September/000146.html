@@ -1,0 +1,477 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r234 - in trunk: . usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r234%20-%20in%20trunk%3A%20.%20usr&In-Reply-To=%3C200909211815.n8LIF69L014622%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000145.html">
+   <LINK REL="Next"  HREF="000147.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r234 - in trunk: . usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r234%20-%20in%20trunk%3A%20.%20usr&In-Reply-To=%3C200909211815.n8LIF69L014622%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r234 - in trunk: . usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 21 20:15:06 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000145.html">[Iscsitarget-svn] r233 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000147.html">[Iscsitarget-svn] r235 - trunk/etc/initd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#146">[ date ]</a>
+              <a href="thread.html#146">[ thread ]</a>
+              <a href="subject.html#146">[ subject ]</a>
+              <a href="author.html#146">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-21 20:15:06 +0200 (Mon, 21 Sep 2009)
+New Revision: 234
+
+Modified:
+   trunk/Makefile
+   trunk/usr/config.h
+   trunk/usr/ietd.c
+   trunk/usr/plain.c
+   trunk/usr/target.c
+Log:
+
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Patch move config to /etc/iet while honoring existing
+
+This patch moves the default location for IET config files from
+/etc to /etc/iet while still honoring config files in /etc.
+
+As soon as a config file exists in /etc/iet it will be used
+instead of the one in /etc.
+
+A warning is logged if it finds config files in /etc.
+
+- Cleaned up plain.c a little in the initialization code path
+
+- Added tests in target_list_build for initial getsockname and
+getnameinfo calls.
+
+Compiled on RHEL5, tested on RHEL5 with MS ini.
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2009-09-21 17:59:36 UTC (rev 233)
++++ trunk/Makefile	2009-09-21 18:15:06 UTC (rev 234)
+@@ -209,16 +209,22 @@
+ 
+ install-etc: install-initd
+ 	@if [ ! -e $(DISTDIR)/etc/ietd.conf ]; then \
+-		install -vD -m 640 etc/ietd.conf \
+-			$(DISTDIR)/etc/ietd.conf; \
++		if [ ! -e $(DISTDIR)/etc/iet/ietd.conf ]; then \
++			install -vD -m 640 etc/ietd.conf \
++				$(DISTDIR)/etc/iet/ietd.conf; \
++		fi \
+ 	fi
+ 	@if [ ! -e $(DISTDIR)/etc/initiators.allow ]; then \
+-		install -vD -m 644 etc/initiators.allow \
+-			$(DISTDIR)/etc/initiators.allow; \
++		if [ ! -e $(DISTDIR)/etc/iet/initiators.allow ]; then \
++			install -vD -m 644 etc/initiators.allow \
++				$(DISTDIR)/etc/iet/initiators.allow; \
++		fi \
+ 	fi
+ 	@if [ ! -e $(DISTDIR)/etc/targets.allow ]; then \
+-		install -vD -m 644 etc/targets.allow \
+-			$(DISTDIR)/etc/targets.allow; \
++		if [ ! -e $(DISTDIR)/etc/iet/targets.allow ]; then \
++			install -vD -m 644 etc/targets.allow \
++				$(DISTDIR)/etc/iet/targets.allow; \
++		fi \
+ 	fi
+ 
+ install-initd:
+
+Modified: trunk/usr/config.h
+===================================================================
+--- trunk/usr/config.h	2009-09-21 17:59:36 UTC (rev 233)
++++ trunk/usr/config.h	2009-09-21 18:15:06 UTC (rev 234)
+@@ -2,8 +2,7 @@
+ #define CONFIG_H
+ 
+ struct config_operations {
+-	int (*init) (char *, char **, int *);
+-	int (*default_load) (char *);
++	void (*init) (char *, char **, int *);
+ 	int (*target_add) (u32 *, char *);
+ 	int (*target_stop) (u32);
+ 	int (*target_del) (u32);
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2009-09-21 17:59:36 UTC (rev 233)
++++ trunk/usr/ietd.c	2009-09-21 18:15:06 UTC (rev 234)
+@@ -529,8 +529,6 @@
+ 	if (isns)
+ 		timeout = isns_init(isns, isns_ac);
+ 
+-	cops-&gt;default_load(config);
+-
+ 	if (gid &amp;&amp; setgid(gid) &lt; 0)
+ 		perror(&quot;setgid&quot;);
+ 
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-09-21 17:59:36 UTC (rev 233)
++++ trunk/usr/plain.c	2009-09-21 18:15:06 UTC (rev 234)
+@@ -8,6 +8,7 @@
+ #include &lt;ctype.h&gt;
+ #include &lt;dirent.h&gt;
+ #include &lt;errno.h&gt;
++#include &lt;limits.h&gt;
+ #include &lt;netdb.h&gt;
+ #include &lt;regex.h&gt;
+ #include &lt;stdio.h&gt;
+@@ -24,8 +25,11 @@
+ #include &quot;iscsid.h&quot;
+ 
+ #define BUFSIZE		4096
+-#define CONFIG_FILE	&quot;/etc/ietd.conf&quot;
+-#define ACCT_CONFIG_FILE	CONFIG_FILE
++#define CONFIG_FILE	&quot;ietd.conf&quot;
++#define CONFIG_DIR	&quot;/etc/iet/&quot;
++#define INI_ALLOW_FILE	&quot;initiators.allow&quot;
++#define INI_DENY_FILE	&quot;initiators.deny&quot;
++#define TGT_ALLOW_FILE	&quot;targets.allow&quot;
+ 
+ /*
+  * Account configuration code
+@@ -86,43 +90,6 @@
+ 	return list;
+ }
+ 
+-static int plain_account_init(char *filename)
+-{
+-	FILE *fp;
+-	char buf[BUFSIZE], *p, *q;
+-	u32 tid;
+-	int idx;
+-
+-	if (!(fp = fopen(filename, &quot;r&quot;)))
+-		return -EIO;
+-
+-	tid = 0;
+-	while (fgets(buf, sizeof(buf), fp)) {
+-		q = buf;
+-		p = target_sep_string(&amp;q);
+-		if (!p || *p == '#')
+-			continue;
+-
+-		if (!strcasecmp(p, &quot;Target&quot;)) {
+-			tid = 0;
+-			if (!(p = target_sep_string(&amp;q)))
+-				continue;
+-			tid = target_find_by_name(p);
+-		} else if (!((idx = param_index_by_name(p, user_keys)) &lt; 0)) {
+-			char *name, *pass;
+-			name = target_sep_string(&amp;q);
+-			pass = target_sep_string(&amp;q);
+-
+-			if (cops-&gt;account_add(tid, idx, name, pass) &lt; 0)
+-				fprintf(stderr, &quot;%s %s\n&quot;, name, pass);
+-		}
+-	}
+-
+-	fclose(fp);
+-
+-	return 0;
+-}
+-
+ /* Return the first account if the length of name is zero */
+ static struct user *account_lookup_by_name(u32 tid, int dir, char *name)
+ {
+@@ -420,11 +387,18 @@
+ {
+ 	int err = -EPERM;
+ 	FILE *fp;
+-	char buf[BUFSIZE], *p, *q;
++	char buf[BUFSIZE], file1[PATH_MAX], file2[PATH_MAX], *p, *q;
+ 
+-	if (!(fp = fopen(filename, &quot;r&quot;)))
+-		return -ENOENT;
++	strncpy(file1, CONFIG_DIR, PATH_MAX - 1);
++	strncat(file1, filename, PATH_MAX - (strlen(CONFIG_DIR) + 1));
+ 
++	strncpy(file2, &quot;/etc/&quot;, PATH_MAX - 1);
++	strncat(file2, filename, PATH_MAX - 6);
++
++	if (!(fp = fopen(file1, &quot;r&quot;)))
++		if (!(fp = fopen(file2, &quot;r&quot;)))
++			return -ENOENT;
++
+ 	/*
+ 	 * Every time we are called, we read the file. So we don't need to
+ 	 * implement 'reload feature'. It's slow, however, it doesn't matter.
+@@ -468,9 +442,9 @@
+ 	getpeername(fd, (struct sockaddr *) &amp;ss, &amp;slen);
+ 
+ 	allow = match(tid, (struct sockaddr *) &amp;ss, initiator,
+-						&quot;/etc/initiators.allow&quot;);
++						INI_ALLOW_FILE);
+ 	deny = match(tid, (struct sockaddr *) &amp;ss, initiator,
+-						&quot;/etc/initiators.deny&quot;);
++						INI_DENY_FILE);
+ 
+ 	if (deny != -ENOENT) {
+ 		if (!deny &amp;&amp; allow)
+@@ -486,7 +460,7 @@
+ {
+ 	int allow;
+ 
+-	allow = match(tid, sa, NULL, &quot;/etc/targets.allow&quot;);
++	allow = match(tid, sa, NULL, TGT_ALLOW_FILE);
+ 
+ 	return (allow == -ENOENT) ? 1 : !allow;
+ }
+@@ -587,19 +561,37 @@
+ 	return __plain_param_set(tid, sid, type, 1 &lt;&lt; key, param, 0);
+ }
+ 
+-static int plain_main_init(char *filename)
++static void plain_portal_init(FILE *fp, char **isns, int *isns_ac)
+ {
+-	FILE *config;
+ 	char buf[BUFSIZE];
+ 	char *p, *q;
++
++	while (fgets(buf, BUFSIZE, fp)) {
++		q = buf;
++		p = target_sep_string(&amp;q);
++		if (!p || *p == '#')
++			continue;
++		if (!strcasecmp(p, &quot;iSNSServer&quot;)) {
++			*isns = strdup(target_sep_string(&amp;q));
++		} else if (!strcasecmp(p, &quot;iSNSAccessControl&quot;)) {
++			char *str = target_sep_string(&amp;q);
++			if (!strcasecmp(str, &quot;Yes&quot;))
++				*isns_ac = 1;
++		}
++	}
++
++	return;
++}
++
++static void plain_target_init(FILE *fp)
++{
++	char buf[BUFSIZE];
++	char *p, *q;
+ 	int idx;
+ 	u32 tid, val;
+ 
+-	if (!(config = fopen(filename, &quot;r&quot;)))
+-		return -errno;
+-
+ 	tid = 0;
+-	while (fgets(buf, BUFSIZE, config)) {
++	while (fgets(buf, BUFSIZE, fp)) {
+ 		q = buf;
+ 		p = target_sep_string(&amp;q);
+ 		if (!p || *p == '#')
+@@ -632,66 +624,93 @@
+ 		}
+ 	}
+ 
+-	fclose(config);
+-	return 0;
++	return;
+ }
+ 
+-static int plain_default_load(char *params)
++static void plain_account_init(FILE *fp)
+ {
+-	int i, err;
++	char buf[BUFSIZE], *p, *q;
++	u32 tid;
++	int idx;
+ 
++	tid = 0;
++	while (fgets(buf, sizeof(buf), fp)) {
++		q = buf;
++		p = target_sep_string(&amp;q);
++		if (!p || *p == '#')
++			continue;
++
++		if (!strcasecmp(p, &quot;Target&quot;)) {
++			tid = 0;
++			if (!(p = target_sep_string(&amp;q)))
++				continue;
++			tid = target_find_by_name(p);
++		} else if (!((idx = param_index_by_name(p, user_keys)) &lt; 0)) {
++			char *name, *pass;
++			name = target_sep_string(&amp;q);
++			pass = target_sep_string(&amp;q);
++
++			if (plain_account_add(tid, idx, name, pass) &lt; 0)
++				fprintf(stderr, &quot;%s %s\n&quot;, name, pass);
++		}
++	}
++
++	return;
++}
++
++static void plain_init(char *params, char **isns, int *isns_ac)
++{
++	FILE *fp;
++	struct stat st;
++	char file1[PATH_MAX], file2[PATH_MAX];
++	int i;
++
+ 	for (i = 0; i &lt; 1 &lt;&lt; HASH_ORDER; i++) {
+ 		INIT_LIST_HEAD(&amp;trgt_acct_in[i]);
+ 		INIT_LIST_HEAD(&amp;trgt_acct_out[i]);
+ 	}
+ 
+-	/* First, we must finish the main configuration. */
+-	if ((err = plain_main_init(params ? params : CONFIG_FILE)))
+-		return err;
++	strncpy(file1, CONFIG_DIR, PATH_MAX - 1);
++	strncat(file1, INI_DENY_FILE, PATH_MAX - (strlen(CONFIG_DIR) + 1));
+ 
+-	if ((err = plain_account_init(ACCT_CONFIG_FILE)) &lt; 0)
+-		return err;
++	strncpy(file2, &quot;/etc/&quot;, PATH_MAX - 1);
++	strncat(file2, INI_DENY_FILE, PATH_MAX - 6);
+ 
+-	/* TODO: error handling */
++	if (!stat(file1, &amp;st) || !stat(file2, &amp;st))
++		log_warning(&quot;%s is depreciated and will be obsoleted in the next release, please see README.initiators for more information&quot;, INI_DENY_FILE);
+ 
+-	return err;
+-}
++	strncpy(file1, CONFIG_DIR, PATH_MAX - 1);
++	strncat(file1, CONFIG_FILE, PATH_MAX - (strlen(CONFIG_DIR) + 1));
+ 
+-static int plain_init(char *params, char **isns, int *isns_ac)
+-{
+-	FILE *config;
+-	char buf[BUFSIZE];
+-	char *p, *q;
++	strncpy(file2, &quot;/etc/&quot;, PATH_MAX - 1);
++	strncat(file2, CONFIG_FILE, PATH_MAX - 6);
+ 
+-	if ((config = fopen(&quot;/etc/initiators.deny&quot;, &quot;r&quot;))) {
+-		fclose(config);
+-		log_warning(&quot;%s is depreciated and will be obsoleted in the next release, please see README.initiators for more information&quot;, &quot;/etc/initiators.deny&quot;);
++	if (!(fp = fopen(params ? params : file1, &quot;r&quot;))) {
++		if ((fp = fopen(file2, &quot;r&quot;)))
++			log_warning(&quot;%s's location is depreciated and will be moved in the next release to %s&quot;, file2, file1);
++		else {
++			log_warning(&quot;%s not found, configure through ietadm&quot;, CONFIG_FILE);
++			return;
++		}
+ 	}
+ 
+-	if (!(config = fopen(params ? : CONFIG_FILE, &quot;r&quot;)))
+-		return -errno;
++	plain_portal_init(fp, isns, isns_ac);
+ 
+-	while (fgets(buf, BUFSIZE, config)) {
+-		q = buf;
+-		p = target_sep_string(&amp;q);
+-		if (!p || *p == '#')
+-			continue;
+-		if (!strcasecmp(p, &quot;iSNSServer&quot;)) {
+-			*isns = strdup(target_sep_string(&amp;q));
+-		} else if (!strcasecmp(p, &quot;iSNSAccessControl&quot;)) {
+-			char *str = target_sep_string(&amp;q);
+-			if (!strcasecmp(str, &quot;Yes&quot;))
+-				*isns_ac = 1;
+-		}
+-	}
++	rewind(fp);
+ 
+-	fclose(config);
+-	return 0;
++	plain_target_init(fp);
++
++	rewind(fp);
++
++	plain_account_init(fp);
++
++	fclose(fp);
++
++	return;
+ }
+ 
+ struct config_operations plain_ops = {
+ 	.init			= plain_init,
+-	.default_load		= plain_default_load,
+ 	.target_add		= plain_target_create,
+ 	.target_del		= plain_target_destroy,
+ 	.lunit_add		= plain_lunit_create,
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2009-09-21 17:59:36 UTC (rev 233)
++++ trunk/usr/target.c	2009-09-21 18:15:06 UTC (rev 234)
+@@ -102,14 +102,21 @@
+ 	struct sockaddr_storage ss;
+ 	socklen_t slen = sizeof(struct sockaddr_storage);
+ 	char addr1[NI_MAXHOST], addr2[NI_MAXHOST];
+-	int family, i;
++	int ret, family, i;
+ 
+-	if (getsockname(conn-&gt;fd, (struct sockaddr *) &amp;ss, &amp;slen))
++	if (getsockname(conn-&gt;fd, (struct sockaddr *) &amp;ss, &amp;slen)) {
++		log_error(&quot;getsockname failed: %m&quot;);
+ 		return;
++	}
+ 
+-	if (getnameinfo((struct sockaddr *) &amp;ss, slen, addr1, sizeof(addr1),
+-						NULL, 0, NI_NUMERICHOST))
++	ret = getnameinfo((struct sockaddr *) &amp;ss, slen, addr1,
++				sizeof(addr1), NULL, 0, NI_NUMERICHOST);
++	if (ret) {
++		log_error(&quot;getnameinfo failed: %s&quot;,
++			(ret == EAI_SYSTEM) ? strerror(errno) :
++							gai_strerror(ret));
+ 		return;
++	}
+ 
+ 	family = ss.ss_family;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000145.html">[Iscsitarget-svn] r233 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000147.html">[Iscsitarget-svn] r235 - trunk/etc/initd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#146">[ date ]</a>
+              <a href="thread.html#146">[ thread ]</a>
+              <a href="subject.html#146">[ subject ]</a>
+              <a href="author.html#146">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

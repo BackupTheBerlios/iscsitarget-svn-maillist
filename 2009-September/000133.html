@@ -1,0 +1,110 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r221 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r221%20-%20trunk&In-Reply-To=%3C200909041446.n84Eknh2018542%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000134.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r221 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r221%20-%20trunk&In-Reply-To=%3C200909041446.n84Eknh2018542%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r221 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Fri Sep  4 16:46:49 CEST 2009</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000134.html">[Iscsitarget-svn] r222 - in trunk: kernel patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#133">[ date ]</a>
+              <a href="thread.html#133">[ thread ]</a>
+              <a href="subject.html#133">[ subject ]</a>
+              <a href="author.html#133">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-04 16:46:49 +0200 (Fri, 04 Sep 2009)
+New Revision: 221
+
+Modified:
+   trunk/Makefile
+   trunk/iscsitarget.spec
+Log:
+Don't perform depmod when building an rpm
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2009-07-29 17:55:26 UTC (rev 220)
++++ trunk/Makefile	2009-09-04 14:46:49 UTC (rev 221)
+@@ -195,8 +195,10 @@
+ 		depmod -aq $(KVER); \
+ 	fi
+ 
+-install: install-usr install-etc install-doc install-kernel depmod
++install-files: install-usr install-etc install-doc install-kernel
+ 
++install: install-files depmod
++
+ install-kernel: kernel/iscsi_trgt.ko
+ 	@install -vD kernel/iscsi_trgt.ko \
+ 		$(DISTDIR)$(INSTALL_MOD_PATH)$(KMOD)/iscsi/iscsi_trgt.ko
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-07-29 17:55:26 UTC (rev 220)
++++ trunk/iscsitarget.spec	2009-09-04 14:46:49 UTC (rev 221)
+@@ -21,7 +21,7 @@
+ ##
+ 
+ ## Information
+-Summary: iSCSI Enterprise Target 
++Summary: iSCSI Enterprise Target
+ Name: iscsitarget
+ Version: 0.4.17
+ Release: %{?revision: %{revision}}
+@@ -91,7 +91,7 @@
+ ## Installation
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__make} install KERNELSRC=/lib/modules/%{kernel}/build DISTDIR=%{buildroot}
++%{__make} install-files KERNELSRC=/lib/modules/%{kernel}/build DISTDIR=%{buildroot}
+ mkdir -p %{buildroot}/etc/rc.d
+ mv %{buildroot}/etc/init.d %{buildroot}/etc/rc.d
+ rm -rf %{buildroot}/usr/share/doc/iscsitarget
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000134.html">[Iscsitarget-svn] r222 - in trunk: kernel patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#133">[ date ]</a>
+              <a href="thread.html#133">[ thread ]</a>
+              <a href="subject.html#133">[ subject ]</a>
+              <a href="author.html#133">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

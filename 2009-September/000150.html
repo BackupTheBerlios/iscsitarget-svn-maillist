@@ -1,0 +1,105 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r238 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r238%20-%20trunk&In-Reply-To=%3C200909230652.n8N6qM6r024963%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000149.html">
+   <LINK REL="Next"  HREF="000151.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r238 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r238%20-%20trunk&In-Reply-To=%3C200909230652.n8N6qM6r024963%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r238 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 23 08:52:22 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000149.html">[Iscsitarget-svn] r237 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000151.html">[Iscsitarget-svn] r239 - trunk/etc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#150">[ date ]</a>
+              <a href="thread.html#150">[ thread ]</a>
+              <a href="subject.html#150">[ subject ]</a>
+              <a href="author.html#150">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-23 08:52:21 +0200 (Wed, 23 Sep 2009)
+New Revision: 238
+
+Modified:
+   trunk/iscsitarget.spec
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Updated RPM spec file catalog for the new config file location.
+
+Tested on RH5.
+
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-09-23 06:43:37 UTC (rev 237)
++++ trunk/iscsitarget.spec	2009-09-23 06:52:21 UTC (rev 238)
+@@ -237,10 +237,10 @@
+ %{_sbindir}/*
+ %{_mandir}/man?/*
+ %{_sysconfdir}/rc.d/init.d/*
+-%config(noreplace) %{_sysconfdir}/ietd.conf
+-%config(noreplace) %{_sysconfdir}/initiators.allow
+-%config(noreplace) %{_sysconfdir}/initiators.deny
+-%doc ChangeLog COPYING README README.vmware
++%config(noreplace) %{_sysconfdir}/iet/ietd.conf
++%config(noreplace) %{_sysconfdir}/iet/initiators.allow
++%config(noreplace) %{_sysconfdir}/iet/targets.allow
++%doc ChangeLog COPYING README README.vmware README.initiators
+ %endif
+ 
+ 
+@@ -259,6 +259,9 @@
+ 
+ 
+ %changelog
++* Wed Sep 22 2009 Ross Walker &lt;rswwalker at gmail dot com&gt; - 0.4.17-226
++- Updated file catalog for new config directory
++
+ * Wed Sep 09 2009 Ross Walker &lt;rswwalker at gmail dot com&gt; - 0.4.17-226
+ - Added ability to build directly from subversion repo
+ - Added ability to build dkms kernel module
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000149.html">[Iscsitarget-svn] r237 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000151.html">[Iscsitarget-svn] r239 - trunk/etc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#150">[ date ]</a>
+              <a href="thread.html#150">[ thread ]</a>
+              <a href="subject.html#150">[ subject ]</a>
+              <a href="author.html#150">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

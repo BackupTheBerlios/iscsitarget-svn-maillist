@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r231 - in trunk: . etc
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r231%20-%20in%20trunk%3A%20.%20etc&In-Reply-To=%3C200909161532.n8GFWgAJ014860%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000142.html">
+   <LINK REL="Next"  HREF="000144.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r231 - in trunk: . etc</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r231%20-%20in%20trunk%3A%20.%20etc&In-Reply-To=%3C200909161532.n8GFWgAJ014860%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r231 - in trunk: . etc">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 16 17:32:42 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000142.html">[Iscsitarget-svn] r230 - in trunk: . etc usr
+</A></li>
+        <LI>Next message: <A HREF="000144.html">[Iscsitarget-svn] r232 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#143">[ date ]</a>
+              <a href="thread.html#143">[ thread ]</a>
+              <a href="subject.html#143">[ subject ]</a>
+              <a href="author.html#143">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-16 17:32:39 +0200 (Wed, 16 Sep 2009)
+New Revision: 231
+
+Added:
+   trunk/README.initiators
+   trunk/etc/targets.allow
+Log:
+Fix the previous commit which lacked the new files README.initiators and
+targets.allow
+
+
+Added: trunk/README.initiators
+===================================================================
+--- trunk/README.initiators	2009-09-16 15:26:45 UTC (rev 230)
++++ trunk/README.initiators	2009-09-16 15:32:39 UTC (rev 231)
+@@ -0,0 +1,29 @@
++New functionality of initiators.allow/deny
++==========================================
++
++Prior to version 0.4.18 the way initiators.allow and initiators.deny
++worked was to read initiators.deny for any targets that matched and
++to blacklist any initiator ip addresses listed there, UNLESS the
++initiators' ip address is also explicitly allowed by an entry in
++initiators.allow.
++
++From version 0.4.18 on we are depreciating initiators.deny all
++together in favor of an implicit deny on any failure to match
++a target or initiator in initiators.allow. This provides all the
++flexibility of the two files with one less file to worry about
++misconfiguring.
++
++For backwards compatibility while we phase out initiators.deny,
++if initiators.deny exists then we will USE THE OLD METHOD, if it
++doesn't exist then we will use the newer implicit deny method.
++
++On new installations we will not install initiators.deny, but we
++will still distribute the example version under the etc directory
++in the archive. We will also not overwrite or delete existing
++versions of these files on install.
++
++Also, new versions of initiators.allow will have the default
++&quot;ALL ALL&quot; line at the bottom to allow any initiator access to
++any target.
++
++
+
+Added: trunk/etc/targets.allow
+===================================================================
+--- trunk/etc/targets.allow	2009-09-16 15:26:45 UTC (rev 230)
++++ trunk/etc/targets.allow	2009-09-16 15:32:39 UTC (rev 231)
+@@ -0,0 +1,23 @@
++# The semantics are:
++#
++# * Without any entries no target will accept connections or be discovered
++#   on any address.
++#  
++# * By default we allow all targets to accept connections and to be
++#   discovered on any address with the &quot;ALL ALL&quot; entry.
++#
++# * Override which targets will accept connections on and be discovered on
++#   which addresses by putting an entry for a given target followed by a
++#   comma separated list of IP addresses, separate the two with whitespace.
++#
++# * Entry processing stops at the &quot;ALL&quot; target entry if present.
++#
++#
++# Some examples
++#
++#iqn.2001-04.com.example:storage.disk1.sys1.xyz 192.168.0.0/16
++#iqn.2001-04.com.example:storage.disk1.sys2.xyz [3ffe:302:11:1:211:43ff:fe31:5ae2], 192.168.22.24
++#iqn.2001-04.com.example:storage.disk1.sys3.xyz ALL
++#iqn.2001-04.com.example:storage.disk1.sys4.xyz 192.168.22.3
++# ALL 192.168.0.0/16
++ALL ALL
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000142.html">[Iscsitarget-svn] r230 - in trunk: . etc usr
+</A></li>
+	<LI>Next message: <A HREF="000144.html">[Iscsitarget-svn] r232 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#143">[ date ]</a>
+              <a href="thread.html#143">[ thread ]</a>
+              <a href="subject.html#143">[ subject ]</a>
+              <a href="author.html#143">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[327] trunk/patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B327%5D%20trunk/patches&In-Reply-To=%3CE1O1jgY-0004dL-II%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000238.html">
+   <LINK REL="Next"  HREF="000240.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[327] trunk/patches</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B327%5D%20trunk/patches&In-Reply-To=%3CE1O1jgY-0004dL-II%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[327] trunk/patches">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Apr 13 19:14:02 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000238.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[326] trunk
+</A></li>
+        <LI>Next message: <A HREF="000240.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[328] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#239">[ date ]</a>
+              <a href="thread.html#239">[ thread ]</a>
+              <a href="subject.html#239">[ subject ]</a>
+              <a href="author.html#239">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 327
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=327&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=327&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-13 17:13:44 +0000 (Tue, 13 Apr 2010)
+
+Log Message:
+-----------
+
+Kernels prior to 2.6.18 didn't include DECLARE_COMPLETION_ONSTACK.
+
+Thanks go to Stefan Rubner for the fix.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/patches/compat-2.6.14-2.6.18.patch
+    trunk/patches/compat-2.6.19-2.6.21.patch
+    trunk/patches/compat-2.6.28.patch
+    trunk/patches/compat-2.6.32.patch
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2010-04-13 14:53:30 UTC (rev 326)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2010-04-13 17:13:44 UTC (rev 327)
+@@ -2,6 +2,17 @@
+ ===================================================================
+ --- 1/kernel/iscsi.h	(revision 105)
+ +++ 2/kernel/iscsi.h	(working copy)
++@@ -20,6 +20,10 @@
++ #include &quot;iscsi_hdr.h&quot;
++ #include &quot;iet_u.h&quot;
++ 
+++#ifndef DECLARE_COMPLETION_ONSTACK
+++# define DECLARE_COMPLETION_ONSTACK(work) DECLARE_COMPLETION(work)
+++#endif
+++
++ #define IET_SENSE_BUF_SIZE      18
++ 
++ struct iscsi_sess_param {
+ @@ -261,8 +261,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2010-04-13 14:53:30 UTC (rev 326)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2010-04-13 17:13:44 UTC (rev 327)
+@@ -16,7 +16,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(working copy)
+ +++ 2/kernel/iscsi.c	(revision 137)
+-@@ -1927,7 +1927,8 @@ static int iscsi_init(void)
++@@ -1925,7 +1925,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+ 
+
+Modified: trunk/patches/compat-2.6.28.patch
+===================================================================
+--- trunk/patches/compat-2.6.28.patch	2010-04-13 14:53:30 UTC (rev 326)
++++ trunk/patches/compat-2.6.28.patch	2010-04-13 17:13:44 UTC (rev 327)
+@@ -2,7 +2,7 @@
+ index 09b4c0c..a5c0228 100644
+ --- a/kernel/conn.c
+ +++ b/kernel/conn.c
+-@@ -46,8 +46,9 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
++@@ -47,8 +47,9 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
+  				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;daddr));
+  			break;
+  		case AF_INET6:
+
+Modified: trunk/patches/compat-2.6.32.patch
+===================================================================
+--- trunk/patches/compat-2.6.32.patch	2010-04-13 14:53:30 UTC (rev 326)
++++ trunk/patches/compat-2.6.32.patch	2010-04-13 17:13:44 UTC (rev 327)
+@@ -2,7 +2,7 @@
+ index f179db5..4b53acd 100644
+ --- b/kernel/conn.c
+ +++ a/kernel/conn.c
+-@@ -43,7 +43,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
++@@ -44,7 +44,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
+  		switch (sk-&gt;sk_family) {
+  		case AF_INET:
+  			snprintf(buf, sizeof(buf),
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000238.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[326] trunk
+</A></li>
+	<LI>Next message: <A HREF="000240.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[328] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#239">[ date ]</a>
+              <a href="thread.html#239">[ thread ]</a>
+              <a href="subject.html#239">[ subject ]</a>
+              <a href="author.html#239">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

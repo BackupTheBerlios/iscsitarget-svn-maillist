@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r255 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r255%20-%20trunk/usr&In-Reply-To=%3C200910081824.n98IO5Jf015648%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000166.html">
+   <LINK REL="Next"  HREF="000168.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r255 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r255%20-%20trunk/usr&In-Reply-To=%3C200910081824.n98IO5Jf015648%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r255 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 20:24:05 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000166.html">[Iscsitarget-svn] r254 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000168.html">[Iscsitarget-svn] r256 - in trunk: kernel usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#167">[ date ]</a>
+              <a href="thread.html#167">[ thread ]</a>
+              <a href="subject.html#167">[ subject ]</a>
+              <a href="author.html#167">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 20:24:05 +0200 (Thu, 08 Oct 2009)
+New Revision: 255
+
+Modified:
+   trunk/usr/iscsid.c
+Log:
+From: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+login-rsp-err: cleanup copy &amp; pasted code
+
+Attached you can find a patch which eliminates the copy&amp;pasted code in
+the 'login_start()' function.
+The resulting code is shorter and easier to understand (and maintain).
+
+Signed-off-by: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-10-08 18:11:38 UTC (rev 254)
++++ trunk/usr/iscsid.c	2009-10-08 18:24:05 UTC (rev 255)
+@@ -386,10 +386,20 @@
+ 	return cnt;
+ }
+ 
++static void login_rsp_ini_err(struct connection *conn, int status_detail)
++{
++	struct iscsi_login_rsp_hdr * const rsp =
++		(struct iscsi_login_rsp_hdr * const)&amp;conn-&gt;rsp.bhs;
++
++	rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
++	rsp-&gt;status_detail = status_detail;
++	conn-&gt;state = STATE_EXIT;
++}
++
+ static void login_start(struct connection *conn)
+ {
+ 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
+-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
++
+ 	char *name, *alias, *session_type, *target_name;
+ 	struct sockaddr_storage ss;
+ 	socklen_t slen = sizeof(struct sockaddr_storage);
+@@ -399,17 +409,13 @@
+ 	conn-&gt;cid = be16_to_cpu(req-&gt;cid);
+ 	conn-&gt;sid.id64 = req-&gt;sid.id64;
+ 	if (!conn-&gt;sid.id64) {
+-		rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-		rsp-&gt;status_detail = ISCSI_STATUS_MISSING_FIELDS;
+-		conn-&gt;state = STATE_EXIT;
++		login_rsp_ini_err(conn, ISCSI_STATUS_MISSING_FIELDS);
+ 		return;
+ 	}
+ 
+ 	name = text_key_find(conn, &quot;InitiatorName&quot;);
+ 	if (!name) {
+-		rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-		rsp-&gt;status_detail = ISCSI_STATUS_MISSING_FIELDS;
+-		conn-&gt;state = STATE_EXIT;
++		login_rsp_ini_err(conn, ISCSI_STATUS_MISSING_FIELDS);
+ 		return;
+ 	}
+ 	conn-&gt;initiator = strdup(name);
+@@ -426,18 +432,14 @@
+ 		if (!strcmp(session_type, &quot;Discovery&quot;))
+ 			conn-&gt;session_type = SESSION_DISCOVERY;
+ 		else if (strcmp(session_type, &quot;Normal&quot;)) {
+-			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-			rsp-&gt;status_detail = ISCSI_STATUS_INV_SESSION_TYPE;
+-			conn-&gt;state = STATE_EXIT;
++			login_rsp_ini_err(conn, ISCSI_STATUS_INV_SESSION_TYPE);
+ 			return;
+ 		}
+ 	}
+ 
+ 	if (conn-&gt;session_type == SESSION_NORMAL) {
+ 		if (!target_name) {
+-			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-			rsp-&gt;status_detail = ISCSI_STATUS_MISSING_FIELDS;
+-			conn-&gt;state = STATE_EXIT;
++			login_rsp_ini_err(conn, ISCSI_STATUS_MISSING_FIELDS);
+ 			return;
+ 		}
+ 
+@@ -448,29 +450,22 @@
+ 		    || !cops-&gt;initiator_allow(target-&gt;tid, conn-&gt;fd, name)
+ 		    || !cops-&gt;target_allow(target-&gt;tid, (struct sockaddr *) &amp;ss)
+ 		    || !isns_scn_allow(target-&gt;tid, name)) {
+-			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-			rsp-&gt;status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
+-			conn-&gt;state = STATE_EXIT;
++			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
+ 			return;
+ 		}
+ 
+ 		conn-&gt;tid = target-&gt;tid;
+ 
+-/* 		if (conn-&gt;target-&gt;max_sessions &amp;&amp; */
+-/* 		    (++conn-&gt;target-&gt;session_cnt &gt; conn-&gt;target-&gt;max_sessions)) { */
+-/* 			conn-&gt;target-&gt;session_cnt--; */
+-/* 			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR; */
+-/* 			rsp-&gt;status_detail = ISCSI_STATUS_TOO_MANY_CONN; */
+-/* 			conn-&gt;state = STATE_EXIT; */
+-/* 			return; */
+-/* 		} */
++/*		if (conn-&gt;target-&gt;max_sessions &amp;&amp; */
++/*		    (++conn-&gt;target-&gt;session_cnt &gt; conn-&gt;target-&gt;max_sessions)) { */
++/*			conn-&gt;target-&gt;session_cnt--; */
++/*			login_rsp_ini_err(conn, ISCSI_STATUS_TOO_MANY_CONN); */
++/*			return; */
++/*		} */
+ 
+ 		if (ki-&gt;param_get(conn-&gt;tid, 0, key_session,
+-				  conn-&gt;session_param)) {
+-			rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
+-			rsp-&gt;status_detail = ISCSI_STATUS_SVC_UNAVAILABLE;
+-			conn-&gt;state = STATE_EXIT;
+-		}
++				  conn-&gt;session_param))
++			login_rsp_ini_err(conn, ISCSI_STATUS_SVC_UNAVAILABLE);
+ 	}
+ 	conn-&gt;exp_cmd_sn = be32_to_cpu(req-&gt;cmd_sn);
+ 	log_debug(1, &quot;exp_cmd_sn: %d,%d&quot;, conn-&gt;exp_cmd_sn, req-&gt;cmd_sn);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000166.html">[Iscsitarget-svn] r254 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000168.html">[Iscsitarget-svn] r256 - in trunk: kernel usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#167">[ date ]</a>
+              <a href="thread.html#167">[ thread ]</a>
+              <a href="subject.html#167">[ subject ]</a>
+              <a href="author.html#167">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r155 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r155%20-%20trunk/kernel&In-Reply-To=%3C200806182302.m5IN20ZI025874%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000066.html">
+   <LINK REL="Next"  HREF="000068.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r155 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r155%20-%20trunk/kernel&In-Reply-To=%3C200806182302.m5IN20ZI025874%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r155 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Jun 19 01:02:00 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000066.html">[Iscsitarget-svn] r154 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000068.html">[Iscsitarget-svn] r156 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67">[ date ]</a>
+              <a href="thread.html#67">[ thread ]</a>
+              <a href="subject.html#67">[ subject ]</a>
+              <a href="author.html#67">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2008-06-19 01:01:59 +0200 (Thu, 19 Jun 2008)
+New Revision: 155
+
+Modified:
+   trunk/kernel/block-io.c
+   trunk/kernel/file-io.c
+   trunk/kernel/null-io.c
+   trunk/kernel/volume.c
+Log:
+Subject: Kernel header include fixes
+From: Ross S. W. Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+Date: Wed, 18 Jun 2008 10:42:02 -0400
+
+Following is a patch for iscsitarget that:
+
+1) provides compatibility for SLES by adding the linux/types.h header
+to source files that include linux/parser.h. SLES has new parser.h
+types defined that depend on definitions in types.h, but doesn't
+include types.h.
+
+2) move the linux/blkdev.h include up above parser.h in blockio.c to
+fix an include problem on 2.6.26 kernels.
+
+3) Made sure kernel header include order is similar between all kernel
+code parts.
+
+Compile tested by Ross Walker
+
+
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2008-06-16 23:52:36 UTC (rev 154)
++++ trunk/kernel/block-io.c	2008-06-18 23:01:59 UTC (rev 155)
+@@ -9,8 +9,9 @@
+  * This code is licenced under the GPL.
+  */
+ 
++#include &lt;linux/types.h&gt;
++#include &lt;linux/blkdev.h&gt;
+ #include &lt;linux/parser.h&gt;
+-#include &lt;linux/blkdev.h&gt;
+ #include &lt;linux/buffer_head.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2008-06-16 23:52:36 UTC (rev 154)
++++ trunk/kernel/file-io.c	2008-06-18 23:01:59 UTC (rev 155)
+@@ -4,9 +4,10 @@
+  * This code is licenced under the GPL.
+  */
+ 
++#include &lt;linux/types.h&gt;
+ #include &lt;linux/blkdev.h&gt;
++#include &lt;linux/parser.h&gt;
+ #include &lt;linux/writeback.h&gt;
+-#include &lt;linux/parser.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+
+Modified: trunk/kernel/null-io.c
+===================================================================
+--- trunk/kernel/null-io.c	2008-06-16 23:52:36 UTC (rev 154)
++++ trunk/kernel/null-io.c	2008-06-18 23:01:59 UTC (rev 155)
+@@ -7,9 +7,10 @@
+  * data. It is only for performance measurement purpose.
+  */
+ 
++#include &lt;linux/types.h&gt;
+ #include &lt;linux/blkdev.h&gt;
++#include &lt;linux/parser.h&gt;
+ #include &lt;linux/writeback.h&gt;
+-#include &lt;linux/parser.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2008-06-16 23:52:36 UTC (rev 154)
++++ trunk/kernel/volume.c	2008-06-18 23:01:59 UTC (rev 155)
+@@ -4,12 +4,13 @@
+  * This code is licenced under the GPL.
+  */
+ 
++#include &lt;linux/types.h&gt;
++#include &lt;linux/parser.h&gt;
++
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+ #include &quot;iotype.h&quot;
+ 
+-#include &lt;linux/parser.h&gt;
+-
+ struct iet_volume *volume_lookup(struct iscsi_target *target, u32 lun)
+ {
+ 	struct iet_volume *volume;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000066.html">[Iscsitarget-svn] r154 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000068.html">[Iscsitarget-svn] r156 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67">[ date ]</a>
+              <a href="thread.html#67">[ thread ]</a>
+              <a href="subject.html#67">[ subject ]</a>
+              <a href="author.html#67">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

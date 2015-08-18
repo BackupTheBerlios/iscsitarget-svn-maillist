@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r165 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r165%20-%20trunk/usr&In-Reply-To=%3C200808261858.m7QIwIlH013813%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000076.html">
+   <LINK REL="Next"  HREF="000078.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r165 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r165%20-%20trunk/usr&In-Reply-To=%3C200808261858.m7QIwIlH013813%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r165 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug 26 20:58:18 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000076.html">[Iscsitarget-svn] r164 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000078.html">[Iscsitarget-svn] r166 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77">[ date ]</a>
+              <a href="thread.html#77">[ thread ]</a>
+              <a href="subject.html#77">[ subject ]</a>
+              <a href="author.html#77">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-08-26 20:58:18 +0200 (Tue, 26 Aug 2008)
+New Revision: 165
+
+Modified:
+   trunk/usr/ietadm.c
+   trunk/usr/message.c
+Log:
+Add ietadm support to display CHAP account data
+
+&quot;ietadm --op show --user [--tid=$TID] --params {Incoming,Outgoing}User=$USER&quot;
+
+will display the account data of $USER. If tid is 0 (zero) or omitted,
+$USER is looked up in the list of discovery users, otherwise it is looked up
+in the list of target $TID's users.
+
+
+Modified: trunk/usr/ietadm.c
+===================================================================
+--- trunk/usr/ietadm.c	2008-08-26 18:57:08 UTC (rev 164)
++++ trunk/usr/ietadm.c	2008-08-26 18:58:18 UTC (rev 165)
+@@ -74,6 +74,11 @@
+                         show iSCSI parameters in effect for session [sid]. If\n\
+                         [sid] is \&quot;0\&quot; (zero), the configured parameters\n\
+                         will be displayed.\n\
++  --op show --tid=[id] --user --params=[user]=[name]\n\
++                        show CHAP account information. [user] can be\n\
++                        \&quot;IncomingUser\&quot; or \&quot;OutgoingUser\&quot;. If --tid is\n\
++                        omitted / id=0 (zero), [user] is treated as Discovery\n\
++                        user.\n\
+   --op new --tid=[id] --lun=[lun] --params Path=[path]\n\
+                         add a new logical unit with [lun] to specific\n\
+                         target with [id]. The logical unit is offered\n\
+@@ -450,6 +455,46 @@
+ 	return 0;
+ }
+ 
++static void show_account(int auth_dir, char *user, char *pass)
++{
++	char buf[(ISCSI_NAME_LEN  + 1) * 2] = {0};
++
++	snprintf(buf, ISCSI_NAME_LEN, &quot;%s&quot;, user);
++	if (pass)
++		snprintf(buf + strlen(buf), ISCSI_NAME_LEN, &quot; %s&quot;, pass);
++
++	printf(&quot;%sUser %s\n&quot;, (auth_dir == AUTH_DIR_INCOMING) ?
++	       &quot;Incoming&quot; : &quot;Outgoing&quot;, buf);
++}
++
++static int user_handle_show_user(struct ietadm_req *req, char *user)
++{
++	int err;
++
++	req-&gt;rcmnd = C_ACCT_SHOW;
++	strncpy(req-&gt;u.acnt.u.user.name, user,
++		sizeof(req-&gt;u.acnt.u.user.name) - 1);
++
++	err = ietd_request(req, NULL, 0);
++	if (!err)
++		show_account(req-&gt;u.acnt.auth_dir, req-&gt;u.acnt.u.user.name,
++			     req-&gt;u.acnt.u.user.pass);
++
++	return err;
++}
++
++static int user_handle_show(struct ietadm_req *req, char *user, char *pass)
++{
++	if (pass)
++		fprintf(stderr, &quot;Ignoring specified password\n&quot;);
++
++	if (user)
++		return user_handle_show_user(req, user);
++
++	fprintf(stderr, &quot;Unsupported\n&quot;);
++	return -EINVAL;
++}
++
+ static int user_handle_new(struct ietadm_req *req, char *user, char *pass)
+ {
+ 	if (!user || !pass) {
+@@ -493,7 +538,7 @@
+ 		user_handle_new,
+ 		user_handle_del,
+ 		NULL,
+-		NULL
++		user_handle_show,
+ 	}, *fn;
+ 
+ 	if (set &amp; ~(SET_TARGET | SET_USER))
+
+Modified: trunk/usr/message.c
+===================================================================
+--- trunk/usr/message.c	2008-08-26 18:57:08 UTC (rev 164)
++++ trunk/usr/message.c	2008-08-26 18:58:18 UTC (rev 165)
+@@ -111,7 +111,11 @@
+ 		break;
+ 	case C_ACCT_LIST:
+ 	case C_ACCT_UPDATE:
++		break;
+ 	case C_ACCT_SHOW:
++		err = cops-&gt;account_query(req-&gt;tid, req-&gt;u.acnt.auth_dir,
++					  req-&gt;u.acnt.u.user.name,
++					  req-&gt;u.acnt.u.user.pass);
+ 		break;
+ 	case C_SYS_NEW:
+ 		break;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000076.html">[Iscsitarget-svn] r164 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000078.html">[Iscsitarget-svn] r166 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77">[ date ]</a>
+              <a href="thread.html#77">[ thread ]</a>
+              <a href="subject.html#77">[ subject ]</a>
+              <a href="author.html#77">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

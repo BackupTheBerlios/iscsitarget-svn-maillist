@@ -1,0 +1,104 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r219 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r219%20-%20trunk/usr&In-Reply-To=%3C200907291750.n6THoiaC009437%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000130.html">
+   <LINK REL="Next"  HREF="000132.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r219 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r219%20-%20trunk/usr&In-Reply-To=%3C200907291750.n6THoiaC009437%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r219 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul 29 19:50:44 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000130.html">[Iscsitarget-svn] r218 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000132.html">[Iscsitarget-svn] r220 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#131">[ date ]</a>
+              <a href="thread.html#131">[ thread ]</a>
+              <a href="subject.html#131">[ subject ]</a>
+              <a href="author.html#131">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-07-29 19:50:43 +0200 (Wed, 29 Jul 2009)
+New Revision: 219
+
+Modified:
+   trunk/usr/ietd.c
+   trunk/usr/log.c
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Fix some minor ietd bugs
+
+Fixed log_debug to properly evaluate logging level.
+
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2009-07-29 17:47:38 UTC (rev 218)
++++ trunk/usr/ietd.c	2009-07-29 17:50:43 UTC (rev 219)
+@@ -414,7 +414,7 @@
+ 
+ 		conn_close:
+ 			if (conn-&gt;state == STATE_CLOSE) {
+-				log_debug(0, &quot;connection closed&quot;);
++				log_debug(1, &quot;connection closed&quot;);
+ 				conn_free_pdu(conn);
+ 				conn_free(conn);
+ 				close(pollfd-&gt;fd);
+
+Modified: trunk/usr/log.c
+===================================================================
+--- trunk/usr/log.c	2009-07-29 17:47:38 UTC (rev 218)
++++ trunk/usr/log.c	2009-07-29 17:50:43 UTC (rev 219)
+@@ -54,7 +54,7 @@
+ 
+ void log_debug(int level, const char *fmt, ...)
+ {
+-	if (log_level &gt; level) {
++	if (log_level &gt;= level) {
+ 		va_list ap;
+ 		va_start(ap, fmt);
+ 		dolog(LOG_DEBUG, fmt, ap);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000130.html">[Iscsitarget-svn] r218 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000132.html">[Iscsitarget-svn] r220 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#131">[ date ]</a>
+              <a href="thread.html#131">[ thread ]</a>
+              <a href="subject.html#131">[ subject ]</a>
+              <a href="author.html#131">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,85 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r171 - trunk/doc/manpages
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r171%20-%20trunk/doc/manpages&In-Reply-To=%3C200809102118.m8ALIHNv001719%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000082.html">
+   <LINK REL="Next"  HREF="000084.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r171 - trunk/doc/manpages</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r171%20-%20trunk/doc/manpages&In-Reply-To=%3C200809102118.m8ALIHNv001719%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r171 - trunk/doc/manpages">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 10 23:18:17 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000082.html">[Iscsitarget-svn] r170 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000084.html">[Iscsitarget-svn] r172 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83">[ date ]</a>
+              <a href="thread.html#83">[ thread ]</a>
+              <a href="subject.html#83">[ subject ]</a>
+              <a href="author.html#83">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-09-10 23:18:17 +0200 (Wed, 10 Sep 2008)
+New Revision: 171
+
+Modified:
+   trunk/doc/manpages/ietd.conf.5
+Log:
+Update MaxConnections documentation in ietd.conf manpage
+
+
+Modified: trunk/doc/manpages/ietd.conf.5
+===================================================================
+--- trunk/doc/manpages/ietd.conf.5	2008-09-10 20:57:47 UTC (rev 170)
++++ trunk/doc/manpages/ietd.conf.5	2008-09-10 21:18:17 UTC (rev 171)
+@@ -202,7 +202,7 @@
+ Optional. If set to &quot;CRC32C&quot; and the initiator is configured accordingly, the integrity of an iSCSI PDU's data segment will be protected by a CRC32C checksum. The default is &quot;None&quot;. Note that data digests are not supported during discovery sessions.
+ .TP 
+ .B [MaxConnections &lt;value&gt;]
+-Optional. Has to be set to &quot;1&quot; (in words: one), which is also the default.
++Optional. The number of connections within a session. Has to be set to &quot;1&quot; (in words: one), which is also the default since MC/S is not supported.
+ .TP 
+ .B [InitialR2T &lt;Yes|No&gt;]
+ Optional. If set to &quot;Yes&quot; (default), the initiator has to wait for the target to solicit SCSI data before sending it. Setting it to &quot;No&quot; allows the initiator to send a burst of
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000082.html">[Iscsitarget-svn] r170 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000084.html">[Iscsitarget-svn] r172 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83">[ date ]</a>
+              <a href="thread.html#83">[ thread ]</a>
+              <a href="subject.html#83">[ subject ]</a>
+              <a href="author.html#83">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,126 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[340] branches/1.4.20/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B340%5D%20branches/1.4.20/usr&In-Reply-To=%3CE1OTimY-0007rG-N2%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000260.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[340] branches/1.4.20/usr</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B340%5D%20branches/1.4.20/usr&In-Reply-To=%3CE1OTimY-0007rG-N2%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[340] branches/1.4.20/usr">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Jun 29 23:55:54 CEST 2010</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000260.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[341] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#265">[ date ]</a>
+              <a href="thread.html#265">[ thread ]</a>
+              <a href="subject.html#265">[ subject ]</a>
+              <a href="author.html#265">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 340
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=340&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=340&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-06-29 21:55:54 +0000 (Tue, 29 Jun 2010)
+
+Log Message:
+-----------
+New md5/sha1 code in ietd didn't handle the byte swap properly
+for the digest counters on big endian systems.
+
+Tested on PPC by Harshal Shete
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/usr/md5.c
+    branches/1.4.20/usr/sha1.c
+
+Modified: branches/1.4.20/usr/md5.c
+===================================================================
+--- branches/1.4.20/usr/md5.c	2010-04-25 11:26:56 UTC (rev 339)
++++ branches/1.4.20/usr/md5.c	2010-06-29 21:55:54 UTC (rev 340)
+@@ -179,13 +179,14 @@
+ 	memset(p, 0, padding);
+ 
+ 	/* 64-bit bit counter stored in LSW/LSB format */
+-	ctx-&gt;block[14] = ctx-&gt;count &lt;&lt; 3;
+-	ctx-&gt;block[15] = ctx-&gt;count &gt;&gt; 29;
++	ctx-&gt;block[14] = cpu_to_le32(ctx-&gt;count &lt;&lt; 3);
++	ctx-&gt;block[15] = cpu_to_le32(ctx-&gt;count &gt;&gt; 29);
+ 
+ 	md5_transform(ctx-&gt;digest, ctx-&gt;block);
+ 
+ 	for (i = 0; i &lt; MD5_DIGEST_WORDS; i++)
+ 		ctx-&gt;digest[i] = le32_to_cpu(ctx-&gt;digest[i]);
++
+ 	memcpy(out, ctx-&gt;digest, MD5_DIGEST_BYTES);
+ 	memset(ctx, 0, sizeof(*ctx));
+ }
+
+Modified: branches/1.4.20/usr/sha1.c
+===================================================================
+--- branches/1.4.20/usr/sha1.c	2010-04-25 11:26:56 UTC (rev 339)
++++ branches/1.4.20/usr/sha1.c	2010-06-29 21:55:54 UTC (rev 340)
+@@ -144,14 +144,15 @@
+ 
+ 	memset(p, 0, padding);
+ 
+-	/* 64-bit bit counter stored in MSW/LSB format (RFC bug?) */
+-	ctx-&gt;block[14] = bswap_32(ctx-&gt;count &gt;&gt; 29);
+-	ctx-&gt;block[15] = bswap_32(ctx-&gt;count &lt;&lt; 3);
++	/* 64-bit bit counter stored in MSW/MSB format */
++	ctx-&gt;block[14] = cpu_to_be32(ctx-&gt;count &gt;&gt; 29);
++	ctx-&gt;block[15] = cpu_to_be32(ctx-&gt;count &lt;&lt; 3);
+ 
+ 	sha1_transform(ctx-&gt;digest, ctx-&gt;block);
+ 
+ 	for (i = 0; i &lt; SHA1_DIGEST_WORDS; i++)
+ 		ctx-&gt;digest[i] = be32_to_cpu(ctx-&gt;digest[i]);
++
+ 	memcpy(out, ctx-&gt;digest, SHA1_DIGEST_BYTES);
+ 	memset(ctx, 0, sizeof(*ctx));
+ }
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000260.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[341] trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#265">[ date ]</a>
+              <a href="thread.html#265">[ thread ]</a>
+              <a href="subject.html#265">[ subject ]</a>
+              <a href="author.html#265">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

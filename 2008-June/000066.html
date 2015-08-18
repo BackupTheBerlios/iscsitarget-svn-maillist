@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r154 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r154%20-%20trunk/kernel&In-Reply-To=%3C200806162352.m5GNqbk6032354%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000065.html">
+   <LINK REL="Next"  HREF="000067.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r154 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r154%20-%20trunk/kernel&In-Reply-To=%3C200806162352.m5GNqbk6032354%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r154 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Tue Jun 17 01:52:37 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000065.html">[Iscsitarget-svn] r153 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000067.html">[Iscsitarget-svn] r155 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66">[ date ]</a>
+              <a href="thread.html#66">[ thread ]</a>
+              <a href="subject.html#66">[ subject ]</a>
+              <a href="author.html#66">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2008-06-17 01:52:36 +0200 (Tue, 17 Jun 2008)
+New Revision: 154
+
+Modified:
+   trunk/kernel/block-io.c
+   trunk/kernel/file-io.c
+Log:
+Subject: Harden the {block, file}-io param parsers
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Date: Sat, 31 May 2008 16:10:05 +0200
+
+The in-kernel parameter parsing has two issues:
+- the presence of the &quot;Path&quot; parameter is not checked/enforced, leading to
+  NULL-ptr dereferences,
+- the Path parameter might be specified repeatedly, leading to resource leaks.
+
+Both file-io and block-io are affected.
+
+
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2008-06-16 23:50:40 UTC (rev 153)
++++ trunk/kernel/block-io.c	2008-06-16 23:52:36 UTC (rev 154)
+@@ -247,8 +247,9 @@
+ };
+ 
+ static int
+-parse_blockio_params (struct iet_volume *volume, char *params)
++parse_blockio_params(struct iet_volume *volume, char *params)
+ {
++	struct blockio_data *info = volume-&gt;private;
+ 	int err = 0;
+ 	char *p, *q;
+ 
+@@ -283,6 +284,13 @@
+ 				goto out;
+ 			break;
+ 		case Opt_path:
++			if (info-&gt;path) {
++				iprintk(&quot;Target %s, LUN %u: &quot;
++					&quot;duplicate \&quot;Path\&quot; param\n&quot;,
++					volume-&gt;target-&gt;name, volume-&gt;lun);
++				err = -EINVAL;
++				goto out;
++			}
+ 			if (!(q = match_strdup(&amp;args[0]))) {
+ 				err = -ENOMEM;
+ 				goto out;
+@@ -295,12 +303,17 @@
+ 		case Opt_ignore:
+ 			break;
+ 		default:
+-			eprintk(&quot;Bad option %s for Lun %u on Target %s \n&quot;,
+-				p, volume-&gt;lun, volume-&gt;target-&gt;name);
++			iprintk(&quot;Target %s, LUN %u: unknown param %s\n&quot;,
++				volume-&gt;target-&gt;name, volume-&gt;lun, p);
+ 			return -EINVAL;
+ 		}
+ 	}
+ 
++	if (!info-&gt;path) {
++		iprintk(&quot;Target %s, LUN %u: missing \&quot;Path\&quot; param\n&quot;,
++			volume-&gt;target-&gt;name, volume-&gt;lun);
++		err = -EINVAL;
++	}
+   out:
+ 	return err;
+ }
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2008-06-16 23:50:40 UTC (rev 153)
++++ trunk/kernel/file-io.c	2008-06-16 23:52:36 UTC (rev 154)
+@@ -184,6 +184,7 @@
+ 
+ static int parse_fileio_params(struct iet_volume *volume, char *params)
+ {
++	struct fileio_data *info = volume-&gt;private;
+ 	int err = 0;
+ 	char *p, *q;
+ 
+@@ -215,6 +216,13 @@
+ 				goto out;
+ 			break;
+ 		case Opt_path:
++			if (info-&gt;path) {
++				iprintk(&quot;Target %s, LUN %u: &quot;
++					&quot;duplicate \&quot;Path\&quot; param\n&quot;,
++					volume-&gt;target-&gt;name, volume-&gt;lun);
++				err = -EINVAL;
++				goto out;
++			}
+ 			if (!(q = match_strdup(&amp;args[0]))) {
+ 				err = -ENOMEM;
+ 				goto out;
+@@ -227,11 +235,17 @@
+ 		case Opt_ignore:
+ 			break;
+ 		default:
+-			eprintk(&quot;Unknown %s\n&quot;, p);
++			iprintk(&quot;Target %s, LUN %u: unknown param %s\n&quot;,
++				volume-&gt;target-&gt;name, volume-&gt;lun, p);
+ 			return -EINVAL;
+ 		}
+ 	}
+ 
++	if (!info-&gt;path) {
++		iprintk(&quot;Target %s, LUN %u: missing \&quot;Path\&quot; param\n&quot;,
++			volume-&gt;target-&gt;name, volume-&gt;lun);
++		err = -EINVAL;
++	}
+ out:
+ 	return err;
+ }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000065.html">[Iscsitarget-svn] r153 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000067.html">[Iscsitarget-svn] r155 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66">[ date ]</a>
+              <a href="thread.html#66">[ thread ]</a>
+              <a href="subject.html#66">[ subject ]</a>
+              <a href="author.html#66">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

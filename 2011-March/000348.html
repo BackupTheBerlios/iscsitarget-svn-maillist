@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[436] trunk/usr/param.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B436%5D%20trunk/usr/param.c&In-Reply-To=%3CE1Q5Kuq-00065U-1A%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000347.html">
+   <LINK REL="Next"  HREF="000349.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[436] trunk/usr/param.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B436%5D%20trunk/usr/param.c&In-Reply-To=%3CE1Q5Kuq-00065U-1A%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[436] trunk/usr/param.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Mar 31 18:40:12 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000347.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[435]	branches/1.4.20/kernel/nthread.c
+</A></li>
+        <LI>Next message: <A HREF="000349.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[437]	branches/1.4.20/usr/param.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#348">[ date ]</a>
+              <a href="thread.html#348">[ thread ]</a>
+              <a href="subject.html#348">[ subject ]</a>
+              <a href="author.html#348">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 436
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=436&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=436&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-31 16:40:11 +0000 (Thu, 31 Mar 2011)
+
+Log Message:
+-----------
+Through conformance testing it was determined that IET 1.4.20 HEAD
+doesn't handle digest and Time2Retain negotiation properly.
+
+Currently we have no way of setting preferred digest, so if both
+None and CRC32C are set then None will be the preferred. If the
+initiator wants CRC32C then it will pick it, if nothing is
+specified it will pick None. If you want initiators to use CRC32C
+always, set just CRC32C.
+
+Compile tested on CentOS5
+
+Conformance tested with iSWAT
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/usr/param.c
+
+Modified: trunk/usr/param.c
+===================================================================
+--- trunk/usr/param.c	2011-03-31 15:57:51 UTC (rev 435)
++++ trunk/usr/param.c	2011-03-31 16:40:11 UTC (rev 436)
+@@ -142,11 +142,15 @@
+ {
+ 	int err = 0;
+ 
+-	if (val &amp; DIGEST_CRC32C)
+-		strcpy(str, &quot;CRC32C&quot;);
+-	else if (val &amp; DIGEST_NONE)
++	if (val &amp; DIGEST_NONE)
+ 		strcpy(str, &quot;None&quot;);
+-	else
++	if (val &amp; DIGEST_CRC32C) {
++		if (strlen(str))
++			strcat(str, &quot;,CRC32C&quot;);
++		else
++			strcpy(str, &quot;CRC32C&quot;);
++	}
++	if (!strlen(str))
+ 		err = -EINVAL;
+ 
+ 	return err;
+@@ -158,21 +162,19 @@
+ 	char *p, *q;
+ 	p = str;
+ 
+-	*val = DIGEST_NONE;
++	*val = 0;
+ 	do {
+-		if (!strncmp(p, &quot;None&quot;, strlen(&quot;None&quot;)))
++		q = strsep(&amp;p, &quot;,&quot;);
++		if (!strcmp(q, &quot;None&quot;))
+ 			*val |= DIGEST_NONE;
+-		else if (!strncmp(p, &quot;CRC32C&quot;, strlen(&quot;CRC32C&quot;)))
++		else if (!strcmp(q, &quot;CRC32C&quot;))
+ 			*val |= DIGEST_CRC32C;
+ 		else {
+ 			err = -EINVAL;
+ 			break;
+ 		}
++	} while (p);
+ 
+-		if ((q = strchr(p, ',')))
+-			p = q + 1;
+-	} while (q);
+-
+ 	return err;
+ }
+ 
+@@ -301,7 +303,7 @@
+ 	{&quot;MaxBurstLength&quot;, 262144, 512, 16777215, &amp;minimum_ops},
+ 	{&quot;FirstBurstLength&quot;, 65536, 512, 16777215, &amp;minimum_ops},
+ 	{&quot;DefaultTime2Wait&quot;, 2, 0, 3600, &amp;maximum_ops},
+-	{&quot;DefaultTime2Retain&quot;, 0, 0, 3600, &amp;minimum_ops},
++	{&quot;DefaultTime2Retain&quot;, 20, 0, 3600, &amp;minimum_ops},
+ 	{&quot;MaxOutstandingR2T&quot;, 1, 1, 65535, &amp;minimum_ops},
+ 	{&quot;DataPDUInOrder&quot;, 1, 0, 1, &amp;or_ops},
+ 	{&quot;DataSequenceInOrder&quot;, 1, 0, 1, &amp;or_ops},
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000347.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[435]	branches/1.4.20/kernel/nthread.c
+</A></li>
+	<LI>Next message: <A HREF="000349.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[437]	branches/1.4.20/usr/param.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#348">[ date ]</a>
+              <a href="thread.html#348">[ thread ]</a>
+              <a href="subject.html#348">[ subject ]</a>
+              <a href="author.html#348">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

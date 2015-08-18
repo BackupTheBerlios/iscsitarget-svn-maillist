@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[387] branches/1.4.20
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B387%5D%20branches/1.4.20&In-Reply-To=%3CE1PfciY-0006Tr-3a%40sfp-svn-3.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000298.html">
+   <LINK REL="Next"  HREF="000300.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[387] branches/1.4.20</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B387%5D%20branches/1.4.20&In-Reply-To=%3CE1PfciY-0006Tr-3a%40sfp-svn-3.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[387] branches/1.4.20">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jan 19 19:25:14 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000298.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[386] branches/1.4.20/usr
+</A></li>
+        <LI>Next message: <A HREF="000300.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[388] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#299">[ date ]</a>
+              <a href="thread.html#299">[ thread ]</a>
+              <a href="subject.html#299">[ subject ]</a>
+              <a href="author.html#299">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 387
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=387&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=387&amp;view=rev</A>
+Author:   agr1
+Date:     2011-01-19 18:25:13 +0000 (Wed, 19 Jan 2011)
+
+Log Message:
+-----------
+2.6.36 compile fix
+
+The NIPQUAD macro has been removed, instead &quot;%pI4&quot; is used in
+format strings.
+Independently submitted by Wido den Hollander and Chris Siebenmann.
+
+Submitted-by: Wido den Hollander &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">wido at widodh.nl</A>&gt;
+Submitted-by: Chris Siebenmann &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">cks at cs.toronto.edu</A>&gt;
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    branches/1.4.20/Makefile
+    branches/1.4.20/kernel/conn.c
+
+Added Paths:
+-----------
+    branches/1.4.20/patches/compat-2.6.33-2.6.35.patch
+
+Modified: branches/1.4.20/Makefile
+===================================================================
+--- branches/1.4.20/Makefile	2011-01-19 18:24:52 UTC (rev 386)
++++ branches/1.4.20/Makefile	2011-01-19 18:25:13 UTC (rev 387)
+@@ -56,6 +56,11 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++# Compatibility patch for kernels &gt; 2.6.32 &lt;= 2.6.35
++ifeq ($(call kver_le,2,6,35),1)
++	PATCHES := $(PATCHES) compat-2.6.33-2.6.35.patch
++endif
++
+ # Compatibility patch for kernels &lt;= 2.6.32
+ ifeq ($(call kver_le,2,6,32),1)
+ 	PATCHES := $(PATCHES) compat-2.6.32.patch
+
+Modified: branches/1.4.20/kernel/conn.c
+===================================================================
+--- branches/1.4.20/kernel/conn.c	2011-01-19 18:24:52 UTC (rev 386)
++++ branches/1.4.20/kernel/conn.c	2011-01-19 18:25:13 UTC (rev 387)
+@@ -44,7 +44,7 @@
+ 		switch (sk-&gt;sk_family) {
+ 		case AF_INET:
+ 			snprintf(buf, sizeof(buf),
+-				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;inet_daddr));
++				 &quot;%pI4&quot;, inet_sk(sk)-&gt;inet_daddr);
+ 			break;
+ 		case AF_INET6:
+ 			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
+
+Added: branches/1.4.20/patches/compat-2.6.33-2.6.35.patch
+===================================================================
+--- branches/1.4.20/patches/compat-2.6.33-2.6.35.patch	                        (rev 0)
++++ branches/1.4.20/patches/compat-2.6.33-2.6.35.patch	2011-01-19 18:25:13 UTC (rev 387)
+@@ -0,0 +1,13 @@
++diff --git b/kernel/conn.c a/kernel/conn.c
++index c7b8ea1..ec6dada 100644
++--- b/kernel/conn.c
+++++ a/kernel/conn.c
++@@ -44,7 +44,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
++ 		switch (sk-&gt;sk_family) {
++ 		case AF_INET:
++ 			snprintf(buf, sizeof(buf),
++-				 &quot;%pI4&quot;, inet_sk(sk)-&gt;inet_daddr);
+++				 &quot;%u.%u.%u.%u&quot;, NIPQUAD(inet_sk(sk)-&gt;inet_daddr));
++ 			break;
++ 		case AF_INET6:
++ 			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000298.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[386] branches/1.4.20/usr
+</A></li>
+	<LI>Next message: <A HREF="000300.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[388] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#299">[ date ]</a>
+              <a href="thread.html#299">[ thread ]</a>
+              <a href="subject.html#299">[ subject ]</a>
+              <a href="author.html#299">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

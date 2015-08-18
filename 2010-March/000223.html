@@ -1,0 +1,284 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[311]	trunk/iscsitarget.spec
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B311%5D%0A%09trunk/iscsitarget.spec&In-Reply-To=%3CE1Nwg0g-0006cC-Jr%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000222.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[311]	trunk/iscsitarget.spec</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B311%5D%0A%09trunk/iscsitarget.spec&In-Reply-To=%3CE1Nwg0g-0006cC-Jr%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[311]	trunk/iscsitarget.spec">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Mar 30 20:17:54 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000222.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[310] trunk/usr
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#223">[ date ]</a>
+              <a href="thread.html#223">[ thread ]</a>
+              <a href="subject.html#223">[ subject ]</a>
+              <a href="author.html#223">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 311
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=311&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=311&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-03-30 18:17:54 +0000 (Tue, 30 Mar 2010)
+
+Log Message:
+-----------
+- Added Provides: kernel-modules to DKMS module so multiple versions can
+  be managed by DKMS at once.
+- Added conflicts to dkms and kmod for each other so only one type can
+  be installed at a time.
+- Added --rpm_safe_upgrade to DKMS add/remove for RPM-DKMS sync
+- Added --force to DKMS install in case version changed, but code didn't
+- Updated SVN build defines.
+- Added weak build define to manually choose KABI tracking or per-kernel
+- Fixed issue with upgrading KABI tracking module by removing
+  Provides: kernel-modules to weak builds, kept for per-kernel builds
+  if you install weak built module, all per-kernels are uninstalled,
+  you cannot install a per-kernel while a weak built is installed.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/iscsitarget.spec
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2010-03-30 18:12:09 UTC (rev 310)
++++ trunk/iscsitarget.spec	2010-03-30 18:17:54 UTC (rev 311)
+@@ -3,12 +3,12 @@
+ ##
+ 
+ ## IET Release
+-%define iet_version 1.4.19
++%define iet_version 1.4.20
+ 
+ ## Package Revision
+ %define revision 1
+ 
+-## Build Options
++## Build Options (modify to tune your build)
+ # Build DKMS kernel module
+ #
+ # Two passes through rpmbuild are required, once for the userland
+@@ -16,10 +16,17 @@
+ # kernel dkms package.
+ %define dkms 0
+ 
++# Build weak modules (KABI tracking) if supported
++#
++# If it isn't supported it will figure that out below
++%define weak 1
++
+ # Build from SVN repository
+ %define svn 0
++%define svn_rev HEAD
++%define svn_url <A HREF="https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget/trunk">https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget/trunk</A>
+ 
+-## Platform Definitions
++## Platform Definitions (you shouldn't need to modify these)
+ # Determine distribution
+ %define is_suse		%(test -e /etc/SuSE-release &amp;&amp; echo 1 || echo 0)
+ %define is_fedora	%(test -e /etc/fedora-release &amp;&amp; echo 1 || echo 0)
+@@ -53,12 +60,13 @@
+ 
+ # Subversion build information
+ %if %svn
+-%define svn_url <A HREF="https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget/trunk">https://iscsitarget.svn.sourceforge.net/svnroot/iscsitarget/trunk</A>
+-%define iet_version %(%{__svn} info --non-interactive %{svn_url} | awk '{if ($1 == &quot;Revision:&quot;) {print &quot;svn_r&quot;$2}}')
++%define iet_version %(%{__svn} info -r %{svn_rev} --non-interactive %{svn_url} | awk '{if ($1 == &quot;Revision:&quot;) {print &quot;svn_r&quot;$2}}')
+ %endif
+ 
+ # Build weak module (KABI Tracking) on platforms that support it
++%if %weak
+ %define weak %(test -x %{__weak_modules} &amp;&amp; echo 1 || echo 0)
++%endif
+ 
+ # Basic regex filters for unwanted dependencies (used for weak modules)
+ %if %weak
+@@ -124,12 +132,12 @@
+ ##
+ %if %dkms
+ %ifarch noarch
+-%package -n kmod-%{name}
++%package -n dkms-%{name}
+ 
+ ## Information
+ Summary: iSCSI Enterprise Target kernel module
+ Group: System Environment/Kernel
+-Release: %{release}_dkms
++Release: %{release}
+ 
+ ## Install Requirements
+ Requires: dkms &gt;= 2, gcc, make, patch, binutils
+@@ -140,10 +148,14 @@
+ %endif
+ 
+ ## Install Provides
++Provides: kernel-modules
+ Provides: %{name}-kmod = %{version}
+ 
++## Install Conflicts
++Conflicts: kmod-%{name}
++
+ ## Description
+-%description -n kmod-%{name}
++%description -n dkms-%{name}
+ iSCSI Enterprise Target kernel module
+ %endif
+ %else
+@@ -166,9 +178,14 @@
+ Requires(postun): %{__depmod}
+ 
+ ## Install Provides
++%if !%weak
+ Provides: kernel-modules = %{kver}
++%endif
+ Provides: %{name}-kmod = %{version}
+ 
++## Install Conflicts
++Conflicts: dkms-%{name}
++
+ ## Description
+ %description -n kmod-%{name}
+ iSCSI Enterprise Target kernel module
+@@ -187,7 +204,7 @@
+ %if %svn
+ %setup -q -D -T -c -n %{name}-%{version}
+ if [ ! -f include/iet_u.h ]; then
+-%{__svn} export --force --non-interactive -q %{svn_url} .
++%{__svn} export --force -r %{svn_rev} --non-interactive -q %{svn_url} .
+ %{__sed} -i -e &quot;s/\(#define IET_VERSION_STRING\).*/\1\t\&quot;%{version}\&quot;/&quot; include/iet_u.h
+ # Patches to apply to SVN
+ #%patch0 -p0
+@@ -229,8 +246,8 @@
+ %{__rm} -rf %{buildroot}/usr/share/doc/iscsitarget
+ %elseif %dkms
+ %{__mkdir} -p %{buildroot}/usr/src/%{name}-%{version}
+-%{__cp} -r COPYING include kernel patches %{buildroot}/usr/src/%{name}-%{version}
+-%{__sed} -e &quot;s/PACKAGE_VERSION=.*/PACKAGE_VERSION=\&quot;%{version}\&quot;/&quot; dkms.conf &gt;%{buildroot}/usr/src/%{name}-%{version}/dkms.conf
++%{__cp} -r COPYING dkms.conf include kernel patches %{buildroot}/usr/src/%{name}-%{version}
++%{__sed} -i -e &quot;s/\(PACKAGE_VERSION=\).*/\1\&quot;%{version}\&quot;/&quot; %{buildroot}/usr/src/%{name}-%{version}/dkms.conf
+ %endif
+ 
+ # Ugly hack to filter out unwanted dependencies
+@@ -299,20 +316,13 @@
+ %endif
+ 
+ 
+-## Pre-Install Script (Kernel Module)
+-%if !%dkms
+-%pre -n kmod-%{name}
+-%{__find} %{moddir} -type f -name iscsi_trgt.ko -execdir mv \{\} \{\}.orig \;
+-%endif
+-
+-
+ ## Post-Install Script (Kernel Module)
+ %if %dkms
+ %ifarch noarch
+-%post -n kmod-%{name}
+-%{__dkms} add -m %{name} -v %{version}
++%post -n dkms-%{name}
++%{__dkms} add -m %{name} -v %{version} --rpm_safe_upgrade
+ %{__dkms} build -m %{name} -v %{version}
+-%{__dkms} install -m %{name} -v %{version}
++%{__dkms} install -m %{name} -v %{version} --force
+ %endif
+ %else
+ %post -n kmod-%{name}
+@@ -328,8 +338,8 @@
+ ## Pre-Uninstall Script (Kernel Module)
+ %if %dkms
+ %ifarch noarch
+-%preun -n kmod-%{name}
+-%{__dkms} remove -m %{name} -v %{version} --all
++%preun -n dkms-%{name}
++%{__dkms} remove -m %{name} -v %{version} --all --rpm_safe_upgrade
+ %endif
+ %else
+ %preun -n kmod-%{name}
+@@ -345,7 +355,6 @@
+ ## Post-Uninstall Script (Kernel Module)
+ %if !%dkms
+ %postun -n kmod-%{name}
+-%{__find} %{moddir} -name iscsi_trgt.ko.orig -execdir mv \{\} iscsi_trgt.ko \;
+ %{__depmod} %{kernel} -a
+ %endif
+ 
+@@ -367,7 +376,7 @@
+ ## File Catalog (Kernel Module)
+ %if %dkms
+ %ifarch noarch
+-%files -n kmod-%{name}
++%files -n dkms-%{name}
+ %defattr(-, root, root)
+ /usr/src/%{name}-%{version}/*
+ %endif
+@@ -379,6 +388,23 @@
+ 
+ 
+ %changelog
++* Tue Mar 30 2010 Ross Walker &lt;rswwalker at gmail dot com&gt; - 1.4.20
++- Changed DKMS module name to dkms-iscsitarget from kmod-iscsitarget
++- Added Provides: kernel-modules to DKMS module so multiple versions can
++  be managed by DKMS at once.
++- Added conflicts to dkms and kmod for each other so only one type can
++  be installed at a time.
++- Added --rpm_safe_upgrade to DKMS add/remove for RPM-DKMS sync
++- Added --force to DKMS install in case version changed, but code didn't
++
++* Mon Mar 29 2010 Ross Walker &lt;rswwalker at gmail dot com&gt; - 1.4.20
++- Updated SVN build defines.
++- Added weak build define to manually choose KABI tracking or per-kernel
++- Fixed issue with upgrading KABI tracking module by removing
++  Provides: kernel-modules to weak builds, kept for per-kernel builds
++  if you install weak built module, all per-kernels are uninstalled,
++  you cannot install a per-kernel while a weak built is installed.
++
+ * Wed Oct 14 2009 Ross Walker &lt;rswwalker at gmail dot com&gt; - 1.4.18
+ - Added more macros for better cross-distro support
+ - Modified Matt's update for better Redhat-SuSE compatibility
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000222.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[310] trunk/usr
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#223">[ date ]</a>
+              <a href="thread.html#223">[ thread ]</a>
+              <a href="subject.html#223">[ subject ]</a>
+              <a href="author.html#223">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

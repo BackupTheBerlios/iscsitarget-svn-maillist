@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r246 - trunk/patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r246%20-%20trunk/patches&In-Reply-To=%3C200909281900.n8SJ03oU002447%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000157.html">
+   <LINK REL="Next"  HREF="000159.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r246 - trunk/patches</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r246%20-%20trunk/patches&In-Reply-To=%3C200909281900.n8SJ03oU002447%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r246 - trunk/patches">agr at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 28 21:00:03 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000157.html">[Iscsitarget-svn] r245 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000159.html">[Iscsitarget-svn] r247 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#158">[ date ]</a>
+              <a href="thread.html#158">[ thread ]</a>
+              <a href="subject.html#158">[ subject ]</a>
+              <a href="author.html#158">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-28 21:00:01 +0200 (Mon, 28 Sep 2009)
+New Revision: 246
+
+Modified:
+   trunk/patches/compat-2.6.14-2.6.18.patch
+   trunk/patches/compat-2.6.19-2.6.21.patch
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Clean up compat patches offsets
+
+Regular maintenance patch to fix up the offsets in the
+compatibility patches.
+
+Tested on RHEL5.
+
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2009-09-25 20:27:14 UTC (rev 245)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2009-09-28 19:00:01 UTC (rev 246)
+@@ -2,7 +2,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.h	(revision 105)
+ +++ 2/kernel/iscsi.h	(working copy)
+-@@ -241,8 +241,8 @@ struct iscsi_conn {
++@@ -254,8 +254,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+  
+@@ -193,9 +193,9 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(revision 105)
+ +++ 2/kernel/iscsi.c	(working copy)
+-@@ -15,7 +15,7 @@
+- 
++@@ -16,7 +16,7 @@
+  unsigned long debug_enable_flags;
++ unsigned long worker_thread_pool_size;
+  
+ -static struct kmem_cache *iscsi_cmnd_cache;
+ +static kmem_cache_t *iscsi_cmnd_cache;
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2009-09-25 20:27:14 UTC (rev 245)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2009-09-28 19:00:01 UTC (rev 246)
+@@ -16,7 +16,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(working copy)
+ +++ 2/kernel/iscsi.c	(revision 137)
+-@@ -1762,7 +1762,8 @@ static int iscsi_init(void)
++@@ -1767,7 +1767,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+ 
+@@ -30,7 +30,7 @@
+ ===================================================================
+ --- 1/kernel/tio.c	(working copy)
+ +++ 2/kernel/tio.c	(revision 137)
+-@@ -110,6 +110,7 @@ int tio_sync(struct iet_volume *lu, stru
++@@ -110,7 +110,8 @@ int tio_sync(struct iet_volume *lu, stru
+ 
+  int tio_init(void)
+  {
+@@ -39,8 +39,11 @@
+ +				      0, 0, NULL, NULL);
+  	return  tio_cache ? 0 : -ENOMEM;
+  }
+---- a/kernel/ua.c
+-+++ b/kernel/ua.c
++ 
++Index: kernel/ua.c
++===================================================================
++--- 1/kernel/ua.c
+++++ 2/kernel/ua.c
+ @@ -18,7 +18,8 @@ static struct kmem_cache *ua_cache;
+ 
+  int ua_init(void)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000157.html">[Iscsitarget-svn] r245 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000159.html">[Iscsitarget-svn] r247 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#158">[ date ]</a>
+              <a href="thread.html#158">[ thread ]</a>
+              <a href="subject.html#158">[ subject ]</a>
+              <a href="author.html#158">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

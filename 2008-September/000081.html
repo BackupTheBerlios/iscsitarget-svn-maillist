@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r169 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r169%20-%20trunk/usr&In-Reply-To=%3C200809041915.m84JFOrK025270%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000082.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r169 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r169%20-%20trunk/usr&In-Reply-To=%3C200809041915.m84JFOrK025270%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r169 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Sep  4 21:15:24 CEST 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000082.html">[Iscsitarget-svn] r170 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81">[ date ]</a>
+              <a href="thread.html#81">[ thread ]</a>
+              <a href="subject.html#81">[ subject ]</a>
+              <a href="author.html#81">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-09-04 21:15:23 +0200 (Thu, 04 Sep 2008)
+New Revision: 169
+
+Modified:
+   trunk/usr/log.c
+Log:
+From:  Shreyansh Jain &lt;shrey.linux at gmail.com&gt;
+Subject: [Patch 1/1] Segfault in ietd buffer overrun in dump_line
+
+Fix a buffer overrun problem in __dump_line function in log.c file.
+It also removes a stray 'return' call in log_pdu function which was
+restricting a PDU dump call to complete log_pdu operation.
+
+Also, in log_pdu function, the first check for log_level against
+passed parameter for log was incorrect and would have forced a return
+even when the caller has set the logging level to acceptable level.
+
+Signed-off-by: Shreyansh Jain &lt;shrey.linux at gmail.com&gt;
+
+
+Modified: trunk/usr/log.c
+===================================================================
+--- trunk/usr/log.c	2008-08-26 19:01:48 UTC (rev 168)
++++ trunk/usr/log.c	2008-09-04 19:15:23 UTC (rev 169)
+@@ -62,15 +62,24 @@
+ 	}
+ }
+ 
++/* Definition for log_pdu buffer */
++#define BUFFER_SIZE 16
++
++/*
++ * size required for a hex dump of BUFFER_SIZE bytes (' ' + 2 chars = 3 chars
++ * per byte) with a ' |' separator each 4th byte:
++ */
++#define LINE_SIZE (BUFFER_SIZE * 3 + BUFFER_SIZE / 4 * 2 + 1)
++
+ static void __dump_line(int level, unsigned char *buf, int *cp)
+ {
+-	char line[16*3+5], *lp = line;
++	char line[LINE_SIZE], *lp = line;
+ 	int i, cnt;
+ 
+ 	cnt = *cp;
+ 	if (!cnt)
+ 		return;
+-	for (i = 0; i &lt; 16; i++) {
++	for (i = 0; i &lt; BUFFER_SIZE; i++) {
+ 		if (i &lt; cnt)
+ 			lp += sprintf(lp, &quot; %02x&quot;, buf[i]);
+ 		else
+@@ -80,7 +89,9 @@
+ 		if (i &gt;= cnt || !isprint(buf[i]))
+ 			buf[i] =  ' ';
+ 	}
+-	log_debug(level, &quot;%s %.16s |&quot;, line, buf);
++
++	/* buf is not \0-terminated! */
++	log_debug(level, &quot;%s %.*s |&quot;, line, BUFFER_SIZE, buf);
+ 	*cp = 0;
+ }
+ 
+@@ -89,7 +100,7 @@
+ 	int cnt = (*cp)++;
+ 
+ 	buf[cnt] = ch;
+-	if (cnt == 15)
++	if (cnt == BUFFER_SIZE - 1)
+ 		__dump_line(level, buf, cp);
+ }
+ 
+@@ -98,13 +109,12 @@
+ 
+ void log_pdu(int level, struct PDU *pdu)
+ {
+-	unsigned char char_buf[16];
++	unsigned char char_buf[BUFFER_SIZE];
+ 	int char_cnt = 0;
+ 	unsigned char *buf;
+ 	int i;
+-	return;
+ 
+-	if (log_level &lt;= level)
++	if (log_level &lt; level)
+ 		return;
+ 
+ 	buf = (void *)&amp;pdu-&gt;bhs;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000082.html">[Iscsitarget-svn] r170 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81">[ date ]</a>
+              <a href="thread.html#81">[ thread ]</a>
+              <a href="subject.html#81">[ subject ]</a>
+              <a href="author.html#81">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

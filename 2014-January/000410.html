@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[499] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2014-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B499%5D%20trunk&In-Reply-To=%3Cmailman.7.1390761054.1454.iscsitarget-svn%40lists.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000409.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[499] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B499%5D%20trunk&In-Reply-To=%3Cmailman.7.1390761054.1454.iscsitarget-svn%40lists.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[499] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Jan 26 19:30:48 CET 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000409.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[498] trunk/Makefile
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#410">[ date ]</a>
+              <a href="thread.html#410">[ thread ]</a>
+              <a href="subject.html#410">[ subject ]</a>
+              <a href="author.html#410">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 499
+          <A HREF="http://sourceforge.net/p/iscsitarget/code/499">http://sourceforge.net/p/iscsitarget/code/499</A>
+Author:   agr1
+Date:     2014-01-26 18:30:45 +0000 (Sun, 26 Jan 2014)
+Log Message:
+-----------
+Support for kernel 3.13.
+
+From: Thadeu Lima de Souza Cascardo
+
+Update kernel/conn.c to use recent change on IPv6 lookup. compat support
+is also updated.
+
+Signed-off-by: Thadeu Lima de Souza Cascardo &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">cascardo at linux.vnet.ibm.com</A>&gt;
+Tested-by: Michel Normand &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">normand at fr.ibm.com</A>&gt;
+Cc: Michael J Wolf &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">mjwolf at us.ibm.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/kernel/conn.c
+
+Added Paths:
+-----------
+    trunk/patches/compat-3.12.patch
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2014-01-26 18:30:16 UTC (rev 498)
++++ trunk/Makefile	2014-01-26 18:30:45 UTC (rev 499)
+@@ -66,6 +66,10 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++ifeq ($(call kver_lt,3,13,0),1)
++	PATCHES := $(PATCHES) compat-3.12.patch
++endif
++
+ ifeq ($(call kver_lt,3,10,0),1)
+ 	PATCHES := $(PATCHES) compat-3.9.patch
+ endif
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2014-01-26 18:30:16 UTC (rev 498)
++++ trunk/kernel/conn.c	2014-01-26 18:30:45 UTC (rev 499)
+@@ -48,7 +48,7 @@
+ 			break;
+ 		case AF_INET6:
+ 			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
+-				 &amp;inet6_sk(sk)-&gt;daddr);
++				 &amp;(sk)-&gt;sk_v6_daddr);
+ 			break;
+ 		default:
+ 			break;
+
+Added: trunk/patches/compat-3.12.patch
+===================================================================
+--- trunk/patches/compat-3.12.patch	                        (rev 0)
++++ trunk/patches/compat-3.12.patch	2014-01-26 18:30:45 UTC (rev 499)
+@@ -0,0 +1,13 @@
++Index: iscsitarget-code/kernel/conn.c
++===================================================================
++--- iscsitarget-code.orig/kernel/conn.c
+++++ iscsitarget-code/kernel/conn.c
++@@ -48,7 +48,7 @@ void conn_info_show(struct seq_file *seq
++ 			break;
++ 		case AF_INET6:
++ 			snprintf(buf, sizeof(buf), &quot;[%pI6]&quot;,
++-				 &amp;(sk)-&gt;sk_v6_daddr);
+++				 &amp;inet6_sk(sk)-&gt;daddr);
++ 			break;
++ 		default:
++ 			break;
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000409.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[498] trunk/Makefile
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#410">[ date ]</a>
+              <a href="thread.html#410">[ thread ]</a>
+              <a href="subject.html#410">[ subject ]</a>
+              <a href="author.html#410">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

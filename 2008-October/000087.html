@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r175 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r175%20-%20trunk/kernel&In-Reply-To=%3C200810261720.m9QHKU3L004023%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000088.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r175 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r175%20-%20trunk/kernel&In-Reply-To=%3C200810261720.m9QHKU3L004023%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r175 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Sun Oct 26 18:20:30 CET 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000088.html">[Iscsitarget-svn] r176 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#87">[ date ]</a>
+              <a href="thread.html#87">[ thread ]</a>
+              <a href="subject.html#87">[ subject ]</a>
+              <a href="author.html#87">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-10-26 18:20:30 +0100 (Sun, 26 Oct 2008)
+New Revision: 175
+
+Modified:
+   trunk/kernel/target_disk.c
+Log:
+Fix the standard Inquiry data's HiSup bit
+
+Cf. <A HREF="http://sourceforge.net/mailarchive/forum.php?thread_name=8b62ef2d0810080431y66e94318y14bce7622ada5375%40mail.gmail.com&amp;forum_name=scst-devel">http://sourceforge.net/mailarchive/forum.php?thread_name=8b62ef2d0810080431y66e94318y14bce7622ada5375%40mail.gmail.com&amp;forum_name=scst-devel</A>
+
+Thanks to Vladislav Bolkhovitin for pointing it out.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2008-09-28 11:37:37 UTC (rev 174)
++++ trunk/kernel/target_disk.c	2008-10-26 17:20:30 UTC (rev 175)
+@@ -179,7 +179,7 @@
+ 
+ 	if (!(scb[1] &amp; 0x3)) {
+ 		data[2] = 4;
+-		data[3] = 0x42;
++		data[3] = 0x52;
+ 		data[4] = 59;
+ 		data[7] = 0x02;
+ 		memset(data + 8, 0x20, 28);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000088.html">[Iscsitarget-svn] r176 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#87">[ date ]</a>
+              <a href="thread.html#87">[ thread ]</a>
+              <a href="subject.html#87">[ subject ]</a>
+              <a href="author.html#87">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

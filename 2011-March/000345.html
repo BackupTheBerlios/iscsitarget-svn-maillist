@@ -1,0 +1,104 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[433]	branches/1.4.20/kernel/iscsi.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B433%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1Q5KF1-0004q5-EU%40sfp-svn-5.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000344.html">
+   <LINK REL="Next"  HREF="000346.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[433]	branches/1.4.20/kernel/iscsi.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B433%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1Q5KF1-0004q5-EU%40sfp-svn-5.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[433]	branches/1.4.20/kernel/iscsi.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Mar 31 17:56:59 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000344.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[432] trunk/kernel/iscsi.c
+</A></li>
+        <LI>Next message: <A HREF="000346.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[434]	trunk/kernel/nthread.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#345">[ date ]</a>
+              <a href="thread.html#345">[ thread ]</a>
+              <a href="subject.html#345">[ subject ]</a>
+              <a href="author.html#345">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 433
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=433&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=433&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-03-31 15:56:59 +0000 (Thu, 31 Mar 2011)
+
+Log Message:
+-----------
+Through iSCSI conformance testing it was discovered that
+check_segment_length() doesn't actually drop the session upon
+receiving a data segment greater then max receive data segment
+length.
+
+Compile tested on CentOS5
+
+Tested against iSWAT iSCSI testing tool
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/kernel/iscsi.c
+
+Modified: branches/1.4.20/kernel/iscsi.c
+===================================================================
+--- branches/1.4.20/kernel/iscsi.c	2011-03-31 15:56:21 UTC (rev 432)
++++ branches/1.4.20/kernel/iscsi.c	2011-03-31 15:56:59 UTC (rev 433)
+@@ -1802,11 +1802,8 @@
+ 	if (cmnd-&gt;pdu.datasize &gt; param-&gt;max_recv_data_length) {
+ 		eprintk(&quot;data too long %x %u %u\n&quot;, cmnd_itt(cmnd),
+ 			cmnd-&gt;pdu.datasize, param-&gt;max_recv_data_length);
+-
+-		if (get_pgcnt(cmnd-&gt;pdu.datasize, 0) &gt; ISCSI_CONN_IOV_MAX) {
+-			conn_close(conn);
+-			return -EINVAL;
+-		}
++		conn_close(conn);
++		return -EINVAL;
+ 	}
+ 
+ 	return 0;
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000344.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[432] trunk/kernel/iscsi.c
+</A></li>
+	<LI>Next message: <A HREF="000346.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[434]	trunk/kernel/nthread.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#345">[ date ]</a>
+              <a href="thread.html#345">[ thread ]</a>
+              <a href="subject.html#345">[ subject ]</a>
+              <a href="author.html#345">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,115 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r253 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r253%20-%20trunk/usr&In-Reply-To=%3C200910081731.n98HVgT8019741%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000164.html">
+   <LINK REL="Next"  HREF="000166.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r253 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r253%20-%20trunk/usr&In-Reply-To=%3C200910081731.n98HVgT8019741%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r253 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 19:31:42 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000164.html">[Iscsitarget-svn] r252 - tags
+</A></li>
+        <LI>Next message: <A HREF="000166.html">[Iscsitarget-svn] r254 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#165">[ date ]</a>
+              <a href="thread.html#165">[ thread ]</a>
+              <a href="subject.html#165">[ subject ]</a>
+              <a href="author.html#165">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 19:31:38 +0200 (Thu, 08 Oct 2009)
+New Revision: 253
+
+Modified:
+   trunk/usr/plain.c
+   trunk/usr/target.c
+Log:
+From: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+target-add-debug: fix debug output
+
+There is a minor bug in the debug-output when creating a new target:
+__plain_target_create() returns false (0) when it succeeds
+so the construct (from plain.c:608)
+   if (__plain_target_create(&amp;tid, p, 0);
+     log_debug(1, &quot;creating target %s&quot;, p);
+prints out the 'creating target' only in error cases.
+
+The applied patch moves the positive debug output to the same level /
+position (target_add()) where the failure log is done.
+
+Signed-off-by: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-10-05 18:25:33 UTC (rev 252)
++++ trunk/usr/plain.c	2009-10-08 17:31:38 UTC (rev 253)
+@@ -605,8 +605,7 @@
+ 			tid = 0;
+ 			if (!(p = target_sep_string(&amp;q)))
+ 				continue;
+-			if (__plain_target_create(&amp;tid, p, 0))
+-				log_debug(1, &quot;creating target %s&quot;, p);
++			__plain_target_create(&amp;tid, p, 0);
+ 		} else if (!strcasecmp(p, &quot;Alias&quot;) &amp;&amp; tid) {
+ 			;
+ 		} else if (!strcasecmp(p, &quot;MaxSessions&quot;) &amp;&amp; tid) {
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2009-10-05 18:25:33 UTC (rev 252)
++++ trunk/usr/target.c	2009-10-08 17:31:38 UTC (rev 253)
+@@ -259,6 +259,8 @@
+ 
+ 	isns_target_register(name);
+ 
++	log_debug(1, &quot;created target %s&quot;, name);
++
+ 	return 0;
+ out:
+ 	free(target);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000164.html">[Iscsitarget-svn] r252 - tags
+</A></li>
+	<LI>Next message: <A HREF="000166.html">[Iscsitarget-svn] r254 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#165">[ date ]</a>
+              <a href="thread.html#165">[ thread ]</a>
+              <a href="subject.html#165">[ subject ]</a>
+              <a href="author.html#165">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

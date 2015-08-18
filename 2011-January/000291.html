@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[379] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B379%5D%20trunk&In-Reply-To=%3CE1PdTys-0000Bt-RG%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000290.html">
+   <LINK REL="Next"  HREF="000292.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[379] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B379%5D%20trunk&In-Reply-To=%3CE1PdTys-0000Bt-RG%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[379] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Jan 13 21:41:14 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000290.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[378] trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000292.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[380] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#291">[ date ]</a>
+              <a href="thread.html#291">[ thread ]</a>
+              <a href="subject.html#291">[ subject ]</a>
+              <a href="author.html#291">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 379
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=379&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=379&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-01-13 20:41:14 +0000 (Thu, 13 Jan 2011)
+
+Log Message:
+-----------
+The newer crypto API passes back errors in an ERR_PTR instead
+of a NULL ptr.
+
+Compile Tested on CentOS5.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/volume.c
+    trunk/patches/compat-2.6.14-2.6.18.patch
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2011-01-12 20:39:36 UTC (rev 378)
++++ trunk/kernel/volume.c	2011-01-13 20:41:14 UTC (rev 379)
+@@ -88,7 +88,7 @@
+ 	hash.tfm = crypto_alloc_hash(&quot;md5&quot;, 0, CRYPTO_ALG_ASYNC);
+ 	hash.flags = 0;
+ 
+-	if (hash.tfm) {
++	if (!IS_ERR(hash.tfm)) {
+ 		struct scatterlist sg[2];
+ 		unsigned int nbytes = 0;
+ 
+@@ -112,8 +112,7 @@
+ 						sizeof(volume-&gt;target-&gt;tid));
+ 		memcpy(volume-&gt;scsi_id + sizeof(volume-&gt;target-&gt;tid),
+ 					&amp;volume-&gt;lun, sizeof(volume-&gt;lun));
+-	}	
+-
++	}
+ }
+ 
+ static int parse_volume_params(struct iet_volume *volume, char *params)
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2011-01-12 20:39:36 UTC (rev 378)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2011-01-13 20:41:14 UTC (rev 379)
+@@ -223,7 +223,7 @@
+ -	hash.flags = 0;
+ +	tfm = crypto_alloc_tfm(&quot;md5&quot;, 0);
+  
+--	if (hash.tfm) {
++-	if (!IS_ERR(hash.tfm)) {
+ +	if (tfm) {
+  		struct scatterlist sg[2];
+ -		unsigned int nbytes = 0;
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000290.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[378] trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000292.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[380] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#291">[ date ]</a>
+              <a href="thread.html#291">[ thread ]</a>
+              <a href="subject.html#291">[ subject ]</a>
+              <a href="author.html#291">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

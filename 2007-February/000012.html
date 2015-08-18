@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r100 - in trunk: include kernel usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r100%20-%20in%20trunk%3A%20include%20kernel%20usr&In-Reply-To=%3C200702261238.l1QCcrrt012495%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000011.html">
+   <LINK REL="Next"  HREF="000013.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r100 - in trunk: include kernel usr</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r100%20-%20in%20trunk%3A%20include%20kernel%20usr&In-Reply-To=%3C200702261238.l1QCcrrt012495%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r100 - in trunk: include kernel usr">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Feb 26 13:38:53 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000011.html">[Iscsitarget-svn] r99 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000013.html">[Iscsitarget-svn] r101 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12">[ date ]</a>
+              <a href="thread.html#12">[ thread ]</a>
+              <a href="subject.html#12">[ subject ]</a>
+              <a href="author.html#12">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-02-26 13:38:53 +0100 (Mon, 26 Feb 2007)
+New Revision: 100
+
+Modified:
+   trunk/include/iet_u.h
+   trunk/kernel/volume.c
+   trunk/usr/ctldev.c
+Log:
+fix stack overflow spotted by the Coverity checker (thanks for John
+Rosenquist and Matthew J. Probst).
+
+
+Modified: trunk/include/iet_u.h
+===================================================================
+--- trunk/include/iet_u.h	2007-02-26 00:39:36 UTC (rev 99)
++++ trunk/include/iet_u.h	2007-02-26 12:38:53 UTC (rev 100)
+@@ -24,9 +24,9 @@
+ 
+ struct volume_info {
+ 	u32 tid;
+-
+ 	u32 lun;
+-	char args[ISCSI_ARGS_LEN]; /* FIXME */
++	u64 args_ptr;
++	u32 args_len;
+ };
+ 
+ struct session_info {
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2007-02-26 00:39:36 UTC (rev 99)
++++ trunk/kernel/volume.c	2007-02-26 12:38:53 UTC (rev 100)
+@@ -83,8 +83,9 @@
+ 
+ int volume_add(struct iscsi_target *target, struct volume_info *info)
+ {
+-	int err = 0;
++	int ret;
+ 	struct iet_volume *volume;
++	char *args;
+ 
+ 	if ((volume = volume_lookup(target, info-&gt;lun)))
+ 		return -EEXIST;
+@@ -99,12 +100,27 @@
+ 	volume-&gt;target = target;
+ 	volume-&gt;lun = info-&gt;lun;
+ 
+-	if ((err = set_iotype(volume, info-&gt;args)) &lt; 0)
+-		goto err;
++	args = kzalloc(info-&gt;args_len + 1, GFP_KERNEL);
++	if (!args) {
++		ret = -ENOMEM;
++		goto free_volume;
++	}
+ 
+-	if ((err = volume-&gt;iotype-&gt;attach(volume, info-&gt;args)) &lt; 0)
+-		goto err;
++	ret = copy_from_user(args, (void *)(unsigned long)info-&gt;args_ptr,
++			     info-&gt;args_len);
++	if (ret) {
++		ret = -EFAULT;
++		goto free_args;
++	}
+ 
++	ret = set_iotype(volume, args);
++	if (ret &lt; 0)
++		goto free_args;
++
++	ret = volume-&gt;iotype-&gt;attach(volume, args);
++	if (ret &lt; 0)
++		goto free_args;
++
+ 	INIT_LIST_HEAD(&amp;volume-&gt;queue.wait_list);
+ 	spin_lock_init(&amp;volume-&gt;queue.queue_lock);
+ 	spin_lock_init(&amp;volume-&gt;reserve_lock);
+@@ -115,13 +131,14 @@
+ 	list_add_tail(&amp;volume-&gt;list, &amp;target-&gt;volumes);
+ 	atomic_inc(&amp;target-&gt;nr_volumes);
+ 
+-err:
+-	if (err &amp;&amp; volume) {
+-		put_iotype(volume-&gt;iotype);
+-		kfree(volume);
+-	}
++	return 0;
++free_args:
++	kfree(args);
++free_volume:
++	put_iotype(volume-&gt;iotype);
++	kfree(volume);
+ 
+-	return err;
++	return ret;
+ }
+ 
+ void iscsi_volume_destroy(struct iet_volume *volume)
+
+Modified: trunk/usr/ctldev.c
+===================================================================
+--- trunk/usr/ctldev.c	2007-02-26 00:39:36 UTC (rev 99)
++++ trunk/usr/ctldev.c	2007-02-26 12:38:53 UTC (rev 100)
+@@ -119,7 +119,8 @@
+ 	for (p = args + (strlen(args) - 1); isspace(*p); p--)
+ 		*p = '\0';
+ 
+-	strncpy(info.args, args, sizeof(info.args) - 1);
++	info.args_ptr = (unsigned long)args;
++	info.args_len = strlen(args);
+ 
+ 	err = ioctl(ctrl_fd, ADD_VOLUME, &amp;info);
+ 	if (err &lt; 0)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000011.html">[Iscsitarget-svn] r99 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000013.html">[Iscsitarget-svn] r101 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12">[ date ]</a>
+              <a href="thread.html#12">[ thread ]</a>
+              <a href="subject.html#12">[ subject ]</a>
+              <a href="author.html#12">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

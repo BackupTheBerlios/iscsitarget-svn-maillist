@@ -1,0 +1,279 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[317] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B317%5D%20trunk&In-Reply-To=%3CE1O00AO-0007wl-Pi%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000228.html">
+   <LINK REL="Next"  HREF="000230.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[317] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B317%5D%20trunk&In-Reply-To=%3CE1O00AO-0007wl-Pi%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[317] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Fri Apr  9 00:25:40 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000228.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[316] trunk/dkms.conf
+</A></li>
+        <LI>Next message: <A HREF="000230.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[318]	trunk/kernel/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#229">[ date ]</a>
+              <a href="thread.html#229">[ thread ]</a>
+              <a href="subject.html#229">[ subject ]</a>
+              <a href="author.html#229">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 317
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=317&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=317&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-08 22:25:37 +0000 (Thu, 08 Apr 2010)
+
+Log Message:
+-----------
+
+Pre-release code clean-up.
+
+Remove unneeded header includes, fix patch offsets, fix parser
+token list in block-io.c.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/block-io.c
+    trunk/kernel/conn.c
+    trunk/patches/compat-2.6.14-2.6.18.patch
+    trunk/patches/compat-2.6.19-2.6.21.patch
+    trunk/patches/compat-2.6.22.patch
+    trunk/patches/compat-2.6.23.patch
+    trunk/patches/compat-2.6.25-2.6.27.patch
+    trunk/patches/compat-2.6.29.patch
+    trunk/patches/compat-2.6.30.patch
+    trunk/patches/compat-2.6.31.patch
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/kernel/block-io.c	2010-04-08 22:25:37 UTC (rev 317)
+@@ -178,7 +178,7 @@
+ /* Create an enumeration of our accepted actions */
+ enum
+ {
+-	opt_scsiid, opt_scsisn, opt_path, opt_ignore, opt_err,
++	opt_path, opt_ignore, opt_err,
+ };
+ 
+ /* Create a match table using our action enums and their matching options */
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/kernel/conn.c	2010-04-08 22:25:37 UTC (rev 317)
+@@ -7,7 +7,6 @@
+ #include &lt;linux/file.h&gt;
+ #include &lt;linux/ip.h&gt;
+ #include &lt;net/tcp.h&gt;
+-#include &lt;scsi/scsi.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -2,7 +2,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.h	(revision 105)
+ +++ 2/kernel/iscsi.h	(working copy)
+-@@ -254,8 +254,8 @@ struct iscsi_conn {
++@@ -261,8 +261,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+  
+@@ -177,7 +177,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(revision 105)
+ +++ 2/kernel/iscsi.c	(working copy)
+-@@ -16,7 +16,7 @@
++@@ -17,7 +17,7 @@
+  unsigned long debug_enable_flags;
+  unsigned long worker_thread_pool_size;
+  
+@@ -201,19 +201,19 @@
+  {
+ --- context/kernel/wthread.c	2010-01-25 11:27:57.000000000 -0500
+ +++ context/kernel/wthread.c.18	2010-01-25 11:25:43.000000000 -0500
+-@@ -72,7 +72,7 @@
+- 		current-&gt;io_context = NULL;
+- 	}
++@@ -67,7 +67,7 @@
++ 	struct iscsi_conn *conn;
++ 	DECLARE_WAITQUEUE(wait, current);
+  
+ -	get_io_context(GFP_KERNEL, -1);
+ +	get_io_context(GFP_KERNEL);
+  
+  	if (!current-&gt;io_context)
+  		eprintk(&quot;%s\n&quot;, &quot;Failed to get IO context&quot;);
+---- param/kernel/volume.c	2010-03-03 13:42:04.000000000 -0500
+-+++ param/kernel/volume.c.18	2010-03-03 00:13:26.000000000 -0500
+-@@ -83,28 +83,26 @@ static int set_scsisn(struct iet_volume 
+- 
++--- param/kernel/volume.c	2010-04-08 18:05:38.000000000 -0400
+++++ param/kernel/volume.c.18	2010-04-08 18:05:38.000000000 -0400
++@@ -84,28 +84,26 @@ static int set_scsisn(struct iet_volume 
++ /* Generate a MD5 hash of the target IQN and LUN number */
+  static void gen_scsiid(struct iet_volume *volume)
+  {
+ -	struct hash_desc hash;
+@@ -249,4 +249,4 @@
+ +		crypto_free_tfm(tfm);
+  	} else {
+  		/* If no MD5 available set ID to TID and LUN */
+- 		memcpy(volume-&gt;scsi_id, volume-&gt;target-&gt;tid,
++ 		memcpy(volume-&gt;scsi_id, &amp;volume-&gt;target-&gt;tid,
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -16,7 +16,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(working copy)
+ +++ 2/kernel/iscsi.c	(revision 137)
+-@@ -1767,7 +1767,8 @@ static int iscsi_init(void)
++@@ -1923,7 +1923,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+ 
+
+Modified: trunk/patches/compat-2.6.22.patch
+===================================================================
+--- trunk/patches/compat-2.6.22.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.22.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -2,7 +2,7 @@
+ ===================================================================
+ --- a/kernel/volume.c	(revision 205)
+ +++ b/kernel/volume.c	(working copy)
+-@@ -10,6 +10,7 @@
++@@ -11,6 +11,7 @@
+  #include &quot;iscsi.h&quot;
+  #include &quot;iscsi_dbg.h&quot;
+  #include &quot;iotype.h&quot;
+
+Modified: trunk/patches/compat-2.6.23.patch
+===================================================================
+--- trunk/patches/compat-2.6.23.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.23.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -32,7 +32,7 @@
+ ===================================================================
+ --- 1/kernel/config.c	(working copy)
+ +++ 2/kernel/config.c	(revision 145)
+-@@ -40,7 +40,7 @@ int iet_procfs_init(void)
++@@ -42,7 +42,7 @@ int iet_procfs_init(void)
+  	int i;
+  	struct proc_dir_entry *ent;
+  
+
+Modified: trunk/patches/compat-2.6.25-2.6.27.patch
+===================================================================
+--- trunk/patches/compat-2.6.25-2.6.27.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.25-2.6.27.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -2,7 +2,7 @@
+ index 708f101..e4a25f7 100644
+ --- a/kernel/block-io.c
+ +++ b/kernel/block-io.c
+-@@ -154,14 +154,14 @@ blockio_open_path(struct iet_volume *volume, const char *path)
++@@ -155,14 +155,14 @@ blockio_open_path(struct iet_volume *volume, const char *path)
+  {
+  	struct blockio_data *bio_data = volume-&gt;private;
+  	struct block_device *bdev;
+@@ -19,7 +19,7 @@
+  	if (IS_ERR(bdev)) {
+  		err = PTR_ERR(bdev);
+  		eprintk(&quot;Can't open device %s, error %d\n&quot;, path, err);
+-@@ -323,10 +323,9 @@ static void
++@@ -250,10 +250,9 @@ static void
+  blockio_detach(struct iet_volume *volume)
+  {
+  	struct blockio_data *bio_data = volume-&gt;private;
+
+Modified: trunk/patches/compat-2.6.29.patch
+===================================================================
+--- trunk/patches/compat-2.6.29.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.29.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -2,7 +2,7 @@
+ index 51331fb..9e479c0 100644
+ --- a/kernel/config.c
+ +++ b/kernel/config.c
+-@@ -43,6 +43,8 @@ int iet_procfs_init(void)
++@@ -45,6 +45,8 @@ int iet_procfs_init(void)
+  	if (!(proc_iet_dir = proc_mkdir(&quot;iet&quot;, init_net.proc_net)))
+  		goto err;
+  
+
+Modified: trunk/patches/compat-2.6.30.patch
+===================================================================
+--- trunk/patches/compat-2.6.30.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.30.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -1,6 +1,6 @@
+ --- sector2/kernel/block-io.c	2010-03-01 11:44:57.000000000 -0500
+ +++ sector2/kernel/block-io.c.30	2010-03-01 11:50:00.000000000 -0500
+-@@ -356,7 +356,7 @@ blockio_attach(struct iet_volume *volume
++@@ -280,7 +280,7 @@ blockio_attach(struct iet_volume *volume
+  	err = parse_blockio_params(volume, args);
+  	if (!err) {
+  		/* see Documentation/ABI/testing/sysfs-block */
+
+Modified: trunk/patches/compat-2.6.31.patch
+===================================================================
+--- trunk/patches/compat-2.6.31.patch	2010-04-08 21:00:21 UTC (rev 316)
++++ trunk/patches/compat-2.6.31.patch	2010-04-08 22:25:37 UTC (rev 317)
+@@ -1,6 +1,6 @@
+ --- sync/kernel/file-io.c	2009-12-10 17:43:36.000000000 -0500
+ +++ trunk/kernel/file-io.c	2008-12-04 17:35:21.000000000 -0500
+-@@ -88,7 +88,7 @@
++@@ -89,7 +89,7 @@
+  		count = lu-&gt;blk_cnt &lt;&lt; lu-&gt;blk_shift;
+  	}
+  
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000228.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[316] trunk/dkms.conf
+</A></li>
+	<LI>Next message: <A HREF="000230.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[318]	trunk/kernel/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#229">[ date ]</a>
+              <a href="thread.html#229">[ thread ]</a>
+              <a href="subject.html#229">[ subject ]</a>
+              <a href="author.html#229">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

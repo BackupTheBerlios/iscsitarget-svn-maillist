@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[467]	branches/1.4.20/kernel/iscsi.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B467%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1RJ7g0-00086z-1S%40sfp-svn-5.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[467]	branches/1.4.20/kernel/iscsi.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B467%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1RJ7g0-00086z-1S%40sfp-svn-5.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[467]	branches/1.4.20/kernel/iscsi.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Oct 26 19:54:08 CEST 2011</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#378">[ date ]</a>
+              <a href="thread.html#378">[ thread ]</a>
+              <a href="subject.html#378">[ subject ]</a>
+              <a href="author.html#378">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 467
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=467&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=467&amp;view=rev</A>
+Author:   agr1
+Date:     2011-10-26 17:54:07 +0000 (Wed, 26 Oct 2011)
+Log Message:
+-----------
+Fix send_data_rsp to handle sense data correctly
+
+Remove an overzealous BUG_ON and reorganize the code to cope with commands both
+with or without a tio.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    branches/1.4.20/kernel/iscsi.c
+
+Modified: branches/1.4.20/kernel/iscsi.c
+===================================================================
+--- branches/1.4.20/kernel/iscsi.c	2011-09-19 12:36:44 UTC (rev 466)
++++ branches/1.4.20/kernel/iscsi.c	2011-10-26 17:54:07 UTC (rev 467)
+@@ -249,6 +249,9 @@
+ 	LIST_HEAD(send);
+ 
+ 	dprintk(D_GENERIC, &quot;%p\n&quot;, cmnd);
++
++	BUG_ON(!cmnd-&gt;tio);
++
+ 	pdusize = conn-&gt;session-&gt;param.max_xmit_data_length;
+ 	expsize = cmnd_read_size(cmnd);
+ 	size = min(expsize, tio-&gt;size);
+@@ -383,29 +386,23 @@
+ 
+ void send_data_rsp(struct iscsi_cmnd *req, void (*func)(struct iscsi_cmnd *))
+ {
+-	struct iscsi_cmnd *rsp;
+-	struct iscsi_scsi_rsp_hdr *rsp_hdr;
+-	u32 size;
+-
+ 	func(req);
+ 
+-	assert(req-&gt;tio);
+-
+-	size = min(req-&gt;tio-&gt;size, cmnd_read_size(req));
+-
+-	if (req-&gt;status == SAM_STAT_GOOD &amp;&amp; size)
++	if (req-&gt;status == SAM_STAT_GOOD &amp;&amp; req-&gt;tio &amp;&amp; req-&gt;tio-&gt;size)
+ 		do_send_data_rsp(req);
+ 	else {
+-		rsp = create_scsi_rsp(req);
+-		rsp_hdr = (struct iscsi_scsi_rsp_hdr *) &amp;rsp-&gt;pdu.bhs;
+-		if ((size = cmnd_read_size(req)) &gt; req-&gt;tio-&gt;size) {
++		struct iscsi_cmnd *rsp = create_scsi_rsp(req);
++		struct iscsi_scsi_rsp_hdr *rsp_hdr =
++			(struct iscsi_scsi_rsp_hdr *) &amp;rsp-&gt;pdu.bhs;
++		const u32 exp_size = cmnd_read_size(req);
++		const u32 size = req-&gt;tio ? req-&gt;tio-&gt;size : 0;
++
++		if (exp_size &gt; size) {
+ 			rsp_hdr-&gt;flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
+-			rsp_hdr-&gt;residual_count =
+-					cpu_to_be32(size - req-&gt;tio-&gt;size);
+-		} else if (size &lt; req-&gt;tio-&gt;size) {
++			rsp_hdr-&gt;residual_count = cpu_to_be32(exp_size - size);
++		} else if (exp_size &lt; size) {
+ 			rsp_hdr-&gt;flags |= ISCSI_FLG_RESIDUAL_OVERFLOW;
+-			rsp_hdr-&gt;residual_count =
+-					cpu_to_be32(req-&gt;tio-&gt;size - size);
++			rsp_hdr-&gt;residual_count = cpu_to_be32(size - exp_size);
+ 		}
+ 		iscsi_cmnd_init_write(rsp);
+ 	}
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#378">[ date ]</a>
+              <a href="thread.html#378">[ thread ]</a>
+              <a href="subject.html#378">[ subject ]</a>
+              <a href="author.html#378">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

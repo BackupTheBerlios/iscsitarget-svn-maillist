@@ -1,0 +1,95 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r187 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r187%20-%20trunk/kernel&In-Reply-To=%3C200812200824.mBK8O7MR014897%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000098.html">
+   <LINK REL="Next"  HREF="000100.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r187 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r187%20-%20trunk/kernel&In-Reply-To=%3C200812200824.mBK8O7MR014897%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r187 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Sat Dec 20 09:24:07 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000098.html">[Iscsitarget-svn] r186 - in trunk: . patches
+</A></li>
+        <LI>Next message: <A HREF="000100.html">[Iscsitarget-svn] r188 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#99">[ date ]</a>
+              <a href="thread.html#99">[ thread ]</a>
+              <a href="subject.html#99">[ subject ]</a>
+              <a href="author.html#99">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-12-20 09:24:06 +0100 (Sat, 20 Dec 2008)
+New Revision: 187
+
+Modified:
+   trunk/kernel/nthread.c
+Log:
+Fix nthread_stop() for threads that have never been awakened before
+
+In this case kthread_stop() returns -EINTR which should be treated as
+success.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/kernel/nthread.c
+===================================================================
+--- trunk/kernel/nthread.c	2008-12-02 05:45:54 UTC (rev 186)
++++ trunk/kernel/nthread.c	2008-12-20 08:24:06 UTC (rev 187)
+@@ -724,8 +724,10 @@
+ 
+ 	err = kthread_stop(info-&gt;task);
+ 
+-	if (!err)
+-		info-&gt;task = NULL;
++	if (err &lt; 0 &amp;&amp; err != -EINTR)
++		return err;
+ 
+-	return err;
++	info-&gt;task = NULL;
++
++	return 0;
+ }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000098.html">[Iscsitarget-svn] r186 - in trunk: . patches
+</A></li>
+	<LI>Next message: <A HREF="000100.html">[Iscsitarget-svn] r188 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#99">[ date ]</a>
+              <a href="thread.html#99">[ thread ]</a>
+              <a href="subject.html#99">[ subject ]</a>
+              <a href="author.html#99">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

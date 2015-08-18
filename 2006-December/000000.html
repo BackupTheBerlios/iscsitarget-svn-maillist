@@ -1,0 +1,85 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r88 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2006-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r88%20-%20trunk/usr&In-Reply-To=%3C200612251442.kBPEgcB3022000%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r88 - trunk/usr</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r88%20-%20trunk/usr&In-Reply-To=%3C200612251442.kBPEgcB3022000%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r88 - trunk/usr">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Dec 25 15:42:38 CET 2006</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#0">[ date ]</a>
+              <a href="thread.html#0">[ thread ]</a>
+              <a href="subject.html#0">[ subject ]</a>
+              <a href="author.html#0">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2006-12-25 15:42:37 +0100 (Mon, 25 Dec 2006)
+New Revision: 88
+
+Modified:
+   trunk/usr/plain.c
+Log:
+Subject: [Iscsitarget-devel] [patch] close file in plain_init
+From: Ming Zhang &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">blackmagic02881 at gmail.com</A>&gt;
+Date: Thu, 21 Dec 2006 13:14:49 -0500
+
+plain_init() forgot to close the file it opens.
+
+
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2006-12-18 05:54:01 UTC (rev 87)
++++ trunk/usr/plain.c	2006-12-25 14:42:37 UTC (rev 88)
+@@ -602,6 +602,7 @@
+ 		}
+ 	}
+ 
++	fclose(config);
+ 	return 0;
+ }
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#0">[ date ]</a>
+              <a href="thread.html#0">[ thread ]</a>
+              <a href="subject.html#0">[ subject ]</a>
+              <a href="author.html#0">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

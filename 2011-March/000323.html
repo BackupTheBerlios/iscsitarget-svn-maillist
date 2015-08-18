@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[411] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B411%5D%20trunk&In-Reply-To=%3CE1PyNwK-0005mx-R7%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000322.html">
+   <LINK REL="Next"  HREF="000324.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[411] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B411%5D%20trunk&In-Reply-To=%3CE1PyNwK-0005mx-R7%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[411] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sat Mar 12 13:29:00 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000322.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[410]	trunk/etc/initd/initd
+</A></li>
+        <LI>Next message: <A HREF="000324.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[412] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#323">[ date ]</a>
+              <a href="thread.html#323">[ thread ]</a>
+              <a href="subject.html#323">[ subject ]</a>
+              <a href="author.html#323">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 411
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=411&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=411&amp;view=rev</A>
+Author:   agr1
+Date:     2011-03-12 12:29:00 +0000 (Sat, 12 Mar 2011)
+
+Log Message:
+-----------
+2.6.38 compile fix
+
+As of 2.6.38 {open,close}_bdev_exclusive() was removed in favour of
+blkdev_get_by_path() and blkdev_put() calls.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/kernel/block-io.c
+
+Added Paths:
+-----------
+    trunk/patches/compat-2.6.36-2.6.37.patch
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2011-03-12 12:14:44 UTC (rev 410)
++++ trunk/Makefile	2011-03-12 12:29:00 UTC (rev 411)
+@@ -58,6 +58,10 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++ifeq ($(call kver_le,2,6,37),1)
++	PATCHES := $(PATCHES) compat-2.6.36-2.6.37.patch
++endif
++
+ # Compatibility patch for kernels &gt; 2.6.32 &lt;= 2.6.35
+ ifeq ($(call kver_le,2,6,35),1)
+ 	PATCHES := $(PATCHES) compat-2.6.33-2.6.35.patch
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2011-03-12 12:14:44 UTC (rev 410)
++++ trunk/kernel/block-io.c	2011-03-12 12:29:00 UTC (rev 411)
+@@ -155,14 +155,14 @@
+ {
+ 	struct blockio_data *bio_data = volume-&gt;private;
+ 	struct block_device *bdev;
+-	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
++	int flags = FMODE_EXCL | FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
+ 	int err = 0;
+ 
+ 	bio_data-&gt;path = kstrdup(path, GFP_KERNEL);
+ 	if (!bio_data-&gt;path)
+ 		return -ENOMEM;
+ 
+-	bdev = open_bdev_exclusive(path, flags, THIS_MODULE);
++	bdev = blkdev_get_by_path(path, flags, THIS_MODULE);
+ 	if (IS_ERR(bdev)) {
+ 		err = PTR_ERR(bdev);
+ 		eprintk(&quot;Can't open device %s, error %d\n&quot;, path, err);
+@@ -250,10 +250,10 @@
+ blockio_detach(struct iet_volume *volume)
+ {
+ 	struct blockio_data *bio_data = volume-&gt;private;
+-	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
++	int flags = FMODE_EXCL | FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
+ 
+ 	if (bio_data-&gt;bdev)
+-		close_bdev_exclusive(bio_data-&gt;bdev, flags);
++		blkdev_put(bio_data-&gt;bdev, flags);
+ 	kfree(bio_data-&gt;path);
+ 
+ 	kfree(volume-&gt;private);
+
+Added: trunk/patches/compat-2.6.36-2.6.37.patch
+===================================================================
+--- trunk/patches/compat-2.6.36-2.6.37.patch	                        (rev 0)
++++ trunk/patches/compat-2.6.36-2.6.37.patch	2011-03-12 12:29:00 UTC (rev 411)
+@@ -0,0 +1,34 @@
++diff --git b/kernel/block-io.c a/kernel/block-io.c
++index 4c6d8bd..c812abf 100644
++--- b/kernel/block-io.c
+++++ a/kernel/block-io.c
++@@ -155,14 +155,14 @@ blockio_open_path(struct iet_volume *volume, const char *path)
++ {
++ 	struct blockio_data *bio_data = volume-&gt;private;
++ 	struct block_device *bdev;
++-	int flags = FMODE_EXCL | FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
+++	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
++ 	int err = 0;
++ 
++ 	bio_data-&gt;path = kstrdup(path, GFP_KERNEL);
++ 	if (!bio_data-&gt;path)
++ 		return -ENOMEM;
++ 
++-	bdev = blkdev_get_by_path(path, flags, THIS_MODULE);
+++	bdev = open_bdev_exclusive(path, flags, THIS_MODULE);
++ 	if (IS_ERR(bdev)) {
++ 		err = PTR_ERR(bdev);
++ 		eprintk(&quot;Can't open device %s, error %d\n&quot;, path, err);
++@@ -250,10 +250,10 @@ static void
++ blockio_detach(struct iet_volume *volume)
++ {
++ 	struct blockio_data *bio_data = volume-&gt;private;
++-	int flags = FMODE_EXCL | FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
+++	int flags = FMODE_READ | (LUReadonly(volume) ? 0 : FMODE_WRITE);
++ 
++ 	if (bio_data-&gt;bdev)
++-		blkdev_put(bio_data-&gt;bdev, flags);
+++		close_bdev_exclusive(bio_data-&gt;bdev, flags);
++ 	kfree(bio_data-&gt;path);
++ 
++ 	kfree(volume-&gt;private);
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000322.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[410]	trunk/etc/initd/initd
+</A></li>
+	<LI>Next message: <A HREF="000324.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[412] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#323">[ date ]</a>
+              <a href="thread.html#323">[ thread ]</a>
+              <a href="subject.html#323">[ subject ]</a>
+              <a href="author.html#323">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

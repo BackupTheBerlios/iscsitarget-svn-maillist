@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r278 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r278%20-%20trunk/kernel&In-Reply-To=%3C200912161841.nBGIfQB5003404%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000189.html">
+   <LINK REL="Next"  HREF="000191.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r278 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r278%20-%20trunk/kernel&In-Reply-To=%3C200912161841.nBGIfQB5003404%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r278 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Dec 16 19:41:26 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000189.html">[Iscsitarget-svn] r277 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000191.html">[Iscsitarget-svn] r279 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#190">[ date ]</a>
+              <a href="thread.html#190">[ thread ]</a>
+              <a href="subject.html#190">[ subject ]</a>
+              <a href="author.html#190">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-12-16 19:41:25 +0100 (Wed, 16 Dec 2009)
+New Revision: 278
+
+Modified:
+   trunk/kernel/session.c
+   trunk/kernel/target_disk.c
+   trunk/kernel/volume.c
+Log:
+From: Qinghua(Kevin) Ye &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">kevin.ye at gmail.com</A>&gt;
+
+release reservation during session delete
+
+Release reservations on I_T nexus loss (initiator failure):
+
+    &quot;The reserve/release management method commands, RESERVE(6),
+     RESERVE(10), RELEASE(6), and RELEASE(10) are used among multiple
+     initiators that do not require operations to be protected across
+     initiator failures (and subsequent hard resets).&quot;
+
+(SPC-2r20, 5.2.2)
+
+
+Modified: trunk/kernel/session.c
+===================================================================
+--- trunk/kernel/session.c	2009-12-14 07:53:32 UTC (rev 277)
++++ trunk/kernel/session.c	2009-12-16 18:41:25 UTC (rev 278)
+@@ -124,6 +124,7 @@
+ int session_del(struct iscsi_target *target, u64 sid)
+ {
+ 	struct iscsi_session *session;
++	struct iet_volume *volume;
+ 
+ 	session = session_lookup(target, sid);
+ 	if (!session)
+@@ -134,6 +135,9 @@
+ 		return -EBUSY;
+ 	}
+ 
++	list_for_each_entry(volume, &amp;target-&gt;volumes, list){
++		volume_release(volume, sid, 0);
++	}
+ 	return session_free(session);
+ }
+ 
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2009-12-14 07:53:32 UTC (rev 277)
++++ trunk/kernel/target_disk.c	2009-12-16 18:41:25 UTC (rev 278)
+@@ -432,9 +432,19 @@
+ 
+ static void build_release_response(struct iscsi_cmnd *cmnd)
+ {
+-	if (volume_release(cmnd-&gt;lun,
+-			   cmnd-&gt;conn-&gt;session-&gt;sid, 0))
++	int ret = volume_release(cmnd-&gt;lun,
++				 cmnd-&gt;conn-&gt;session-&gt;sid, 0);
++	switch (ret) {
++	case -ENOENT:
++		/* Logical Unit Not Supported (?) */
++		iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x25, 0x0);
++		break;
++	case -EBUSY:
+ 		cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
++		break;
++	default:
++		break;
++	}
+ }
+ 
+ static void build_reservation_conflict_response(struct iscsi_cmnd *cmnd)
+@@ -475,8 +485,9 @@
+ {
+ 	struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
+ 
+-	if (is_volume_reserved(cmnd-&gt;lun,
+-			       cmnd-&gt;conn-&gt;session-&gt;sid)) {
++	int ret = is_volume_reserved(cmnd-&gt;lun,
++				     cmnd-&gt;conn-&gt;session-&gt;sid);
++	if (ret == -EBUSY) {
+ 		switch (req-&gt;scb[0]) {
+ 		case INQUIRY:
+ 		case RELEASE:
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2009-12-14 07:53:32 UTC (rev 277)
++++ trunk/kernel/volume.c	2009-12-16 18:41:25 UTC (rev 278)
+@@ -193,35 +193,54 @@
+ 
+ int volume_reserve(struct iet_volume *volume, u64 sid)
+ {
++	int err = 0;
++
+ 	if (!volume)
+ 		return -ENOENT;
+ 
+ 	spin_lock(&amp;volume-&gt;reserve_lock);
+-	if (volume-&gt;reserve_sid &amp;&amp; volume-&gt;reserve_sid != sid) {
+-		spin_unlock(&amp;volume-&gt;reserve_lock);
+-		return -EBUSY;
+-	}
++	if (volume-&gt;reserve_sid &amp;&amp; volume-&gt;reserve_sid != sid)
++		err = -EBUSY;
++	else
++		volume-&gt;reserve_sid = sid;
+ 
+-	volume-&gt;reserve_sid = sid;
+ 	spin_unlock(&amp;volume-&gt;reserve_lock);
+-
+-	return 0;
++	return err;
+ }
+ 
+ int is_volume_reserved(struct iet_volume *volume, u64 sid)
+ {
+-	if (!volume || !volume-&gt;reserve_sid || volume-&gt;reserve_sid == sid)
+-		return 0;
++	int err = 0;
+ 
+-	return -EBUSY;
++	if (!volume)
++		return -ENOENT;
++
++	spin_lock(&amp;volume-&gt;reserve_lock);
++	if (!volume-&gt;reserve_sid || volume-&gt;reserve_sid == sid)
++		err = 0;
++	else
++		err = -EBUSY;
++
++	spin_unlock(&amp;volume-&gt;reserve_lock);
++	return err;
+ }
+ 
+ int volume_release(struct iet_volume *volume, u64 sid, int force)
+ {
++	int err = 0;
++
++	if (!volume)
++		return -ENOENT;
++
++	spin_lock(&amp;volume-&gt;reserve_lock);
++
+ 	if (force || volume-&gt;reserve_sid == sid)
+ 		volume-&gt;reserve_sid = 0;
++	else
++		err = -EBUSY;
+ 
+-	return 0;
++	spin_unlock(&amp;volume-&gt;reserve_lock);
++	return err;
+ }
+ 
+ static void iet_volume_info_show(struct seq_file *seq, struct iscsi_target *target)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000189.html">[Iscsitarget-svn] r277 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000191.html">[Iscsitarget-svn] r279 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#190">[ date ]</a>
+              <a href="thread.html#190">[ thread ]</a>
+              <a href="subject.html#190">[ subject ]</a>
+              <a href="author.html#190">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

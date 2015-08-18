@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r170 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r170%20-%20trunk/kernel&In-Reply-To=%3C200809102057.m8AKvlep030444%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000081.html">
+   <LINK REL="Next"  HREF="000083.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r170 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r170%20-%20trunk/kernel&In-Reply-To=%3C200809102057.m8AKvlep030444%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r170 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 10 22:57:47 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000081.html">[Iscsitarget-svn] r169 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000083.html">[Iscsitarget-svn] r171 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82">[ date ]</a>
+              <a href="thread.html#82">[ thread ]</a>
+              <a href="subject.html#82">[ subject ]</a>
+              <a href="author.html#82">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-09-10 22:57:47 +0200 (Wed, 10 Sep 2008)
+New Revision: 170
+
+Modified:
+   trunk/kernel/wthread.c
+Log:
+From: Denis ChengRq &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">crquan at gmail.com</A>&gt;
+Subject: [PATCH] wthread racy problem: need to ignore -EINTR of kthread_stop
+
+Signed-off-by: Denis ChengRq &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">crquan at gmail.com</A>
+
+Stopping worker threads that have never been awakened will lead to
+kthread_stop() returning -EINTR, which should be treated as success.
+
+
+Modified: trunk/kernel/wthread.c
+===================================================================
+--- trunk/kernel/wthread.c	2008-09-04 19:15:23 UTC (rev 169)
++++ trunk/kernel/wthread.c	2008-09-10 20:57:47 UTC (rev 170)
+@@ -120,7 +120,9 @@
+ 	int err;
+ 
+ 	assert(wt-&gt;w_task);
+-	if ((err = kthread_stop(wt-&gt;w_task)) &lt; 0)
++	err = kthread_stop(wt-&gt;w_task);
++
++	if (err &lt; 0 &amp;&amp; err != -EINTR)
+ 		return err;
+ 
+ 	list_del(&amp;wt-&gt;w_list);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000081.html">[Iscsitarget-svn] r169 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000083.html">[Iscsitarget-svn] r171 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82">[ date ]</a>
+              <a href="thread.html#82">[ thread ]</a>
+              <a href="subject.html#82">[ subject ]</a>
+              <a href="author.html#82">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,130 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[497]	trunk/kernel/target_disk.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2014-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B497%5D%0A%09trunk/kernel/target_disk.c&In-Reply-To=%3Cmailman.3.1388736219.1454.iscsitarget-svn%40lists.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000409.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[497]	trunk/kernel/target_disk.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B497%5D%0A%09trunk/kernel/target_disk.c&In-Reply-To=%3Cmailman.3.1388736219.1454.iscsitarget-svn%40lists.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[497]	trunk/kernel/target_disk.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Fri Jan  3 09:03:34 CET 2014</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000409.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[498] trunk/Makefile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#408">[ date ]</a>
+              <a href="thread.html#408">[ thread ]</a>
+              <a href="subject.html#408">[ subject ]</a>
+              <a href="author.html#408">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 497
+          <A HREF="http://sourceforge.net/p/iscsitarget/code/497">http://sourceforge.net/p/iscsitarget/code/497</A>
+Author:   agr1
+Date:     2014-01-03 08:03:31 +0000 (Fri, 03 Jan 2014)
+Log Message:
+-----------
+Fix SERVICE ACTION IN / READ CAPACITY (16)
+
+Rev. 488 &quot;Fix SAI/READ CAPACITY(16) parameter data length&quot; was fauly
+in that didn't respect the requirement that SCSI commands which have
+an ALLOCATION LENGTH in the request field must not set an iSCSI
+residual - cf. RFC 5048, 3.1.2:
+
+  &quot;If the Expected Data Transfer Length (EDTL) in the iSCSI header of
+   the SCSI Command PDU [...] is set to at least as large as that
+   ALLOCATION LENGTH, the SCSI layer truncation prevents an iSCSI
+   Residual Overflow from occurring. A SCSI initiator can detect that
+   such truncation has occurred via other information at the SCSI
+   layer.&quot;
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/target_disk.c
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2013-07-03 19:34:10 UTC (rev 496)
++++ trunk/kernel/target_disk.c	2014-01-03 08:03:31 UTC (rev 497)
+@@ -9,6 +9,7 @@
+ 
+ #include &lt;linux/ctype.h&gt;
+ #include &lt;scsi/scsi.h&gt;
++#include &lt;asm/unaligned.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+@@ -357,16 +358,18 @@
+ 	struct tio *tio = cmnd-&gt;tio;
+ 	u32 *data;
+ 	u64 *data64;
+-
++	u32 alloc_len;
++	const u8* cdb = cmnd_hdr(cmnd)-&gt;scb;
+ 	assert(!tio);
+ 
+ 	/* only READ_CAPACITY_16 service action is currently supported */
+-	if ((cmnd_hdr(cmnd)-&gt;scb[1] &amp; 0x1F) != 0x10) {
++	if ((cdb[1] &amp; 0x1F) != 0x10) {
+ 		/* Invalid Field In CDB */
+ 		iscsi_cmnd_set_sense(cmnd, ILLEGAL_REQUEST, 0x24, 0x0);
+ 		return;
+ 	}
+ 
++	alloc_len = get_unaligned_be32(&amp;cdb[10]);
+ 	tio = cmnd-&gt;tio = tio_alloc(1);
+ 	data = page_address(tio-&gt;pvec[0]);
+ 	assert(data);
+@@ -375,7 +378,7 @@
+ 	data64[0] = cpu_to_be64(cmnd-&gt;lun-&gt;blk_cnt - 1);
+ 	data[2] = cpu_to_be32(1UL &lt;&lt; cmnd-&gt;lun-&gt;blk_shift);
+ 
+-	tio_set(tio, 32, 0);
++	tio_set(tio, min_t(u32, alloc_len, 32), 0);
+ }
+ 
+ static void build_read_response(struct iscsi_cmnd *cmnd)
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000409.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[498] trunk/Makefile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#408">[ date ]</a>
+              <a href="thread.html#408">[ thread ]</a>
+              <a href="subject.html#408">[ subject ]</a>
+              <a href="author.html#408">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

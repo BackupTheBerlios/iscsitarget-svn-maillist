@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[491]	trunk/kernel/target.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2013-May/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B491%5D%0A%09trunk/kernel/target.c&In-Reply-To=%3CE1UZlgH-0007z5-FS%40sfp-svn-3.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[491]	trunk/kernel/target.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B491%5D%0A%09trunk/kernel/target.c&In-Reply-To=%3CE1UZlgH-0007z5-FS%40sfp-svn-3.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[491]	trunk/kernel/target.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue May  7 19:28:01 CEST 2013</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#402">[ date ]</a>
+              <a href="thread.html#402">[ thread ]</a>
+              <a href="subject.html#402">[ subject ]</a>
+              <a href="author.html#402">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 491
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=491&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=491&amp;view=rev</A>
+Author:   rswwalker
+Date:     2013-05-07 17:28:00 +0000 (Tue, 07 May 2013)
+Log Message:
+-----------
+If acquiring the mutex fails in iet_seq_start() we return an error,
+however iet_seq_stop() will still be called which unlocks the mutex.
+
+Thanks to Shivaram Upadhyayula for finding this.
+
+Fix is to test *v in iet_seq_stop() to see if it is set to -EINTR
+returned from iet_set_start() and skip mutex_unlock if it is.
+
+Signed off by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/target.c
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2013-04-01 19:44:23 UTC (rev 490)
++++ trunk/kernel/target.c	2013-05-07 17:28:00 UTC (rev 491)
+@@ -343,7 +343,8 @@
+ 
+ static void iet_seq_stop(struct seq_file *m, void *v)
+ {
+-	mutex_unlock(&amp;target_list_mutex);
++	if (PTR_ERR(v) != -EINTR)
++		mutex_unlock(&amp;target_list_mutex);
+ }
+ 
+ static int iet_seq_show(struct seq_file *m, void *p)
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#402">[ date ]</a>
+              <a href="thread.html#402">[ thread ]</a>
+              <a href="subject.html#402">[ subject ]</a>
+              <a href="author.html#402">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

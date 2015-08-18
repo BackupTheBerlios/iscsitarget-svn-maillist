@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[344]	branches/1.4.20/Makefile
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B344%5D%0A%09branches/1.4.20/Makefile&In-Reply-To=%3CE1OTipA-0007ut-1Y%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000264.html">
+   <LINK REL="Next"  HREF="000262.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[344]	branches/1.4.20/Makefile</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B344%5D%0A%09branches/1.4.20/Makefile&In-Reply-To=%3CE1OTipA-0007ut-1Y%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[344]	branches/1.4.20/Makefile">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Jun 29 23:58:36 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000264.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[343] trunk/etc/initd
+</A></li>
+        <LI>Next message: <A HREF="000262.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[345] trunk/Makefile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#267">[ date ]</a>
+              <a href="thread.html#267">[ thread ]</a>
+              <a href="subject.html#267">[ subject ]</a>
+              <a href="author.html#267">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 344
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=344&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=344&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-06-29 21:58:35 +0000 (Tue, 29 Jun 2010)
+
+Log Message:
+-----------
+To be more standard this patch changes all instances of DISTDIR
+to DESTDIR in Makefile.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/Makefile
+
+Modified: branches/1.4.20/Makefile
+===================================================================
+--- branches/1.4.20/Makefile	2010-06-29 21:57:55 UTC (rev 343)
++++ branches/1.4.20/Makefile	2010-06-29 21:58:35 UTC (rev 344)
+@@ -209,8 +209,8 @@
+ 
+ depmod:
+ 	@echo &quot;Running depmod&quot;
+-	@if [ x$(DISTDIR) != x -o x$(INSTALL_MOD_PATH) != x ]; then \
+-		depmod -aq -b $(DISTDIR)$(INSTALL_MOD_PATH) $(KVER); \
++	@if [ x$(DESTDIR) != x -o x$(INSTALL_MOD_PATH) != x ]; then \
++		depmod -aq -b $(DESTDIR)$(INSTALL_MOD_PATH) $(KVER); \
+ 	else \
+ 		depmod -aq $(KVER); \
+ 	fi
+@@ -220,60 +220,60 @@
+ install: install-files depmod
+ 
+ install-kernel: kernel/iscsi_trgt.ko
+-	@if [ -d $(DISTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) ]; then \
++	@if [ -d $(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) ]; then \
+ 		if [ -f /etc/debian_version ]; then \
+-			find $(DISTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
++			find $(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
+ 				-name iscsi_trgt.ko -type f \
+ 				-exec /bin/sh -c &quot;dpkg-divert --rename {}&quot; \;; \
+ 		else \
+-			find $(DISTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
++			find $(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
+ 				-name iscsi_trgt.ko -type f \
+ 				-execdir mv \{\} \{\}.orig \;; \
+ 		fi \
+ 	fi
+ 	@install -vD kernel/iscsi_trgt.ko \
+-		$(DISTDIR)$(INSTALL_MOD_PATH)$(KMOD)/iscsi/iscsi_trgt.ko
++		$(DESTDIR)$(INSTALL_MOD_PATH)$(KMOD)/iscsi/iscsi_trgt.ko
+ 
+ install-usr: usr/ietd usr/ietadm
+-	@install -vD usr/ietd $(DISTDIR)/usr/sbin/ietd
+-	@install -vD usr/ietadm $(DISTDIR)/usr/sbin/ietadm
++	@install -vD usr/ietd $(DESTDIR)/usr/sbin/ietd
++	@install -vD usr/ietadm $(DESTDIR)/usr/sbin/ietadm
+ 
+ install-etc: install-initd
+-	@if [ ! -e $(DISTDIR)/etc/ietd.conf ]; then \
+-		if [ ! -e $(DISTDIR)/etc/iet/ietd.conf ]; then \
++	@if [ ! -e $(DESTDIR)/etc/ietd.conf ]; then \
++		if [ ! -e $(DESTDIR)/etc/iet/ietd.conf ]; then \
+ 			install -vD -m 640 etc/ietd.conf \
+-				$(DISTDIR)/etc/iet/ietd.conf; \
++				$(DESTDIR)/etc/iet/ietd.conf; \
+ 		fi \
+ 	fi
+-	@if [ ! -e $(DISTDIR)/etc/initiators.allow ]; then \
+-		if [ ! -e $(DISTDIR)/etc/iet/initiators.allow ]; then \
++	@if [ ! -e $(DESTDIR)/etc/initiators.allow ]; then \
++		if [ ! -e $(DESTDIR)/etc/iet/initiators.allow ]; then \
+ 			install -vD -m 644 etc/initiators.allow \
+-				$(DISTDIR)/etc/iet/initiators.allow; \
++				$(DESTDIR)/etc/iet/initiators.allow; \
+ 		fi \
+ 	fi
+-	@if [ ! -e $(DISTDIR)/etc/targets.allow ]; then \
+-		if [ ! -e $(DISTDIR)/etc/iet/targets.allow ]; then \
++	@if [ ! -e $(DESTDIR)/etc/targets.allow ]; then \
++		if [ ! -e $(DESTDIR)/etc/iet/targets.allow ]; then \
+ 			install -vD -m 644 etc/targets.allow \
+-				$(DISTDIR)/etc/iet/targets.allow; \
++				$(DESTDIR)/etc/iet/targets.allow; \
+ 		fi \
+ 	fi
+ 
+ install-initd:
+ 	@if [ -f /etc/debian_version ]; then \
+ 		install -vD -m 755 etc/initd/initd.debian \
+-			$(DISTDIR)/etc/init.d/iscsi-target; \
++			$(DESTDIR)/etc/init.d/iscsi-target; \
+ 	elif [ -f /etc/redhat-release ]; then \
+ 		install -vD -m 755 etc/initd/initd.redhat \
+-			$(DISTDIR)/etc/init.d/iscsi-target; \
++			$(DESTDIR)/etc/rc.d/init.d/iscsi-target; \
+ 	elif [ -f /etc/gentoo-release ]; then \
+ 		install -vD -m 755 etc/initd/initd.gentoo \
+-			$(DISTDIR)/etc/init.d/iscsi-target; \
++			$(DESTDIR)/etc/init.d/iscsi-target; \
+ 	elif [ -f /etc/slackware-version ]; then \
+ 		install -vD -m 755 etc/initd/initd \
+-			$(DISTDIR)/etc/rc.d/iscsi-target; \
++			$(DESTDIR)/etc/rc.d/iscsi-target; \
+ 	else \
+ 		install -vD -m 755 etc/initd/initd \
+-			$(DISTDIR)/etc/init.d/iscsi-target; \
++			$(DESTDIR)/etc/init.d/iscsi-target; \
+ 	fi
+ 
+ install-doc: install-man
+@@ -283,7 +283,7 @@
+ 	done ; $$ok
+ 	@set -e; for f in $(DOCS) ; do \
+ 		install -v -D -m 644 $$f \
+-			$(DISTDIR)$(DOCDIR)/$$f ; \
++			$(DESTDIR)$(DOCDIR)/$$f ; \
+ 	done
+ 
+ install-man:
+@@ -294,50 +294,50 @@
+ 	@set -e; for f in $(MANPAGES) ; do \
+ 		s=$${f##*.}; \
+ 		install -v -D -m 644 doc/manpages/$$f \
+-			$(DISTDIR)$(MANDIR)/man$$s/$$f ; \
++			$(DESTDIR)$(MANDIR)/man$$s/$$f ; \
+ 	done
+ 
+ uninstall: uninstall-kernel depmod uninstall-usr uninstall-etc uninstall-doc
+ 
+ uninstall-kernel:
+-	rm -f $(DISTDIR)$(INSTALL_MOD_PATH)$(KMOD)/iscsi/iscsi_trgt.ko
++	rm -f $(DESTDIR)$(INSTALL_MOD_PATH)$(KMOD)/iscsi/iscsi_trgt.ko
+ 	@if [ -f /etc/debian_version ]; then \
+-		find $(DISTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
++		find $(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
+ 			-name iscsi_trgt.ko.distrib -type f \
+ 			-exec /bin/sh -c &quot;dpkg-divert --remove --rename \
+ 				\`dirname {}\`/iscsi_trgt.ko&quot; \;; \
+ 	else \
+-		find $(DISTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
++		find $(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER) \
+ 			-name iscsi_trgt.ko.orig -type f \
+ 			-execdir mv \{\} iscsi_trgt.ko \;; \
+         fi
+ 
+ uninstall-usr:
+-	@rm -f $(DISTDIR)/usr/sbin/ietd
+-	@rm -f $(DISTDIR)/usr/sbin/ietadm
++	@rm -f $(DESTDIR)/usr/sbin/ietd
++	@rm -f $(DESTDIR)/usr/sbin/ietadm
+ 
+ uninstall-etc: uninstall-initd
+ 
+ uninstall-initd:
+ 	if [ -f /etc/debian_version ]; then \
+-		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++		rm -f $(DESTDIR)/etc/init.d/iscsi-target; \
+ 	elif [ -f /etc/redhat-release ]; then \
+-		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++		rm -f $(DESTDIR)/etc/rc.d/init.d/iscsi-target; \
+ 	elif [ -f /etc/gentoo-release ]; then \
+-		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++		rm -f $(DESTDIR)/etc/init.d/iscsi-target; \
+ 	elif [ -f /etc/slackware-version ]; then \
+-		rm -f $(DISTDIR)/etc/rc.d/iscsi-target; \
++		rm -f $(DESTDIR)/etc/rc.d/iscsi-target; \
+ 	else \
+-		rm -f $(DISTDIR)/etc/init.d/iscsi-target; \
++		rm -f $(DESTDIR)/etc/init.d/iscsi-target; \
+ 	fi
+ 
+ uninstall-doc: uninstall-man
+-	rm -rf $(DISTDIR)$(DOCDIR)
++	rm -rf $(DESTDIR)$(DOCDIR)
+ 
+ uninstall-man:
+ 	set -e; for f in $(MANPAGES) ; do \
+ 		s=$${f##*.}; \
+-		rm -f $(DISTDIR)$(MANDIR)/man$$s/$$f ; \
++		rm -f $(DESTDIR)$(MANDIR)/man$$s/$$f ; \
+ 	done
+ 
+ clean:
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000264.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[343] trunk/etc/initd
+</A></li>
+	<LI>Next message: <A HREF="000262.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[345] trunk/Makefile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#267">[ date ]</a>
+              <a href="thread.html#267">[ thread ]</a>
+              <a href="subject.html#267">[ subject ]</a>
+              <a href="author.html#267">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

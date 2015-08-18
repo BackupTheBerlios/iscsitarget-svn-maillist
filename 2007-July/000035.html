@@ -1,0 +1,354 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r123 - in trunk: kernel patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r123%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200707222306.l6MN6Q4R015276%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000036.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r123 - in trunk: kernel patches</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r123%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200707222306.l6MN6Q4R015276%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r123 - in trunk: kernel patches">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Jul 23 01:06:26 CEST 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000036.html">[Iscsitarget-svn] r124 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35">[ date ]</a>
+              <a href="thread.html#35">[ thread ]</a>
+              <a href="subject.html#35">[ subject ]</a>
+              <a href="author.html#35">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-07-23 01:06:24 +0200 (Mon, 23 Jul 2007)
+New Revision: 123
+
+Modified:
+   trunk/kernel/digest.c
+   trunk/kernel/file-io.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/volume.c
+   trunk/patches/compat-2.6.14-2.6.18.patch
+Log:
+Subject: Fix overzealous assert() in digest_data()
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Date: Sun, 22 Jul 2007 16:26:58 +0200
+
+The assert(count &lt; ISCSI_CONN_IOV_MAX) in digest_data() is too rigid
+since count == ISCSI_CONN_IOV_MAX should be a valid condition as well
+(if offset != 0).
+
+This is a repost [1], I guess the original somehow slipped through
+unnoticed?
+
+[1] <A HREF="http://www.nabble.com/-PATCH--Fix-overzealous-assert%28%29-in-digest_data%28%29-tf4037926.html">http://www.nabble.com/-PATCH--Fix-overzealous-assert%28%29-in-digest_data%28%29-tf4037926.html</A>
+
+
+Modified: trunk/kernel/digest.c
+===================================================================
+--- trunk/kernel/digest.c	2007-04-24 03:11:00 UTC (rev 122)
++++ trunk/kernel/digest.c	2007-07-22 23:06:24 UTC (rev 123)
+@@ -218,7 +218,7 @@
+ 	count = get_pgcnt(size, offset);
+ 	assert(idx + count &lt;= tio-&gt;pg_cnt);
+ 
+-	assert(count &lt; ISCSI_CONN_IOV_MAX);
++	assert(count &lt;= ISCSI_CONN_IOV_MAX);
+ 
+ 	crypto_hash_init(hash);
+ 
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2007-04-24 03:11:00 UTC (rev 122)
++++ trunk/kernel/file-io.c	2007-07-22 23:06:24 UTC (rev 123)
+@@ -123,21 +123,6 @@
+ 	return err;
+ }
+ 
+-static int set_scsiid(struct iet_volume *volume, const char *id)
+-{
+-	size_t len;
+-
+-	if ((len = strlen(id)) &gt; SCSI_ID_LEN - VENDOR_ID_LEN) {
+-		eprintk(&quot;SCSI ID too long, %zd provided, %u max\n&quot;, len,
+-			SCSI_ID_LEN - VENDOR_ID_LEN);
+-		return -EINVAL;
+-	}
+-
+-	memcpy(volume-&gt;scsi_id + VENDOR_ID_LEN, id, len);
+-
+-	return 0;
+-}
+-
+ static void gen_scsiid(struct iet_volume *volume, struct inode *inode)
+ {
+ 	int i;
+@@ -156,33 +141,16 @@
+ 	*(p + 3) = (unsigned int) inode-&gt;i_sb-&gt;s_dev;
+ }
+ 
+-static int set_scsisn(struct iet_volume *volume, const char *sn)
+-{
+-	size_t len;
+-
+-	if ((len = strlen(sn)) &gt; SCSI_SN_LEN) {
+-		eprintk(&quot;SCSI SN too long, %zd provided, %u max\n&quot;, len,
+-			SCSI_SN_LEN);
+-		return -EINVAL;
+-	}
+-	memcpy(volume-&gt;scsi_sn, sn, len);
+-	return 0;
+-}
+-
+ enum {
+-	Opt_scsiid, Opt_scsisn, Opt_path, Opt_ignore, Opt_err,
++	Opt_path, Opt_err,
+ };
+ 
+ static match_table_t tokens = {
+-	{Opt_scsiid, &quot;ScsiId=%s&quot;},
+-	{Opt_scsisn, &quot;ScsiSN=%s&quot;},
+ 	{Opt_path, &quot;Path=%s&quot;},
+-	{Opt_ignore, &quot;Type=%s&quot;},
+-	{Opt_ignore, &quot;IOMode=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+-static int parse_fileio_params(struct iet_volume *volume, char *params)
++static int __parse_fileio_params(struct iet_volume *volume, char *params)
+ {
+ 	int err = 0;
+ 	char *p, *q;
+@@ -194,26 +162,6 @@
+ 			continue;
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+-		case Opt_scsiid:
+-			if (!(q = match_strdup(&amp;args[0]))) {
+-				err = -ENOMEM;
+-				goto out;
+-			}
+-			err = set_scsiid(volume, q);
+-			kfree(q);
+-			if (err &lt; 0)
+-				goto out;
+-			break;
+-		case Opt_scsisn:
+-			if (!(q = match_strdup(&amp;args[0]))) {
+-				err = -ENOMEM;
+-				goto out;
+-			}
+-			err = set_scsisn(volume, q);
+-			kfree(q);
+-			if (err &lt; 0)
+-				goto out;
+-			break;
+ 		case Opt_path:
+ 			if (!(q = match_strdup(&amp;args[0]))) {
+ 				err = -ENOMEM;
+@@ -224,8 +172,6 @@
+ 			if (err &lt; 0)
+ 				goto out;
+ 			break;
+-		case Opt_ignore:
+-			break;
+ 		default:
+ 			eprintk(&quot;Unknown %s\n&quot;, p);
+ 			return -EINVAL;
+@@ -236,6 +182,11 @@
+ 	return err;
+ }
+ 
++static int parse_fileio_params(struct iet_volume *volume, char *params)
++{
++	return parse_volume_params(volume, params, __parse_fileio_params);
++}
++
+ static void fileio_detach(struct iet_volume *lu)
+ {
+ 	struct fileio_data *p = lu-&gt;private;
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2007-04-24 03:11:00 UTC (rev 122)
++++ trunk/kernel/iscsi.h	2007-07-22 23:06:24 UTC (rev 123)
+@@ -338,6 +338,9 @@
+ extern int volume_reserve(struct iet_volume *volume, u64 sid);
+ extern int volume_release(struct iet_volume *volume, u64 sid, int force);
+ extern int is_volume_reserved(struct iet_volume *volume, u64 sid);
++typedef int (match_fn_t)(struct iet_volume *volume, char *params);
++extern int parse_volume_params(struct iet_volume *volume, char *params,
++			       match_fn_t *fn);
+ 
+ /* tio.c */
+ extern int tio_init(void);
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2007-04-24 03:11:00 UTC (rev 122)
++++ trunk/kernel/volume.c	2007-07-22 23:06:24 UTC (rev 123)
+@@ -22,23 +22,105 @@
+ }
+ 
+ enum {
+-	Opt_type,
+-	Opt_iomode,
+-	Opt_err,
++	Opt_scsiid, Opt_scsisn, Opt_path, Opt_ignore, Opt_type, Opt_iomode, Opt_err,
+ };
+ 
+ static match_table_t tokens = {
+-	{Opt_type, &quot;Type=%s&quot;},
+-	{Opt_iomode, &quot;IOMode=%s&quot;},
++	{Opt_scsiid, &quot;ScsiId=%s&quot;},
++	{Opt_scsisn, &quot;ScsiSN=%s&quot;},
++	{Opt_ignore, &quot;Type=%s&quot;},
++	{Opt_ignore, &quot;IOMode=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
++static int set_scsiid(struct iet_volume *volume, const char *id)
++{
++	size_t len;
++
++	if ((len = strlen(id)) &gt; SCSI_ID_LEN - VENDOR_ID_LEN) {
++		eprintk(&quot;SCSI ID too long, %zd provided, %u max\n&quot;, len,
++			SCSI_ID_LEN - VENDOR_ID_LEN);
++		return -EINVAL;
++	}
++
++	memcpy(volume-&gt;scsi_id + VENDOR_ID_LEN, id, len);
++	return 0;
++}
++
++static int set_scsisn(struct iet_volume *volume, const char *sn)
++{
++	size_t len;
++
++	if ((len = strlen(sn)) &gt; SCSI_SN_LEN) {
++		eprintk(&quot;SCSI SN too long, %zd provided, %u max\n&quot;, len,
++			SCSI_SN_LEN);
++		return -EINVAL;
++	}
++	memcpy(volume-&gt;scsi_sn, sn, len);
++	return 0;
++}
++
++int parse_volume_params(struct iet_volume *volume, char *params, match_fn_t *fn)
++{
++	int err = 0;
++	char *p, *q;
++
++	while ((p = strsep(&amp;params, &quot;,&quot;)) != NULL) {
++		substring_t args[MAX_OPT_ARGS];
++		int token;
++		if (!*p)
++			continue;
++		token = match_token(p, tokens, args);
++		switch (token) {
++		case Opt_scsiid:
++			if (!(q = match_strdup(&amp;args[0]))) {
++				err = -ENOMEM;
++				goto out;
++			}
++			err = set_scsiid(volume, q);
++			kfree(q);
++			if (err &lt; 0)
++				goto out;
++			break;
++		case Opt_scsisn:
++			if (!(q = match_strdup(&amp;args[0]))) {
++				err = -ENOMEM;
++				goto out;
++			}
++			err = set_scsisn(volume, q);
++			kfree(q);
++			if (err &lt; 0)
++				goto out;
++			break;
++		case Opt_ignore:
++			break;
++		default:
++			if (fn) {
++				err = fn(volume, p);
++				if (!err)
++					break;
++			}
++
++			eprintk(&quot;Unknown %s\n&quot;, p);
++			return -EINVAL;
++		}
++	}
++out:
++	return err;
++}
++
+ static int set_iotype(struct iet_volume *volume, char *params)
+ {
+ 	int err = 0;
+ 	substring_t args[MAX_OPT_ARGS];
+ 	char *p, *argp = NULL, *buf = (char *) get_zeroed_page(GFP_USER);
+ 
++	match_table_t tokens = {
++		{Opt_type, &quot;Type=%s&quot;},
++		{Opt_iomode, &quot;IOMode=%s&quot;},
++		{Opt_err, NULL},
++	};
++
+ 	if (!buf)
+ 		return -ENOMEM;
+ 	strncpy(buf, params, PAGE_CACHE_SIZE);
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2007-04-24 03:11:00 UTC (rev 122)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2007-07-22 23:06:24 UTC (rev 123)
+@@ -134,7 +134,7 @@
+  	idx = offset &gt;&gt; PAGE_CACHE_SHIFT;
+ @@ -220,7 +211,7 @@ static void digest_data(struct hash_desc
+  
+- 	assert(count &lt; ISCSI_CONN_IOV_MAX);
++ 	assert(count &lt;= ISCSI_CONN_IOV_MAX);
+  
+ -	crypto_hash_init(hash);
+ +	crypto_digest_init(tfm);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000036.html">[Iscsitarget-svn] r124 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35">[ date ]</a>
+              <a href="thread.html#35">[ thread ]</a>
+              <a href="subject.html#35">[ subject ]</a>
+              <a href="author.html#35">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[471] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B471%5D%20trunk&In-Reply-To=%3CE1SEIWm-0002QQ-A9%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000383.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[471] trunk</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B471%5D%20trunk&In-Reply-To=%3CE1SEIWm-0002QQ-A9%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[471] trunk">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr  1 13:00:56 CEST 2012</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000383.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[472] trunk/usr/isns.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#382">[ date ]</a>
+              <a href="thread.html#382">[ thread ]</a>
+              <a href="subject.html#382">[ subject ]</a>
+              <a href="author.html#382">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 471
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=471&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=471&amp;view=rev</A>
+Author:   agr1
+Date:     2012-04-01 11:00:55 +0000 (Sun, 01 Apr 2012)
+Log Message:
+-----------
+Fix compilation against kernel versions &gt; 3.2
+
+Adapt code to io_context API changes (compile tested).
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/kernel/wthread.c
+
+Added Paths:
+-----------
+    trunk/patches/compat-2.6.39-3.2.patch
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2012-03-22 21:25:45 UTC (rev 470)
++++ trunk/Makefile	2012-04-01 11:00:55 UTC (rev 471)
+@@ -66,6 +66,10 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++ifeq ($(call kver_le,3,2,0),1)
++	PATCHES := $(PATCHES) compat-2.6.39-3.2.patch
++endif
++
+ ifeq ($(call kver_le,2,6,38),1)
+ 	PATCHES := $(PATCHES) compat-2.6.38.patch
+ endif
+@@ -372,4 +376,3 @@
+ 	find . -name \*.rej -exec rm -f \{\} \;
+ 	find . -name \*~ -exec rm -f \{\} \;
+ 	find . -name Module.symvers -exec rm -f \{\} \;
+-
+
+Modified: trunk/kernel/wthread.c
+===================================================================
+--- trunk/kernel/wthread.c	2012-03-22 21:25:45 UTC (rev 470)
++++ trunk/kernel/wthread.c	2012-04-01 11:00:55 UTC (rev 471)
+@@ -71,7 +71,7 @@
+ 		put_io_context(current-&gt;io_context);
+ 
+ 	if (!(current-&gt;io_context = ioc_task_link(info-&gt;wthread_ioc)))
+-		info-&gt;wthread_ioc = get_io_context(GFP_KERNEL, -1);
++		info-&gt;wthread_ioc = get_task_io_context(current, GFP_KERNEL, -1);
+ 
+ 	add_wait_queue(&amp;info-&gt;wthread_sleep, &amp;wait);
+ 
+
+Added: trunk/patches/compat-2.6.39-3.2.patch
+===================================================================
+--- trunk/patches/compat-2.6.39-3.2.patch	                        (rev 0)
++++ trunk/patches/compat-2.6.39-3.2.patch	2012-04-01 11:00:55 UTC (rev 471)
+@@ -0,0 +1,13 @@
++diff --git b/kernel/wthread.c a/kernel/wthread.c
++index 940de9d..f7c8b1d 100644
++--- b/kernel/wthread.c
+++++ a/kernel/wthread.c
++@@ -71,7 +71,7 @@ static int worker_thread(void *arg)
++ 		put_io_context(current-&gt;io_context);
++ 
++ 	if (!(current-&gt;io_context = ioc_task_link(info-&gt;wthread_ioc)))
++-		info-&gt;wthread_ioc = get_task_io_context(current, GFP_KERNEL, -1);
+++		info-&gt;wthread_ioc = get_io_context(GFP_KERNEL, -1);
++ 
++ 	add_wait_queue(&amp;info-&gt;wthread_sleep, &amp;wait);
++ 
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000383.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[472] trunk/usr/isns.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#382">[ date ]</a>
+              <a href="thread.html#382">[ thread ]</a>
+              <a href="subject.html#382">[ subject ]</a>
+              <a href="author.html#382">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

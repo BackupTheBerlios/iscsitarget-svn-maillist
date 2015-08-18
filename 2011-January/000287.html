@@ -1,0 +1,115 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[374] trunk/etc/initd
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B374%5D%20trunk/etc/initd&In-Reply-To=%3CE1PcQHE-0005um-SX%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000286.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[374] trunk/etc/initd</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B374%5D%20trunk/etc/initd&In-Reply-To=%3CE1PcQHE-0005um-SX%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[374] trunk/etc/initd">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Mon Jan 10 23:31:48 CET 2011</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000286.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[375]	trunk/iscsitarget.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#287">[ date ]</a>
+              <a href="thread.html#287">[ thread ]</a>
+              <a href="subject.html#287">[ subject ]</a>
+              <a href="author.html#287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 374
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=374&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=374&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-01-10 22:31:48 +0000 (Mon, 10 Jan 2011)
+
+Log Message:
+-----------
+Recently the PID file name changed from iscsi_trgt.pid to ietd.pid
+but the name wasn't changed in the initd scripts.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/etc/initd/initd.debian
+    trunk/etc/initd/initd.gentoo
+
+Modified: trunk/etc/initd/initd.debian
+===================================================================
+--- trunk/etc/initd/initd.debian	2010-10-17 10:43:32 UTC (rev 373)
++++ trunk/etc/initd/initd.debian	2011-01-10 22:31:48 UTC (rev 374)
+@@ -7,7 +7,7 @@
+ PATH=/sbin:/bin:/usr/sbin:/usr/bin
+ DAEMON=/usr/sbin/ietd
+ OPTIONS=&quot;&quot;
+-PIDFILE=/var/run/iscsi_trgt.pid
++PIDFILE=/var/run/ietd.pid
+ 
+ if [ -f /lib/init/vars.sh ]; then
+ 	. /lib/init/vars.sh
+
+Modified: trunk/etc/initd/initd.gentoo
+===================================================================
+--- trunk/etc/initd/initd.gentoo	2010-10-17 10:43:32 UTC (rev 373)
++++ trunk/etc/initd/initd.gentoo	2011-01-10 22:31:48 UTC (rev 374)
+@@ -17,7 +17,7 @@
+ 	ebegin &quot;Starting iSCSI Target&quot;
+ 	modprobe -q crc32c
+ 	modprobe iscsi_trgt
+-	start-stop-daemon --start --exec /usr/sbin/ietd --pidfile /var/run/iscsi_trgt.pid -- $OPTIONS
++	start-stop-daemon --start --exec /usr/sbin/ietd --pidfile /var/run/ietd.pid -- $OPTIONS
+ 	eend $?
+ }
+ 
+@@ -25,7 +25,7 @@
+ {
+ 	ebegin &quot;Stopping iSCSI Target&quot;
+ 	ietadm --op delete
+-	start-stop-daemon --stop --exec /usr/sbin/ietd --pidfile /var/run/iscsi_trgt.pid
++	start-stop-daemon --stop --exec /usr/sbin/ietd --pidfile /var/run/ietd.pid
+ 	rm -f /var/run/iscsi_trgt.pid
+ 	eend $?
+ }
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000286.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[375]	trunk/iscsitarget.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#287">[ date ]</a>
+              <a href="thread.html#287">[ thread ]</a>
+              <a href="subject.html#287">[ subject ]</a>
+              <a href="author.html#287">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

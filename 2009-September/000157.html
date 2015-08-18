@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r245 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r245%20-%20trunk&In-Reply-To=%3C200909252027.n8PKRF4U003296%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000156.html">
+   <LINK REL="Next"  HREF="000158.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r245 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r245%20-%20trunk&In-Reply-To=%3C200909252027.n8PKRF4U003296%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r245 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Fri Sep 25 22:27:15 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000156.html">[Iscsitarget-svn] r244 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000158.html">[Iscsitarget-svn] r246 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#157">[ date ]</a>
+              <a href="thread.html#157">[ thread ]</a>
+              <a href="subject.html#157">[ subject ]</a>
+              <a href="author.html#157">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-25 22:27:14 +0200 (Fri, 25 Sep 2009)
+New Revision: 245
+
+Modified:
+   trunk/iscsitarget.spec
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Update spec for SuSE and bug fix
+
+This patch updates the spec file to take into account that SuSE
+install the weak-modules tool in /usr/lib/module-init-tools.
+
+It also fixes a error in the kernel post/postun scripts that
+didn't provide the full module path to weak-modules (my bad I
+tested the wrong kmod initially).
+
+(Properly) Tested on RHEL5.
+
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-09-25 20:07:06 UTC (rev 244)
++++ trunk/iscsitarget.spec	2009-09-25 20:27:14 UTC (rev 245)
+@@ -9,7 +9,7 @@
+ %define revision 1
+ 
+ ## Build Options
+-# Build weak module (KABI tracking) requires /sbin/weak-modules
++# Build weak module (KABI tracking) requires weak-modules tool
+ %define weak 0
+ 
+ # Build DKMS kernel module
+@@ -19,17 +19,23 @@
+ %define svn 0
+ 
+ ## Package Definitions
+-#
++# Basic regex filters for unwanted dependencies (used for weak modules)
++#define pro_filter &quot;&quot;
++%define req_filter &quot;^ksym(\\(fsync_bdev\\|sync_page_range\\))&quot;
++
++# Subversion build information
+ %if %svn
+ %define svn_url <A HREF="http://svn.berlios.de/svnroot/repos/iscsitarget/trunk">http://svn.berlios.de/svnroot/repos/iscsitarget/trunk</A>
+ %define iet_version %(svn info --non-interactive %{svn_url} | awk '{if ($1 == &quot;Revision:&quot;) {print &quot;svn_r&quot;$2}}')
+ %endif
+ 
+-# Basic regex filters for unwanted dependencies (used for weak modules)
+-#define pro_filter &quot;&quot;
+-%define req_filter &quot;^ksym(\\(fsync_bdev\\|sync_page_range\\))&quot;
++## Platform Definitions
++# Determine distribution
++%define is_suse %(test -e /etc/SuSE-release &amp;&amp; echo 1 || echo 0)
++%define is_fedora %(test -e /etc/fedora-release &amp;&amp; echo 1 || echo 0)
++%define is_redhat %(test -e /etc/redhat-release &amp;&amp; echo 1 || echo 0)
++%define is_mandrake %(test -e /etc/mandrake-release &amp;&amp; echo 1 || echo 0)
+ 
+-## Platform Definitions
+ # Define kernel version information
+ %{!?kernel:	%define kernel %(uname -r)}
+ 
+@@ -38,12 +44,19 @@
+ %define krel	%(echo %{kver} | sed -e 's/-/_/g')
+ %define kminor	%(echo %{kernel} | sed -e 's/.*\\([0-9][0-9]*\\)-.*/\\1/')
+ 
+-# Define user
++# Set location of weak-modules tool
++%if %is_suse
++%define weak_modules /usr/lib/module-init-tools/weak-modules
++%else
++%define weak_modules /sbin/weak-modules
++%endif
++
++# Define build user
+ %define user	%(whoami)
+ 
+ 
+ ##
+-## Main Package
++## Userland Package
+ ##
+ 
+ ## Information
+@@ -82,7 +95,7 @@
+ 
+ 
+ ##
+-## Kernel Module
++## Kernel Module Package
+ ##
+ %if %dkms
+ %ifarch noarch
+@@ -115,8 +128,8 @@
+ ## Install Requirements
+ %if %weak
+ %global _use_internal_dependency_generator 0
+-Requires(post): /sbin/weak-modules
+-Requires(postun): /sbin/weak-modules
++Requires(post): %{weak_modules}
++Requires(postun): %{weak_modules}
+ %else
+ Requires: %{ktype} = %{kver}
+ %endif
+@@ -260,7 +273,9 @@
+ %post -n kmod-%{name}
+ /sbin/depmod %{kernel} -A
+ %if %weak
+-echo iscsi_trgt.ko | /sbin/weak-modules --add-modules
++if [ -x %{weak_modules} ]; then
++	echo /lib/modules/%{kernel}/extra/iscsi/iscsi_trgt.ko | %{weak_modules} --add-modules
++fi
+ %endif
+ %endif
+ 
+@@ -276,7 +291,9 @@
+ modprobe -r -q --set-version %{kernel} iscsi_trgt
+ /sbin/depmod %{kernel} -A
+ %if %weak
+-echo iscsi_trgt.ko | /sbin/weak-modules --remove-modules
++if [ -x %{weak_modules} ]; then
++	echo /lib/modules/%{kernel}/extra/iscsi/iscsi_trgt.ko | %{weak_modules} --remove-modules
++fi
+ %endif
+ %endif
+ 
+@@ -305,11 +322,15 @@
+ %else
+ %files -n kmod-%{name}
+ %defattr(-, root, root)
+-/lib/modules/%{kernel}/kernel/iscsi/iscsi_trgt.ko
++/lib/modules/%{kernel}
+ %endif
+ 
+ 
+ %changelog
++* Wed Sep 25 2009 Ross Walker &lt;rswwalker at gmail dot com&gt; - 0.4.17-244
++- SuSE puts weak-modules under /usr/lib/module-init-tools
++- Kernel module now located in /lib/modules/&lt;kver&gt;/extra
++
+ * Wed Sep 25 2009 Ross Walker &lt;rswwalker at gmail dot com&gt; - 0.4.17-242
+ - Added ability to build weak modules for platforms that support them
+ - Cleaned up logic a little
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000156.html">[Iscsitarget-svn] r244 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000158.html">[Iscsitarget-svn] r246 - trunk/patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#157">[ date ]</a>
+              <a href="thread.html#157">[ thread ]</a>
+              <a href="subject.html#157">[ subject ]</a>
+              <a href="author.html#157">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

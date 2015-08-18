@@ -1,0 +1,251 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[355] trunk/usr/ietd.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B355%5D%20trunk/usr/ietd.c&In-Reply-To=%3CE1OTivV-00084G-3F%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000256.html">
+   <LINK REL="Next"  HREF="000258.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[355] trunk/usr/ietd.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B355%5D%20trunk/usr/ietd.c&In-Reply-To=%3CE1OTivV-00084G-3F%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[355] trunk/usr/ietd.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jun 30 00:05:09 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000256.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[354]	branches/1.4.20/usr/ietd.c
+</A></li>
+        <LI>Next message: <A HREF="000258.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[356] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#257">[ date ]</a>
+              <a href="thread.html#257">[ thread ]</a>
+              <a href="subject.html#257">[ subject ]</a>
+              <a href="author.html#257">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 355
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=355&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=355&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-06-29 22:05:08 +0000 (Tue, 29 Jun 2010)
+
+Log Message:
+-----------
+The PID file test wasn't performed early enough which allowed a
+second ietd instance starting up to mess up the netlink socket
+state for the running ietd.
+
+With this patch the new order of ietd startup:
+
+- process options
+- initialize log (if daemon)
+- disassociate tty (if daemon)
+- create PID file, prevents second instance from starting
+- create IPC socket, if PID was removed this will also prevent
+  a second instance from starting
+- open control device
+- test version
+- open netlink socket for ietd&lt;-&gt;kernel messaging
+- read config
+- set effective GID/UID
+- enter event loop
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/usr/ietd.c
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2010-06-29 22:04:36 UTC (rev 354)
++++ trunk/usr/ietd.c	2010-06-29 22:05:08 UTC (rev 355)
+@@ -434,11 +434,11 @@
+ int main(int argc, char **argv)
+ {
+ 	int ch, longindex, timeout = -1;
+-	char *config = NULL;
++	char *config = NULL, pid_buf[64];
+ 	uid_t uid = 0;
+ 	gid_t gid = 0;
+ 	char *isns = NULL;
+-	int isns_ac = 0;
++	int isns_ac = 0, pid_fd;
+ 
+ 	/* otherwise we would die in some later write() during the event_loop
+ 	 * instead of getting EPIPE! */
+@@ -480,81 +480,86 @@
+ 		}
+ 	}
+ 
+-	log_init();
++	if (log_daemon) {
++		pid_t pid;
+ 
+-	if ((nl_fd = nl_open()) &lt; 0) {
+-		log_error(&quot;unable to open netlink fd: %m&quot;);
++		log_init();
++
++		pid = fork();
++		if (pid &lt; 0) {
++			log_error(&quot;error starting daemon: %m&quot;);
++			exit(-1);
++		} else if (pid)
++			exit(0);
++
++		close(0);
++		open(&quot;/dev/null&quot;, O_RDWR);
++		dup2(0, 1);
++		dup2(0, 2);
++
++		setsid();
++
++		if (chdir(&quot;/&quot;) &lt; 0) {
++			log_error(&quot;failed to set working dir to /: %m&quot;);
++			exit(-1);
++		}
++	}
++
++	pid_fd = open(&quot;/var/run/ietd.pid&quot;, O_WRONLY|O_CREAT, 0644);
++	if (pid_fd &lt; 0) {
++		log_error(&quot;unable to create pid file: %m&quot;);
+ 		exit(-1);
+-	};
++	}
+ 
+-	if ((ctrl_fd = ki-&gt;ctldev_open()) &lt; 0) {
+-		log_error(&quot;unable to open ctldev fd: %m&quot;);
++	if (lockf(pid_fd, F_TLOCK, 0) &lt; 0) {
++		log_error(&quot;unable to lock pid file: %m&quot;);
+ 		exit(-1);
+ 	}
+ 
++	if (ftruncate(pid_fd, 0) &lt; 0) {
++		log_error(&quot;failed to ftruncate the PID file: %m&quot;);
++		exit(-1);
++	}
++
++	sprintf(pid_buf, &quot;%d\n&quot;, getpid());
++	if (write(pid_fd, pid_buf, strlen(pid_buf)) &lt; strlen(pid_buf)) {
++		log_error(&quot;failed to write PID to PID file: %m&quot;);
++		exit(-1);
++	}
++
+ 	if ((ipc_fd = ietadm_request_listen()) &lt; 0) {
+ 		log_error(&quot;unable to open ipc fd: %m&quot;);
+ 		exit(-1);
+ 	}
+ 
++	if ((ctrl_fd = ki-&gt;ctldev_open()) &lt; 0) {
++		log_error(&quot;unable to open ctldev fd: %m&quot;);
++		exit(-1);
++	}
++
+ 	if (!check_version()) {
+ 		log_error(&quot;kernel module version mismatch!&quot;);
+ 		exit(-1);
+ 	}
+ 
+-	if (log_daemon) {
+-		char buf[64];
+-		pid_t pid;
+-		int fd;
+-
+-		fd = open(&quot;/var/run/iscsi_trgt.pid&quot;, O_WRONLY|O_CREAT, 0644);
+-		if (fd &lt; 0) {
+-			log_error(&quot;unable to create pid file: %m&quot;);
+-			exit(1);
+-		}
+-		pid = fork();
+-		if (pid &lt; 0) {
+-			log_error(&quot;error starting daemon: %m&quot;);
+-			exit(1);
+-		} else if (pid)
+-			exit(0);
+-
+-		if (chdir(&quot;/&quot;) &lt; 0) {
+-			log_error(&quot;failed to set working dir to /: %m&quot;);
+-			exit(1);
+-		}
+-
+-		if (lockf(fd, F_TLOCK, 0) &lt; 0) {
+-			log_error(&quot;unable to lock pid file: %m&quot;);
+-			exit(1);
+-		}
+-		if (ftruncate(fd, 0) &lt; 0) {
+-			log_error(&quot;failed to ftruncate the PID file: %m&quot;);
+-			exit(1);
+-		}
+-
+-		sprintf(buf, &quot;%d\n&quot;, getpid());
+-		if (write(fd, buf, strlen(buf)) &lt; strlen(buf)) {
+-			log_error(&quot;failed to write PID to PID file: %m&quot;);
+-			exit(1);
+-		}
+-
+-		close(0);
+-		open(&quot;/dev/null&quot;, O_RDWR);
+-		dup2(0, 1);
+-		dup2(0, 2);
+-		setsid();
++	if ((nl_fd = nl_open()) &lt; 0) {
++		log_error(&quot;unable to open netlink fd: %m&quot;);
++		exit(-1);
+ 	}
+ 
+ 	cops-&gt;init(config, &amp;isns, &amp;isns_ac);
+ 	if (isns)
+ 		timeout = isns_init(isns, isns_ac);
+ 
+-	if (gid &amp;&amp; setgid(gid) &lt; 0)
++	if (gid &amp;&amp; setgid(gid) &lt; 0) {
+ 		log_error(&quot;unable to setgid: %m&quot;);
++		exit(-1);
++	}
+ 
+-	if (uid &amp;&amp; setuid(uid) &lt; 0)
++	if (uid &amp;&amp; setuid(uid) &lt; 0) {
+ 		log_error(&quot;unable to setuid: %m&quot;);
++		exit(-1);
++	}
+ 
+ 	event_loop(timeout);
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000256.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[354]	branches/1.4.20/usr/ietd.c
+</A></li>
+	<LI>Next message: <A HREF="000258.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[356] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#257">[ date ]</a>
+              <a href="thread.html#257">[ thread ]</a>
+              <a href="subject.html#257">[ subject ]</a>
+              <a href="author.html#257">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

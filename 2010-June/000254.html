@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[352] branches/1.4.20
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B352%5D%20branches/1.4.20&In-Reply-To=%3CE1OTiss-00080h-Vh%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000253.html">
+   <LINK REL="Next"  HREF="000255.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[352] branches/1.4.20</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B352%5D%20branches/1.4.20&In-Reply-To=%3CE1OTiss-00080h-Vh%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[352] branches/1.4.20">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jun 30 00:02:26 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000253.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[351]	trunk/iscsitarget.spec
+</A></li>
+        <LI>Next message: <A HREF="000255.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[353] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#254">[ date ]</a>
+              <a href="thread.html#254">[ thread ]</a>
+              <a href="subject.html#254">[ subject ]</a>
+              <a href="author.html#254">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 352
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=352&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=352&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-06-29 22:02:26 +0000 (Tue, 29 Jun 2010)
+
+Log Message:
+-----------
+log2.h wasn't generally available until 2.6.21 release.
+
+Added new compat.h file to hold global kernel compatibility
+defines going forward.
+
+Hopefully we can move some of the patches into either
+compat.h or each modules own header file. digest.h would be a
+good location for the shifting crypto API stuff, event.h for
+the netlink stuff, and maybe a cache.h for the kernel object
+cache.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/kernel/block-io.c
+    branches/1.4.20/kernel/file-io.c
+    branches/1.4.20/kernel/iscsi.h
+    branches/1.4.20/kernel/null-io.c
+    branches/1.4.20/kernel/volume.c
+    branches/1.4.20/patches/compat-2.6.14-2.6.18.patch
+
+Added Paths:
+-----------
+    branches/1.4.20/kernel/compat.h
+
+Modified: branches/1.4.20/kernel/block-io.c
+===================================================================
+--- branches/1.4.20/kernel/block-io.c	2010-06-29 22:01:41 UTC (rev 351)
++++ branches/1.4.20/kernel/block-io.c	2010-06-29 22:02:26 UTC (rev 352)
+@@ -282,8 +282,8 @@
+ 		/* see Documentation/ABI/testing/sysfs-block */
+ 		unsigned bsz = bdev_logical_block_size(bio_data-&gt;bdev);
+ 		if (!volume-&gt;blk_shift)
+-			volume-&gt;blk_shift = ilog2(bsz);
+-		else if (volume-&gt;blk_shift &lt; ilog2(bsz)) {
++			volume-&gt;blk_shift = blksize_bits(bsz);
++		else if (volume-&gt;blk_shift &lt; blksize_bits(bsz)) {
+ 			eprintk(&quot;Specified block size (%u) smaller than &quot;
+ 				&quot;device %s logical block size (%u)\n&quot;,
+ 				(1 &lt;&lt; volume-&gt;blk_shift), bio_data-&gt;path, bsz);
+
+Added: branches/1.4.20/kernel/compat.h
+===================================================================
+--- branches/1.4.20/kernel/compat.h	                        (rev 0)
++++ branches/1.4.20/kernel/compat.h	2010-06-29 22:02:26 UTC (rev 352)
+@@ -0,0 +1,30 @@
++/*
++ * Kernel compatibility routines
++ *
++ * Copyright (C) 2008 Ross Walker &lt;rswwalker at gmail dot com&gt;
++ *
++ * Released under the terms of the GNU GPL v2.0.
++ */
++
++#ifndef __IET_COMPAT_H__
++#define __IET_COMPAT_H__
++
++#include &lt;linux/version.h&gt;
++
++#ifndef DECLARE_COMPLETION_ONSTACK
++#define DECLARE_COMPLETION_ONSTACK(work) DECLARE_COMPLETION(work)
++#endif
++
++#ifndef is_power_of_2
++#define is_power_of_2(n) (n != 0 &amp;&amp; ((n &amp; (n - 1)) == 0))
++#endif
++
++#ifndef log2
++#define log2(n) ((sizeof(n) &lt;= 4) ? (fls(n) - 1) : (fls64(n) - 1))
++#endif
++
++#ifndef roundup_pow_of_two
++#define roundup_pow_of_two(n) (1UL &lt;&lt; fls_long(n - 1))
++#endif
++
++#endif	/* __IET_COMPAT_H__ */
+
+Modified: branches/1.4.20/kernel/file-io.c
+===================================================================
+--- branches/1.4.20/kernel/file-io.c	2010-06-29 22:01:41 UTC (rev 351)
++++ branches/1.4.20/kernel/file-io.c	2010-06-29 22:02:26 UTC (rev 352)
+@@ -232,7 +232,7 @@
+ 	}
+ 
+ 	if (!lu-&gt;blk_shift)
+-		lu-&gt;blk_shift = ilog2(IET_DEF_BLOCK_SIZE);
++		lu-&gt;blk_shift = blksize_bits(IET_DEF_BLOCK_SIZE);
+ 
+ 	lu-&gt;blk_cnt = inode-&gt;i_size &gt;&gt; lu-&gt;blk_shift;
+ 
+
+Modified: branches/1.4.20/kernel/iscsi.h
+===================================================================
+--- branches/1.4.20/kernel/iscsi.h	2010-06-29 22:01:41 UTC (rev 351)
++++ branches/1.4.20/kernel/iscsi.h	2010-06-29 22:02:26 UTC (rev 352)
+@@ -19,6 +19,7 @@
+ 
+ #include &quot;iscsi_hdr.h&quot;
+ #include &quot;iet_u.h&quot;
++#include &quot;compat.h&quot;
+ 
+ #define IET_SENSE_BUF_SIZE      18
+ 
+
+Modified: branches/1.4.20/kernel/null-io.c
+===================================================================
+--- branches/1.4.20/kernel/null-io.c	2010-06-29 22:01:41 UTC (rev 351)
++++ branches/1.4.20/kernel/null-io.c	2010-06-29 22:02:26 UTC (rev 352)
+@@ -78,7 +78,7 @@
+ 	}
+ 
+ 	if (!lu-&gt;blk_shift)
+-		lu-&gt;blk_shift = ilog2(IET_DEF_BLOCK_SIZE);
++		lu-&gt;blk_shift = blksize_bits(IET_DEF_BLOCK_SIZE);
+ 
+ 	/* defaults to 64 GiB */
+ 	if (!lu-&gt;blk_cnt)
+
+Modified: branches/1.4.20/kernel/volume.c
+===================================================================
+--- branches/1.4.20/kernel/volume.c	2010-06-29 22:01:41 UTC (rev 351)
++++ branches/1.4.20/kernel/volume.c	2010-06-29 22:02:26 UTC (rev 352)
+@@ -6,7 +6,6 @@
+ 
+ #include &lt;linux/types.h&gt;
+ #include &lt;linux/parser.h&gt;
+-#include &lt;linux/log2.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+@@ -187,7 +186,7 @@
+ 			blk_sz = simple_strtoull(argp, NULL, 10);
+ 			if (is_power_of_2(blk_sz) &amp;&amp;
+ 			    512 &lt;= blk_sz &amp;&amp; blk_sz &lt;= IET_MAX_BLOCK_SIZE)
+-				volume-&gt;blk_shift = ilog2(blk_sz);
++				volume-&gt;blk_shift = blksize_bits(blk_sz);
+ 			else {
+ 				eprintk(&quot;invalid BlockSize=%u\n&quot;, blk_sz);
+ 				err = -EINVAL;
+
+Modified: branches/1.4.20/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- branches/1.4.20/patches/compat-2.6.14-2.6.18.patch	2010-06-29 22:01:41 UTC (rev 351)
++++ branches/1.4.20/patches/compat-2.6.14-2.6.18.patch	2010-06-29 22:02:26 UTC (rev 352)
+@@ -2,17 +2,6 @@
+ ===================================================================
+ --- 1/kernel/iscsi.h	(revision 105)
+ +++ 2/kernel/iscsi.h	(working copy)
+-@@ -20,6 +20,10 @@
+- #include &quot;iscsi_hdr.h&quot;
+- #include &quot;iet_u.h&quot;
+- 
+-+#ifndef DECLARE_COMPLETION_ONSTACK
+-+# define DECLARE_COMPLETION_ONSTACK(work) DECLARE_COMPLETION(work)
+-+#endif
+-+
+- #define IET_SENSE_BUF_SIZE      18
+- 
+- struct iscsi_sess_param {
+ @@ -261,8 +261,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000253.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[351]	trunk/iscsitarget.spec
+</A></li>
+	<LI>Next message: <A HREF="000255.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[353] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#254">[ date ]</a>
+              <a href="thread.html#254">[ thread ]</a>
+              <a href="subject.html#254">[ subject ]</a>
+              <a href="author.html#254">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

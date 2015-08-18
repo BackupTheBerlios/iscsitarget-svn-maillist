@@ -1,0 +1,309 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r186 - in trunk: . patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r186%20-%20in%20trunk%3A%20.%20patches&In-Reply-To=%3C200812020545.mB25jtBL002357%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000099.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r186 - in trunk: . patches</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r186%20-%20in%20trunk%3A%20.%20patches&In-Reply-To=%3C200812020545.mB25jtBL002357%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r186 - in trunk: . patches">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Dec  2 06:45:55 CET 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000099.html">[Iscsitarget-svn] r187 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#98">[ date ]</a>
+              <a href="thread.html#98">[ thread ]</a>
+              <a href="subject.html#98">[ subject ]</a>
+              <a href="author.html#98">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-12-02 06:45:54 +0100 (Tue, 02 Dec 2008)
+New Revision: 186
+
+Modified:
+   trunk/Makefile
+   trunk/patches/compat-2.6.14-2.6.18.patch
+   trunk/patches/compat-2.6.19-2.6.21.patch
+   trunk/patches/compat-2.6.22-2.6.23.patch
+   trunk/patches/compat-rhel4.patch
+   trunk/patches/compat-sles10sp2.patch
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+Subject: Add DKMS compatibility
+Date: Tue, 18 Nov 2008 14:02:47 -0500
+
+Add compatibility for Dynamic Kernel Module Support.
+
+If DKMS is configured properly then when ever a new kernel is installed,
+DKMS will automatically build and install a new iscsitarget kernel module
+for that kernel. It also keeps track of multiple module/kernel versions,
+built or installed.
+
+This patch updates the Makefile and compatibility patches to use a prefix
+of 1 by sticking a bogus directory prefix in front of each file being
+patched.
+
+This patch also includes a dkms.conf file in the root that has been tested
+to work successfully on at least CentOS 5.2, and is preset to release 0.4.17.
+
+Signed-off: Ross Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rswwalker at gmail.com</A>&gt;
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2008-11-30 10:11:02 UTC (rev 185)
++++ trunk/Makefile	2008-12-02 05:45:54 UTC (rev 186)
+@@ -144,7 +144,7 @@
+ 	if [ ! -e .patched.* ]; then \
+ 		for p in $(PATCHES); do \
+ 			echo &quot;Applying Patch $$p&quot;; \
+-			patch -p0 &lt; patches/$$p; \
++			patch -p1 &lt; patches/$$p; \
+ 			echo $$p &gt;&gt;.patched.$(KVER); \
+ 		done; \
+ 	fi
+@@ -157,7 +157,7 @@
+ 		done; \
+ 		for r in $$reverse; do \
+ 			echo &quot;Reversing patch $$r&quot;; \
+-			patch -p0 -R &lt; patches/$$r; \
++			patch -p1 -R &lt; patches/$$r; \
+ 		done; \
+ 		rm -f .patched.*; \
+ 	fi
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2008-11-30 10:11:02 UTC (rev 185)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2008-12-02 05:45:54 UTC (rev 186)
+@@ -1,7 +1,7 @@
+ Index: kernel/iscsi.h
+ ===================================================================
+---- kernel/iscsi.h	(revision 105)
+-+++ kernel/iscsi.h	(working copy)
++--- 1/kernel/iscsi.h	(revision 105)
+++++ 2/kernel/iscsi.h	(working copy)
+ @@ -241,8 +241,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+@@ -15,8 +15,8 @@
+  
+ Index: kernel/digest.c
+ ===================================================================
+---- kernel/digest.c	(revision 105)
+-+++ kernel/digest.c	(working copy)
++--- 1/kernel/digest.c	(revision 105)
+++++ 2/kernel/digest.c	(working copy)
+ @@ -12,8 +12,7 @@
+  
+  void digest_alg_available(unsigned int *val)
+@@ -175,8 +175,8 @@
+  }
+ Index: kernel/file-io.c
+ ===================================================================
+---- kernel/file-io.c	(revision 105)
+-+++ kernel/file-io.c	(working copy)
++--- 1/kernel/file-io.c	(revision 105)
+++++ 2/kernel/file-io.c	(working copy)
+ @@ -53,9 +53,9 @@ static int fileio_make_request(struct ie
+  		set_fs(get_ds());
+  
+@@ -191,8 +191,8 @@
+  
+ Index: kernel/iscsi.c
+ ===================================================================
+---- kernel/iscsi.c	(revision 105)
+-+++ kernel/iscsi.c	(working copy)
++--- 1/kernel/iscsi.c	(revision 105)
+++++ 2/kernel/iscsi.c	(working copy)
+ @@ -15,7 +15,7 @@
+  
+  unsigned long debug_enable_flags;
+@@ -204,8 +204,8 @@
+  static int ctr_major;
+ Index: kernel/tio.c
+ ===================================================================
+---- kernel/tio.c	(revision 105)
+-+++ kernel/tio.c	(working copy)
++--- 1/kernel/tio.c	(revision 105)
+++++ 2/kernel/tio.c	(working copy)
+ @@ -35,7 +35,7 @@ static int tio_add_pages(struct tio *tio
+  	return 0;
+  }
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2008-11-30 10:11:02 UTC (rev 185)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2008-12-02 05:45:54 UTC (rev 186)
+@@ -1,7 +1,7 @@
+ Index: kernel/event.c
+ ===================================================================
+---- kernel/event.c	(working copy)
+-+++ kernel/event.c	(revision 122)
++--- 1/kernel/event.c	(working copy)
+++++ 2/kernel/event.c	(revision 122)
+ @@ -95,8 +95,7 @@ int event_send(u32 tid, u64 sid, u32 cid
+  
+  int event_init(void)
+@@ -14,8 +14,8 @@
+  	else
+ Index: kernel/iscsi.c
+ ===================================================================
+---- kernel/iscsi.c	(working copy)
+-+++ kernel/iscsi.c	(revision 137)
++--- 1/kernel/iscsi.c	(working copy)
+++++ 2/kernel/iscsi.c	(revision 137)
+ @@ -1762,7 +1762,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+@@ -28,8 +28,8 @@
+  
+ Index: kernel/tio.c
+ ===================================================================
+---- kernel/tio.c	(working copy)
+-+++ kernel/tio.c	(revision 137)
++--- 1/kernel/tio.c	(working copy)
+++++ 2/kernel/tio.c	(revision 137)
+ @@ -110,7 +110,8 @@ int tio_sync(struct iet_volume *lu, stru
+  
+  int tio_init(void)
+
+Modified: trunk/patches/compat-2.6.22-2.6.23.patch
+===================================================================
+--- trunk/patches/compat-2.6.22-2.6.23.patch	2008-11-30 10:11:02 UTC (rev 185)
++++ trunk/patches/compat-2.6.22-2.6.23.patch	2008-12-02 05:45:54 UTC (rev 186)
+@@ -1,7 +1,7 @@
+ Index: kernel/block-io.c
+ ===================================================================
+---- kernel/block-io.c	(working copy)
+-+++ kernel/block-io.c	(revision 145)
++--- 1/kernel/block-io.c	(working copy)
+++++ 2/kernel/block-io.c	(revision 145)
+ @@ -29,10 +29,15 @@ struct tio_work {
+  	struct completion tio_complete;
+  };
+@@ -30,8 +30,8 @@
+  /*
+ Index: kernel/config.c
+ ===================================================================
+---- kernel/config.c	(working copy)
+-+++ kernel/config.c	(revision 145)
++--- 1/kernel/config.c	(working copy)
+++++ 2/kernel/config.c	(revision 145)
+ @@ -40,7 +40,7 @@ int iet_procfs_init(void)
+  	int i;
+  	struct proc_dir_entry *ent;
+@@ -43,8 +43,8 @@
+  	proc_iet_dir-&gt;owner = THIS_MODULE;
+ Index: kernel/digest.c
+ ===================================================================
+---- kernel/digest.c	(working copy)
+-+++ kernel/digest.c	(revision 145)
++--- 1/kernel/digest.c	(working copy)
+++++ 2/kernel/digest.c	(revision 145)
+ @@ -160,17 +160,22 @@ static inline void __dbg_simulate_data_d
+  	}
+  }
+@@ -99,8 +99,8 @@
+  }
+ Index: kernel/event.c
+ ===================================================================
+---- kernel/event.c	(working copy)
+-+++ kernel/event.c	(revision 145)
++--- 1/kernel/event.c	(working copy)
+++++ 2/kernel/event.c	(revision 145)
+ @@ -28,7 +28,7 @@ static int event_recv_msg(struct sk_buff
+  	return 0;
+  }
+
+Modified: trunk/patches/compat-rhel4.patch
+===================================================================
+--- trunk/patches/compat-rhel4.patch	2008-11-30 10:11:02 UTC (rev 185)
++++ trunk/patches/compat-rhel4.patch	2008-12-02 05:45:54 UTC (rev 186)
+@@ -1,5 +1,5 @@
+---- kernel/config.c
+-+++ kernel/config.c
++--- 1/kernel/config.c
+++++ 2/kernel/config.c
+ @@ -216,7 +216,7 @@ static int add_target(unsigned long ptr)
+  	return err;
+  }
+@@ -17,8 +17,8 @@
+ -	.compat_ioctl	= ioctl,
+ +	.ioctl		= ioctl,
+  };
+---- kernel/event.c
+-+++ kernel/event.c
++--- 1/kernel/event.c
+++++ 2/kernel/event.c
+ @@ -71,7 +72,7 @@ static int notify(void *data, int len, i
+  	if (!(skb = alloc_skb(NLMSG_SPACE(len), gfp_mask)))
+  		return -ENOMEM;
+
+Modified: trunk/patches/compat-sles10sp2.patch
+===================================================================
+--- trunk/patches/compat-sles10sp2.patch	2008-11-30 10:11:02 UTC (rev 185)
++++ trunk/patches/compat-sles10sp2.patch	2008-12-02 05:45:54 UTC (rev 186)
+@@ -1,7 +1,7 @@
+ Index: kernel/iscsi.h
+ ===================================================================
+---- kernel/iscsi.h.p	2008-11-11 12:00:45.000000000 -0500
+-+++ kernel/iscsi.h	2008-11-11 12:00:59.000000000 -0500
++--- 1/kernel/iscsi.h.p	2008-11-11 12:00:45.000000000 -0500
+++++ 2/kernel/iscsi.h	2008-11-11 12:00:59.000000000 -0500
+ @@ -241,8 +241,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+@@ -15,8 +15,8 @@
+  
+ Index: kernel/digest.c
+ ===================================================================
+---- kernel/digest.c.p	2008-11-11 12:00:53.000000000 -0500
+-+++ kernel/digest.c	2008-11-11 12:01:38.000000000 -0500
++--- 1/kernel/digest.c.p	2008-11-11 12:00:53.000000000 -0500
+++++ 2/kernel/digest.c	2008-11-11 12:01:38.000000000 -0500
+ @@ -12,7 +12,8 @@
+  
+  void digest_alg_available(unsigned int *val)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000099.html">[Iscsitarget-svn] r187 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#98">[ date ]</a>
+              <a href="thread.html#98">[ thread ]</a>
+              <a href="subject.html#98">[ subject ]</a>
+              <a href="author.html#98">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

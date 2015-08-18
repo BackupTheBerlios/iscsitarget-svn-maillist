@@ -1,0 +1,101 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[490]	trunk/kernel/persist.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2013-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B490%5D%0A%09trunk/kernel/persist.c&In-Reply-To=%3CE1UMkeW-00010Z-K4%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[490]	trunk/kernel/persist.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B490%5D%0A%09trunk/kernel/persist.c&In-Reply-To=%3CE1UMkeW-00010Z-K4%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[490]	trunk/kernel/persist.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Mon Apr  1 21:44:24 CEST 2013</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#401">[ date ]</a>
+              <a href="thread.html#401">[ thread ]</a>
+              <a href="subject.html#401">[ subject ]</a>
+              <a href="author.html#401">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 490
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=490&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=490&amp;view=rev</A>
+Author:   agr1
+Date:     2013-04-01 19:44:23 +0000 (Mon, 01 Apr 2013)
+Log Message:
+-----------
+Handle register request reservation conflict correctly
+
+&gt;<i>From Lee Duncan &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">lduncan at suse.com</A>&gt;:
+</I>
+The SCSI Spec says that a group reservation registration request
+received from a registered I_T Nexus with the incorrect reservation
+key should return a reservation conflict.
+
+Signed-off-by: Lee Duncan &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">lduncan at suse.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/persist.c
+
+Modified: trunk/kernel/persist.c
+===================================================================
+--- trunk/kernel/persist.c	2012-11-01 19:43:43 UTC (rev 489)
++++ trunk/kernel/persist.c	2013-04-01 19:44:23 UTC (rev 490)
+@@ -346,10 +346,13 @@
+ 			continue;
+ 
+ 		if (!ignore &amp;&amp; param-&gt;reservation_key != reg-&gt;reservation_key) {
+-			iscsi_cmnd_set_sense(cmnd,
+-					     ILLEGAL_REQUEST,
+-					     INVALID_COMMAND_OPERATION_CODE_ASC,
+-					     INVALID_COMMAND_OPERATION_CODE_ASCQ);
++			/*
++			 * SPC4r33: Table 49: when REGISTER is received on a
++			 * registered I_T nexus with a reservation key not
++			 * equal to the existing reservation key, we should
++			 * return RESERVATION CONFLICT
++			 */
++			cmnd-&gt;status = SAM_STAT_RESERVATION_CONFLICT;
+ 			goto out;
+ 		}
+ 
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#401">[ date ]</a>
+              <a href="thread.html#401">[ thread ]</a>
+              <a href="subject.html#401">[ subject ]</a>
+              <a href="author.html#401">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

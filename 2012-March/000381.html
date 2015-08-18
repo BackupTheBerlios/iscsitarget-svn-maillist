@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[468]	trunk/kernel/persist.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B468%5D%0A%09trunk/kernel/persist.c&In-Reply-To=%3CE1SApHX-0003yY-3s%40sfp-svn-3.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000379.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[468]	trunk/kernel/persist.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B468%5D%0A%09trunk/kernel/persist.c&In-Reply-To=%3CE1SApHX-0003yY-3s%40sfp-svn-3.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[468]	trunk/kernel/persist.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Thu Mar 22 22:10:51 CET 2012</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000379.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[469]	branches/1.4.20/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#381">[ date ]</a>
+              <a href="thread.html#381">[ thread ]</a>
+              <a href="subject.html#381">[ subject ]</a>
+              <a href="author.html#381">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 468
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=468&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=468&amp;view=rev</A>
+Author:   agr1
+Date:     2012-03-22 21:10:50 +0000 (Thu, 22 Mar 2012)
+Log Message:
+-----------
+Fix READ FULL STATUS reservation holder bug
+
+This patch fixes a bug that was causing SCSI-3 persistent reservation
+ownership to be reported incorrectly.
+
+In the case where there are multiple registrants and a single reservation
+holder, the PR IN Service Action READ FULL STATUS was either returning
+that nobody had a reservation, or that all registrants had a reservation,
+depending on which initiator queried the target.
+
+This patch fixes that bug by using the Session ID of each initiator when
+making this check, instead of the Session ID of the current initiator.
+
+Tested on SLES 11 SP 2, with 2 seperate open-iscsi initiators.
+
+Signed-off-by: Lee Duncan
+
+ persist.c |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+============================================================
+
+Modified Paths:
+--------------
+    trunk/kernel/persist.c
+
+Modified: trunk/kernel/persist.c
+===================================================================
+--- trunk/kernel/persist.c	2011-10-26 17:54:07 UTC (rev 467)
++++ trunk/kernel/persist.c	2012-03-22 21:10:50 UTC (rev 468)
+@@ -16,6 +16,13 @@
+ 	return (pr_is_reserved(res) &amp;&amp; res-&gt;sid == sess-&gt;sid);
+ }
+ 
++static bool
++pr_is_reserved_by_sid(const struct reservation *res,
++		      const u64 sid)
++{
++	return (pr_is_reserved(res) &amp;&amp; res-&gt;sid == sid);
++}
++
+ bool
+ pr_initiator_has_registered(const struct reservation *res,
+ 			    u64 sid)
+@@ -132,8 +139,7 @@
+ 		const struct pr_in_full_status_descriptor desc = {
+ 			.reservation_key = reg-&gt;reservation_key,
+ 			.all_tg_pt_r_holder =
+-			pr_is_reserved_by_session(reservation,
+-						  cmnd-&gt;conn-&gt;session),
++			    pr_is_reserved_by_sid(reservation, reg-&gt;sid),
+ 			.scope_type = PR_SCOPE_LU|reservation-&gt;persistent_type,
+ 			/* only rel_tgt_port_id 1 is supported */
+ 			.rel_tgt_port_id = cpu_to_be16(1),
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000379.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[469]	branches/1.4.20/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#381">[ date ]</a>
+              <a href="thread.html#381">[ thread ]</a>
+              <a href="subject.html#381">[ subject ]</a>
+              <a href="author.html#381">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

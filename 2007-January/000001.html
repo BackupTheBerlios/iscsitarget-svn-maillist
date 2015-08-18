@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r89 - in trunk: . kernel patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r89%20-%20in%20trunk%3A%20.%20kernel%20patches&In-Reply-To=%3C200701050132.l051WhpP005253%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000002.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r89 - in trunk: . kernel patches</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r89%20-%20in%20trunk%3A%20.%20kernel%20patches&In-Reply-To=%3C200701050132.l051WhpP005253%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r89 - in trunk: . kernel patches">tomo at mail.berlios.de
+       </A><BR>
+    <I>Fri Jan  5 02:32:43 CET 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000002.html">[Iscsitarget-svn] r90 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1">[ date ]</a>
+              <a href="thread.html#1">[ thread ]</a>
+              <a href="subject.html#1">[ subject ]</a>
+              <a href="author.html#1">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-01-05 02:32:40 +0100 (Fri, 05 Jan 2007)
+New Revision: 89
+
+Modified:
+   trunk/compat.mk
+   trunk/kernel/iscsi.c
+   trunk/kernel/tio.c
+   trunk/patches/compat-2.6.14-2.6.18.patch
+Log:
+Updates for 2.6.20 (from Arne Redlich)
+
+
+Modified: trunk/compat.mk
+===================================================================
+--- trunk/compat.mk	2006-12-25 14:42:37 UTC (rev 88)
++++ trunk/compat.mk	2007-01-05 01:32:40 UTC (rev 89)
+@@ -55,6 +55,9 @@
+ # XXX: make sure no compat patch is applied here!?
+ 	@echo &quot; ... OK&quot;
+ else
++ifeq ($(KSUBLEVEL),20)
++	@echo &quot; ... OK&quot;
++else
+ 	@echo &quot;UNSUPPORTED KERNEL DETECTED&quot;
+ 	exit 1;
+ endif
+@@ -63,3 +66,4 @@
+ endif
+ endif
+ endif
++endif
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2006-12-25 14:42:37 UTC (rev 88)
++++ trunk/kernel/iscsi.c	2007-01-05 01:32:40 UTC (rev 89)
+@@ -15,7 +15,7 @@
+ 
+ unsigned long debug_enable_flags;
+ 
+-static kmem_cache_t *iscsi_cmnd_cache;
++static struct kmem_cache *iscsi_cmnd_cache;
+ static char dummy_data[1024];
+ 
+ static int ctr_major;
+
+Modified: trunk/kernel/tio.c
+===================================================================
+--- trunk/kernel/tio.c	2006-12-25 14:42:37 UTC (rev 88)
++++ trunk/kernel/tio.c	2007-01-05 01:32:40 UTC (rev 89)
+@@ -35,7 +35,7 @@
+ 	return 0;
+ }
+ 
+-static kmem_cache_t *tio_cache;
++static struct kmem_cache *tio_cache;
+ 
+ struct tio *tio_alloc(int count)
+ {
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2006-12-25 14:42:37 UTC (rev 88)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2007-01-05 01:32:40 UTC (rev 89)
+@@ -1,7 +1,7 @@
+ Index: kernel/iscsi.h
+ ===================================================================
+ --- kernel/iscsi.h	(working copy)
+-+++ kernel/iscsi.h	(revision 79)
+++++ kernel/iscsi.h	(revision 88)
+ @@ -237,8 +237,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+@@ -16,7 +16,7 @@
+ Index: kernel/digest.c
+ ===================================================================
+ --- kernel/digest.c	(working copy)
+-+++ kernel/digest.c	(revision 79)
+++++ kernel/digest.c	(revision 88)
+ @@ -1,6 +1,6 @@
+  /*
+   * iSCSI digest handling.
+@@ -184,7 +184,7 @@
+ Index: kernel/file-io.c
+ ===================================================================
+ --- kernel/file-io.c	(working copy)
+-+++ kernel/file-io.c	(revision 79)
+++++ kernel/file-io.c	(revision 88)
+ @@ -52,9 +52,9 @@ static int fileio_make_request(struct ie
+  		set_fs(get_ds());
+  
+@@ -197,3 +197,29 @@
+  
+  		set_fs(oldfs);
+  
++Index: kernel/iscsi.c
++===================================================================
++--- kernel/iscsi.c	(working copy)
+++++ kernel/iscsi.c	(revision 88)
++@@ -15,7 +15,7 @@
++ 
++ unsigned long debug_enable_flags;
++ 
++-static struct kmem_cache *iscsi_cmnd_cache;
+++static kmem_cache_t *iscsi_cmnd_cache;
++ static char dummy_data[1024];
++ 
++ static int ctr_major;
++Index: kernel/tio.c
++===================================================================
++--- kernel/tio.c	(working copy)
+++++ kernel/tio.c	(revision 88)
++@@ -35,7 +35,7 @@ static int tio_add_pages(struct tio *tio
++ 	return 0;
++ }
++ 
++-static struct kmem_cache *tio_cache;
+++static kmem_cache_t *tio_cache;
++ 
++ struct tio *tio_alloc(int count)
++ {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000002.html">[Iscsitarget-svn] r90 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1">[ date ]</a>
+              <a href="thread.html#1">[ thread ]</a>
+              <a href="subject.html#1">[ subject ]</a>
+              <a href="author.html#1">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

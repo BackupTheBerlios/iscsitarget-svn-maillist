@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[305] trunk/usr/isns.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B305%5D%20trunk/usr/isns.c&In-Reply-To=%3CE1NmjYb-0002CQ-Go%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000216.html">
+   <LINK REL="Next"  HREF="000218.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[305] trunk/usr/isns.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B305%5D%20trunk/usr/isns.c&In-Reply-To=%3CE1NmjYb-0002CQ-Go%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[305] trunk/usr/isns.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Mar  3 09:03:49 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000216.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[304] trunk
+</A></li>
+        <LI>Next message: <A HREF="000218.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[306] trunk/usr/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#217">[ date ]</a>
+              <a href="thread.html#217">[ thread ]</a>
+              <a href="subject.html#217">[ subject ]</a>
+              <a href="author.html#217">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 305
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=305&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=305&amp;view=rev</A>
+Author:   agr1
+Date:     2010-03-03 08:03:49 +0000 (Wed, 03 Mar 2010)
+
+Log Message:
+-----------
+Fix gcc strict-aliasing warnings
+
+From: Luca Berra &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bluca at comedia.it</A>&gt;
+
+the following patch will prevent warnings from gcc like
+warning: dereferencing pointer 'lss.152' does break strict-aliasing
+rules
+
+Signed-off-by: Luca Berra &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">bluca at comedia.it</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/usr/isns.c
+
+Modified: trunk/usr/isns.c
+===================================================================
+--- trunk/usr/isns.c	2010-03-02 09:52:13 UTC (rev 304)
++++ trunk/usr/isns.c	2010-03-03 08:03:49 UTC (rev 305)
+@@ -85,25 +85,30 @@
+ {
+ 	int err, i;
+ 	uint32_t addr;
+-	struct sockaddr_storage lss;
+-	socklen_t slen = sizeof(lss);
++	union {
++		struct sockaddr s;
++		struct sockaddr_storage ss;
++		struct sockaddr_in s4;
++		struct sockaddr_in6 s6;
++	} l;
++	socklen_t slen = sizeof(l.s);
+ 
+-	err = getsockname(fd, (struct sockaddr *) &amp;lss, &amp;slen);
++	err = getsockname(fd, &amp;l.s, &amp;slen);
+ 	if (err) {
+ 		log_error(&quot;getsockname error %s!&quot;, gai_strerror(err));
+ 		return err;
+ 	}
+ 
+-	err = getnameinfo((struct sockaddr *) &amp;lss, sizeof(lss),
++	err = getnameinfo(&amp;l.s, sizeof(l.s),
+ 			  eid, sizeof(eid), NULL, 0, 0);
+ 	if (err) {
+ 		log_error(&quot;getaddrinfo error %s!&quot;, gai_strerror(err));
+ 		return err;
+ 	}
+ 
+-	switch (lss.ss_family) {
++	switch (l.ss.ss_family) {
+ 	case AF_INET:
+-		addr = (((struct sockaddr_in *) &amp;lss)-&gt;sin_addr.s_addr);
++		addr = ((&amp;l.s4)-&gt;sin_addr.s_addr);
+ 
+ 		ip[10] = ip[11] = 0xff;
+ 		ip[15] = 0xff &amp; (addr &gt;&gt; 24);
+@@ -113,7 +118,7 @@
+ 		break;
+ 	case AF_INET6:
+ 		for (i = 0; i &lt; ARRAY_SIZE(ip); i++)
+-			ip[i] = ((struct sockaddr_in6 *) &amp;lss)-&gt;sin6_addr.s6_addr[i];
++			ip[i] = (&amp;l.s6)-&gt;sin6_addr.s6_addr[i];
+ 		break;
+ 	}
+ 
+@@ -848,7 +853,12 @@
+ static int scn_init(char *addr)
+ {
+ 	int fd, opt, err;
+-	struct sockaddr_storage lss;
++	union {
++		struct sockaddr s;
++		struct sockaddr_storage ss;
++		struct sockaddr_in s4;
++		struct sockaddr_in6 s6;
++	} l;
+ 	socklen_t slen;
+ 
+ 	fd = socket(ss.ss_family, SOCK_STREAM, IPPROTO_TCP);
+@@ -872,18 +882,18 @@
+ 		goto out;
+ 	}
+ 
+-	slen = sizeof(lss);
+-	err = getsockname(fd, (struct sockaddr *) &amp;lss, &amp;slen);
++	slen = sizeof(l.s);
++	err = getsockname(fd, &amp;l.s, &amp;slen);
+ 	if (err) {
+ 		log_error(&quot;%s %d: %s\n&quot;, __FUNCTION__, __LINE__, strerror(errno));
+ 		goto out;
+ 	}
+ 
+ 	/* protocol independent way ? */
+-	if (lss.ss_family == AF_INET6)
+-		scn_listen_port = ntohs(((struct sockaddr_in6 *) &amp;lss)-&gt;sin6_port);
++	if (l.ss.ss_family == AF_INET6)
++		scn_listen_port = ntohs((&amp;l.s6)-&gt;sin6_port);
+ 	else
+-		scn_listen_port = ntohs(((struct sockaddr_in *) &amp;lss)-&gt;sin_port);
++		scn_listen_port = ntohs((&amp;l.s4)-&gt;sin_port);
+ 
+ 	log_error(&quot;scn listen port %u %d %d\n&quot;, scn_listen_port, fd, err);
+ out:
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000216.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[304] trunk
+</A></li>
+	<LI>Next message: <A HREF="000218.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[306] trunk/usr/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#217">[ date ]</a>
+              <a href="thread.html#217">[ thread ]</a>
+              <a href="subject.html#217">[ subject ]</a>
+              <a href="author.html#217">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

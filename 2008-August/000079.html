@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r167 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r167%20-%20trunk/usr&In-Reply-To=%3C200808261900.m7QJ0Ou0014091%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000078.html">
+   <LINK REL="Next"  HREF="000080.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r167 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r167%20-%20trunk/usr&In-Reply-To=%3C200808261900.m7QJ0Ou0014091%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r167 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug 26 21:00:25 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000078.html">[Iscsitarget-svn] r166 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000080.html">[Iscsitarget-svn] r168 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79">[ date ]</a>
+              <a href="thread.html#79">[ thread ]</a>
+              <a href="subject.html#79">[ subject ]</a>
+              <a href="author.html#79">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-08-26 21:00:24 +0200 (Tue, 26 Aug 2008)
+New Revision: 167
+
+Modified:
+   trunk/usr/ietadm.c
+Log:
+ietadm: add support to retrieve a list of CHAP accounts
+
+Implement C_ACCT_LIST ietadm request handling in ietadm.
+
+
+Modified: trunk/usr/ietadm.c
+===================================================================
+--- trunk/usr/ietadm.c	2008-08-26 18:59:12 UTC (rev 166)
++++ trunk/usr/ietadm.c	2008-08-26 19:00:24 UTC (rev 167)
+@@ -74,6 +74,9 @@
+                         show iSCSI parameters in effect for session [sid]. If\n\
+                         [sid] is \&quot;0\&quot; (zero), the configured parameters\n\
+                         will be displayed.\n\
++  --op show --tid=[id] --user\n\
++                        show list of Discovery (--tid omitted / id=0 (zero))\n\
++                        or target CHAP accounts.\n\
+   --op show --tid=[id] --user --params=[user]=[name]\n\
+                         show CHAP account information. [user] can be\n\
+                         \&quot;IncomingUser\&quot; or \&quot;OutgoingUser\&quot;. If --tid is\n\
+@@ -483,6 +486,59 @@
+ 	return err;
+ }
+ 
++static int user_handle_show_list(struct ietadm_req *req)
++{
++	int i, err, retry;
++	size_t buf_sz = 0;
++	char *buf;
++
++	req-&gt;u.acnt.auth_dir = AUTH_DIR_INCOMING;
++	req-&gt;rcmnd = C_ACCT_LIST;
++
++	do {
++		retry = 0;
++
++		buf_sz = buf_sz ? buf_sz : ISCSI_NAME_LEN;
++
++		buf = calloc(buf_sz, sizeof(char *));
++		if (!buf) {
++			fprintf(stderr, &quot;Memory allocation failed\n&quot;);
++			return -ENOMEM;
++		}
++
++		req-&gt;u.acnt.u.list.alloc_len = buf_sz;
++
++		err = ietd_request(req, buf, buf_sz);
++		if (err) {
++			free(buf);
++			break;
++		}
++
++		if (req-&gt;u.acnt.u.list.overflow) {
++			buf_sz = ISCSI_NAME_LEN * (req-&gt;u.acnt.u.list.count +
++						   req-&gt;u.acnt.u.list.overflow);
++			retry = 1;
++			free(buf);
++			continue;
++		}
++
++		for (i = 0; i &lt; req-&gt;u.acnt.u.list.count; i++)
++			show_account(req-&gt;u.acnt.auth_dir,
++				     &amp;buf[i * ISCSI_NAME_LEN], NULL);
++
++		if (req-&gt;u.acnt.auth_dir == AUTH_DIR_INCOMING) {
++			req-&gt;u.acnt.auth_dir = AUTH_DIR_OUTGOING;
++			buf_sz = 0;
++			retry = 1;
++		}
++
++		free(buf);
++
++	} while (retry);
++
++	return err;
++}
++
+ static int user_handle_show(struct ietadm_req *req, char *user, char *pass)
+ {
+ 	if (pass)
+@@ -490,9 +546,8 @@
+ 
+ 	if (user)
+ 		return user_handle_show_user(req, user);
+-
+-	fprintf(stderr, &quot;Unsupported\n&quot;);
+-	return -EINVAL;
++	else
++		return user_handle_show_list(req);
+ }
+ 
+ static int user_handle_new(struct ietadm_req *req, char *user, char *pass)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000078.html">[Iscsitarget-svn] r166 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000080.html">[Iscsitarget-svn] r168 - trunk/doc/manpages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79">[ date ]</a>
+              <a href="thread.html#79">[ thread ]</a>
+              <a href="subject.html#79">[ subject ]</a>
+              <a href="author.html#79">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

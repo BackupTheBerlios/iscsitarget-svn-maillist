@@ -1,0 +1,292 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[444] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B444%5D%20trunk&In-Reply-To=%3CE1QAUS4-0007XB-BI%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000357.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[444] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B444%5D%20trunk&In-Reply-To=%3CE1QAUS4-0007XB-BI%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[444] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Apr 14 23:51:48 CEST 2011</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000357.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[445]	branches/1.4.20/kernel/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#356">[ date ]</a>
+              <a href="thread.html#356">[ thread ]</a>
+              <a href="subject.html#356">[ subject ]</a>
+              <a href="author.html#356">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 444
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=444&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=444&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-04-14 21:51:47 +0000 (Thu, 14 Apr 2011)
+
+Log Message:
+-----------
+Shared io contexts weren't fully supported until kernel 2.6.25
+and support for these on earlier kernels was just a hack that
+proved fragile long-term.
+
+This patch removes this on kernels earlier then 2.6.25. Replaces
+a lot of complex io context handling with a simple call to
+ioc_task_link() and let do_exit() take care of cleaning up the
+io context on kthread termination.
+
+Compile tested on CentOS5
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/target.c
+    trunk/kernel/wthread.c
+    trunk/patches/compat-2.6.14-2.6.18.patch
+    trunk/patches/compat-2.6.19-2.6.21.patch
+    trunk/patches/compat-2.6.24.patch
+    trunk/patches/compat-2.6.30.patch
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2011-03-31 20:02:09 UTC (rev 443)
++++ trunk/kernel/target.c	2011-04-14 21:51:47 UTC (rev 444)
+@@ -234,8 +234,6 @@
+ {
+ 	dprintk(D_SETUP, &quot;%u\n&quot;, target-&gt;tid);
+ 
+-	target_thread_stop(target);
+-
+ 	while (!list_empty(&amp;target-&gt;volumes)) {
+ 		struct iet_volume *volume;
+ 		volume = list_entry(target-&gt;volumes.next, struct iet_volume, list);
+@@ -243,6 +241,8 @@
+ 		iscsi_volume_destroy(volume);
+ 	}
+ 
++	target_thread_stop(target);
++
+ 	if (!worker_thread_pool)
+ 		kfree(target-&gt;wthread_info);
+ 	kfree(target);
+
+Modified: trunk/kernel/wthread.c
+===================================================================
+--- trunk/kernel/wthread.c	2011-03-31 20:02:09 UTC (rev 443)
++++ trunk/kernel/wthread.c	2011-04-14 21:51:47 UTC (rev 444)
+@@ -67,12 +67,10 @@
+ 	struct iscsi_conn *conn;
+ 	DECLARE_WAITQUEUE(wait, current);
+ 
+-	if (info-&gt;wthread_ioc &amp;&amp;
+-	    atomic_long_inc_not_zero(&amp;info-&gt;wthread_ioc-&gt;refcount)) {
++	if (current-&gt;io_context)
+ 		put_io_context(current-&gt;io_context);
+-		current-&gt;io_context = info-&gt;wthread_ioc;
+-		atomic_inc(&amp;info-&gt;wthread_ioc-&gt;nr_tasks);
+-	} else
++
++	if (!(current-&gt;io_context = ioc_task_link(info-&gt;wthread_ioc)))
+ 		info-&gt;wthread_ioc = get_io_context(GFP_KERNEL, -1);
+ 
+ 	add_wait_queue(&amp;info-&gt;wthread_sleep, &amp;wait);
+@@ -99,18 +97,6 @@
+ 
+ 	remove_wait_queue(&amp;info-&gt;wthread_sleep, &amp;wait);
+ 
+-	if (current-&gt;io_context) {
+-		struct io_context *ioc;
+-
+-		task_lock(current);
+-		ioc = current-&gt;io_context;
+-		current-&gt;io_context = NULL;
+-		task_unlock(current);
+-
+-		atomic_dec(&amp;ioc-&gt;nr_tasks);
+-		put_io_context(ioc);
+-	}
+-
+ 	return 0;
+ }
+ 
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2011-03-31 20:02:09 UTC (rev 443)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2011-04-14 21:51:47 UTC (rev 444)
+@@ -2,7 +2,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.h	(revision 105)
+ +++ 2/kernel/iscsi.h	(working copy)
+-@@ -262,8 +262,8 @@ struct iscsi_conn {
++@@ -260,8 +260,8 @@ struct iscsi_conn {
+  	u32 write_offset;
+  	int write_state;
+  
+@@ -239,14 +239,14 @@
+  	} else {
+  		/* If no MD5 available set ID to TID and LUN */
+  		memcpy(volume-&gt;scsi_id, &amp;volume-&gt;target-&gt;tid,
+---- ioc/kernel/wthread.c	2011-01-13 15:12:47.000000000 -0500
+-+++ ioc/kernel/wthread.c	2011-01-13 15:13:17.000000000 -0500
+-@@ -72,7 +72,7 @@ static int worker_thread(void *arg)
+- 		put_io_context(current-&gt;io_context);
+- 		current-&gt;io_context = info-&gt;wthread_ioc;
+- 	} else
+--		info-&gt;wthread_ioc = get_io_context(GFP_KERNEL, -1);
+-+		info-&gt;wthread_ioc = get_io_context(GFP_KERNEL);
++--- ioc/kernel/wthread.c	2011-04-12 19:50:49.000000000 -0400
+++++ ioc/kernel/wthread.c	2011-04-12 19:51:29.000000000 -0400
++@@ -68,7 +68,7 @@ static int worker_thread(void *arg)
++ 	DECLARE_WAITQUEUE(wait, current);
+  
++ 	if (!current-&gt;io_context)
++-		get_io_context(GFP_KERNEL, -1);
+++		get_io_context(GFP_KERNEL);
++ 
+  	add_wait_queue(&amp;info-&gt;wthread_sleep, &amp;wait);
+  
+
+Modified: trunk/patches/compat-2.6.19-2.6.21.patch
+===================================================================
+--- trunk/patches/compat-2.6.19-2.6.21.patch	2011-03-31 20:02:09 UTC (rev 443)
++++ trunk/patches/compat-2.6.19-2.6.21.patch	2011-04-14 21:51:47 UTC (rev 444)
+@@ -16,7 +16,7 @@
+ ===================================================================
+ --- 1/kernel/iscsi.c	(working copy)
+ +++ 2/kernel/iscsi.c	(revision 137)
+-@@ -1938,7 +1938,8 @@ static int iscsi_init(void)
++@@ -1942,7 +1942,8 @@ static int iscsi_init(void)
+  	if ((err = event_init()) &lt; 0)
+  		goto err;
+ 
+@@ -30,7 +30,7 @@
+ ===================================================================
+ --- 1/kernel/tio.c	(working copy)
+ +++ 2/kernel/tio.c	(revision 137)
+-@@ -110,7 +110,8 @@ int tio_sync(struct iet_volume *lu, stru
++@@ -114,7 +114,8 @@ int tio_sync(struct iet_volume *lu, stru
+ 
+  int tio_init(void)
+  {
+
+Modified: trunk/patches/compat-2.6.24.patch
+===================================================================
+--- trunk/patches/compat-2.6.24.patch	2011-03-31 20:02:09 UTC (rev 443)
++++ trunk/patches/compat-2.6.24.patch	2011-04-14 21:51:47 UTC (rev 444)
+@@ -10,21 +10,38 @@
+ +	if (nl)
+ +		sock_release(nl-&gt;sk_socket);
+  }
+---- ioc/kernel/wthread.c	2011-01-13 15:10:19.000000000 -0500
+-+++ ioc/kernel/wthread.c	2011-01-13 15:12:47.000000000 -0500
+-@@ -71,7 +71,6 @@ static int worker_thread(void *arg)
+- 	    atomic_inc_not_zero(&amp;info-&gt;wthread_ioc-&gt;refcount)) {
+- 		put_io_context(current-&gt;io_context);
+- 		current-&gt;io_context = info-&gt;wthread_ioc;
+--		atomic_inc(&amp;info-&gt;wthread_ioc-&gt;nr_tasks);
+- 	} else
+- 		info-&gt;wthread_ioc = get_io_context(GFP_KERNEL, -1);
++--- ioc/kernel/iscsi.h	2011-04-12 17:31:46.000000000 -0400
+++++ ioc/kernel/iscsi.h	2011-04-12 17:46:06.000000000 -0400
++@@ -94,8 +94,6 @@ struct worker_thread_info {
++ 	struct list_head work_queue;
+  
+-@@ -107,7 +106,6 @@ static int worker_thread(void *arg)
+- 		current-&gt;io_context = NULL;
+- 		task_unlock(current);
++ 	wait_queue_head_t wthread_sleep;
++-
++-	struct io_context *wthread_ioc;
++ };
+  
+--		atomic_dec(&amp;ioc-&gt;nr_tasks);
+- 		put_io_context(ioc);
+- 	}
++ struct iscsi_cmnd;
++--- ioc/kernel/wthread.c	2011-04-12 19:49:26.000000000 -0400
+++++ ioc/kernel/wthread.c	2011-04-12 19:50:49.000000000 -0400
++@@ -67,11 +67,8 @@ static int worker_thread(void *arg)
++ 	struct iscsi_conn *conn;
++ 	DECLARE_WAITQUEUE(wait, current);
+  
++-	if (current-&gt;io_context)
++-		put_io_context(current-&gt;io_context);
++-
++-	if (!(current-&gt;io_context = ioc_task_link(info-&gt;wthread_ioc)))
++-		info-&gt;wthread_ioc = get_io_context(GFP_KERNEL, -1);
+++	if (!current-&gt;io_context)
+++		get_io_context(GFP_KERNEL, -1);
++ 
++ 	add_wait_queue(&amp;info-&gt;wthread_sleep, &amp;wait);
++ 
++@@ -147,7 +144,6 @@ int wthread_init(struct worker_thread_in
++ 	spin_lock_init(&amp;info-&gt;wthread_lock);
++ 
++ 	info-&gt;nr_running_wthreads = 0;
++-	info-&gt;wthread_ioc = NULL;
++ 
++ 	INIT_LIST_HEAD(&amp;info-&gt;work_queue);
++ 	INIT_LIST_HEAD(&amp;info-&gt;wthread_list);
+
+Modified: trunk/patches/compat-2.6.30.patch
+===================================================================
+--- trunk/patches/compat-2.6.30.patch	2011-03-31 20:02:09 UTC (rev 443)
++++ trunk/patches/compat-2.6.30.patch	2011-04-14 21:51:47 UTC (rev 444)
+@@ -9,14 +9,3 @@
+  		if (!volume-&gt;blk_shift)
+  			volume-&gt;blk_shift = blksize_bits(bsz);
+  		else if (volume-&gt;blk_shift &lt; blksize_bits(bsz)) {
+---- ioc/kernel/wthread.c	2011-01-13 15:09:41.000000000 -0500
+-+++ ioc/kernel/wthread.c	2011-01-13 15:10:19.000000000 -0500
+-@@ -68,7 +68,7 @@ static int worker_thread(void *arg)
+- 	DECLARE_WAITQUEUE(wait, current);
+- 
+- 	if (info-&gt;wthread_ioc &amp;&amp;
+--	    atomic_long_inc_not_zero(&amp;info-&gt;wthread_ioc-&gt;refcount)) {
+-+	    atomic_inc_not_zero(&amp;info-&gt;wthread_ioc-&gt;refcount)) {
+- 		put_io_context(current-&gt;io_context);
+- 		current-&gt;io_context = info-&gt;wthread_ioc;
+- 		atomic_inc(&amp;info-&gt;wthread_ioc-&gt;nr_tasks);
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000357.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[445]	branches/1.4.20/kernel/target.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#356">[ date ]</a>
+              <a href="thread.html#356">[ thread ]</a>
+              <a href="subject.html#356">[ subject ]</a>
+              <a href="author.html#356">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

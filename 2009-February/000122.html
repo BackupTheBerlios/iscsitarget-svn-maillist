@@ -1,0 +1,133 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r210 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r210%20-%20trunk/usr&In-Reply-To=%3C200902260726.n1Q7QrRP008169%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000121.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r210 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r210%20-%20trunk/usr&In-Reply-To=%3C200902260726.n1Q7QrRP008169%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r210 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Feb 26 08:26:53 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000121.html">[Iscsitarget-svn] r209 - trunk/usr
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#122">[ date ]</a>
+              <a href="thread.html#122">[ thread ]</a>
+              <a href="subject.html#122">[ subject ]</a>
+              <a href="author.html#122">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-02-26 08:26:52 +0100 (Thu, 26 Feb 2009)
+New Revision: 210
+
+Modified:
+   trunk/usr/iscsid.c
+   trunk/usr/misc.h
+Log:
+Fix bugs in multi PDU handling code
+    
+Reported by: Cheng Renquan &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">crquan at gmail.com</A>&gt;
+
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-02-24 19:50:38 UTC (rev 209)
++++ trunk/usr/iscsid.c	2009-02-26 07:26:52 UTC (rev 210)
+@@ -485,9 +485,10 @@
+ 	struct iscsi_reject_hdr *rej =
+ 		(struct iscsi_reject_hdr *)&amp;conn-&gt;rsp.bhs;
+ 	size_t data_sz = sizeof(struct iscsi_hdr);
+-	struct buf_segment *seg = conn_alloc_buf_segment(conn, data_sz);
++	struct buf_segment *seg;
+ 
+ 	conn_free_rsp_buf_list(conn);
++	seg = conn_alloc_buf_segment(conn, data_sz);
+ 
+ 	memset(rej, 0x0, sizeof *rej);
+ 	rej-&gt;opcode = ISCSI_OP_REJECT_MSG;
+@@ -507,7 +508,6 @@
+ 
+ 	memcpy(seg-&gt;data, &amp;conn-&gt;req.bhs, data_sz);
+ 	seg-&gt;len = data_sz;
+-	list_add_tail(&amp;seg-&gt;entry, &amp;conn-&gt;rsp_buf_list);
+ }
+ 
+ static int cmnd_exec_auth(struct connection *conn)
+@@ -851,7 +851,7 @@
+ 	if (!list_empty(&amp;conn-&gt;rsp_buf_list)) {
+ 		seg = list_entry(conn-&gt;rsp_buf_list.q_forw,
+ 				 struct buf_segment, entry);
+-		list_del(&amp;seg-&gt;entry);
++		list_del_init(&amp;seg-&gt;entry);
+ 		conn-&gt;rsp.datasize = seg-&gt;len;
+ 		conn-&gt;rsp.data = seg-&gt;data;
+ 	} else {
+@@ -874,7 +874,9 @@
+ 
+ 	if (conn-&gt;rsp.data) {
+ 		seg = container_of(conn-&gt;rsp.data, struct buf_segment, data);
++		list_del(&amp;seg-&gt;entry);
+ 		free(seg);
++		conn-&gt;rsp.data = NULL;
+ 	}
+ 
+ 	switch (conn-&gt;state) {
+
+Modified: trunk/usr/misc.h
+===================================================================
+--- trunk/usr/misc.h	2009-02-24 19:50:38 UTC (rev 209)
++++ trunk/usr/misc.h	2009-02-26 07:26:52 UTC (rev 210)
+@@ -57,6 +57,11 @@
+ 
+ #define list_del(elem) remque(elem)
+ 
++#define list_del_init(elem) do {		\
++		remque(elem);			\
++		INIT_LIST_HEAD(elem);		\
++	} while (0)
++
+ #define list_add(new, head) insque (new, head)
+ 
+ #define list_add_tail(new, head) insque(new, (head)-&gt;q_back)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000121.html">[Iscsitarget-svn] r209 - trunk/usr
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#122">[ date ]</a>
+              <a href="thread.html#122">[ thread ]</a>
+              <a href="subject.html#122">[ subject ]</a>
+              <a href="author.html#122">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

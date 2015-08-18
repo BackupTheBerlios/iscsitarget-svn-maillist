@@ -1,0 +1,275 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r172 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r172%20-%20trunk/kernel&In-Reply-To=%3C200809281101.m8SB1F3a010474%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000083.html">
+   <LINK REL="Next"  HREF="000085.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r172 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r172%20-%20trunk/kernel&In-Reply-To=%3C200809281101.m8SB1F3a010474%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r172 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Sun Sep 28 13:01:15 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000083.html">[Iscsitarget-svn] r171 - trunk/doc/manpages
+</A></li>
+        <LI>Next message: <A HREF="000085.html">[Iscsitarget-svn] r173 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84">[ date ]</a>
+              <a href="thread.html#84">[ thread ]</a>
+              <a href="subject.html#84">[ subject ]</a>
+              <a href="author.html#84">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-09-28 13:01:08 +0200 (Sun, 28 Sep 2008)
+New Revision: 172
+
+Modified:
+   trunk/kernel/conn.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/nthread.c
+Log:
+Don't busy-loop if socket is out of wmem
+
+Send the nthread to sleep instead if there's nothing else to do for it and let
+the socket's sk_write_space() callback wake it up once wmem becomes available
+again.
+
+This was part of a larger patch originally by Jagadish Kumar [1], split to
+smaller pieces for easier testing and merging.
+
+Signed-off-by: Jagadish Kumar &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jagadish.kumaar at gmail.com</A>&gt;
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Acked-by: Jagadish Kumar &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">jagadish.kumaar at gmail.com</A>&gt; 
+
+[1] <A HREF="http://www.nabble.com/Re%3A-Iscsi-Read-Consumes-100--CPU-Problem-p19401934.html">http://www.nabble.com/Re%3A-Iscsi-Read-Consumes-100--CPU-Problem-p19401934.html</A>
+
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2008-09-10 21:18:17 UTC (rev 171)
++++ trunk/kernel/conn.c	2008-09-28 11:01:08 UTC (rev 172)
+@@ -96,6 +96,28 @@
+ 	target-&gt;nthread_info.old_data_ready(sk, len);
+ }
+ 
++/*
++ * @locking: grabs the target's nthread_lock to protect it from races with
++ * set_conn_wspace_wait()
++ */
++static void iet_write_space(struct sock *sk)
++{
++	struct iscsi_conn *conn = sk-&gt;sk_user_data;
++	struct network_thread_info *info = &amp;conn-&gt;session-&gt;target-&gt;nthread_info;
++
++	spin_lock_bh(&amp;info-&gt;nthread_lock);
++
++	if (sk_stream_wspace(sk) &gt;= sk_stream_min_wspace(sk) &amp;&amp;
++	    test_bit(CONN_WSPACE_WAIT, &amp;conn-&gt;state)) {
++		clear_bit(CONN_WSPACE_WAIT, &amp;conn-&gt;state);
++		__nthread_wakeup(info);
++	}
++
++	spin_unlock_bh(&amp;info-&gt;nthread_lock);
++
++	info-&gt;old_write_space(sk);
++}
++
+ static void iet_socket_bind(struct iscsi_conn *conn)
+ {
+ 	int opt = 1;
+@@ -114,6 +136,9 @@
+ 
+ 	target-&gt;nthread_info.old_data_ready = conn-&gt;sock-&gt;sk-&gt;sk_data_ready;
+ 	conn-&gt;sock-&gt;sk-&gt;sk_data_ready = iet_data_ready;
++
++	target-&gt;nthread_info.old_write_space = conn-&gt;sock-&gt;sk-&gt;sk_write_space;
++	conn-&gt;sock-&gt;sk-&gt;sk_write_space = iet_write_space;
+ 	write_unlock_bh(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
+ 
+ 	oldfs = get_fs();
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2008-09-10 21:18:17 UTC (rev 171)
++++ trunk/kernel/iscsi.h	2008-09-28 11:01:08 UTC (rev 172)
+@@ -66,6 +66,7 @@
+ 
+ 	void (*old_state_change)(struct sock *);
+ 	void (*old_data_ready)(struct sock *, int);
++	void (*old_write_space)(struct sock *);
+ };
+ 
+ struct worker_thread_info;
+@@ -197,6 +198,7 @@
+ enum connection_state_bit {
+ 	CONN_ACTIVE,
+ 	CONN_CLOSING,
++	CONN_WSPACE_WAIT,
+ };
+ 
+ #define ISCSI_CONN_IOV_MAX	(((256 &lt;&lt; 10) &gt;&gt; PAGE_SHIFT) + 1)
+@@ -306,6 +308,7 @@
+ extern int nthread_init(struct iscsi_target *);
+ extern int nthread_start(struct iscsi_target *);
+ extern int nthread_stop(struct iscsi_target *);
++extern void __nthread_wakeup(struct network_thread_info *);
+ extern void nthread_wakeup(struct iscsi_target *);
+ 
+ /* wthread.c */
+
+Modified: trunk/kernel/nthread.c
+===================================================================
+--- trunk/kernel/nthread.c	2008-09-10 21:18:17 UTC (rev 171)
++++ trunk/kernel/nthread.c	2008-09-28 11:01:08 UTC (rev 172)
+@@ -18,13 +18,18 @@
+ 	D_DATA_READY,
+ };
+ 
++void __nthread_wakeup(struct network_thread_info *info)
++{
++	set_bit(D_DATA_READY, &amp;info-&gt;flags);
++	wake_up_process(info-&gt;task);
++}
++
+ void nthread_wakeup(struct iscsi_target *target)
+ {
+ 	struct network_thread_info *info = &amp;target-&gt;nthread_info;
+ 
+ 	spin_lock_bh(&amp;info-&gt;nthread_lock);
+-	set_bit(D_DATA_READY, &amp;info-&gt;flags);
+-	wake_up_process(info-&gt;task);
++	__nthread_wakeup(info);
+ 	spin_unlock_bh(&amp;info-&gt;nthread_lock);
+ }
+ 
+@@ -283,6 +288,23 @@
+ 	return 0;
+ }
+ 
++/*
++ * @locking: grabs the target's nthread_lock to protect it from races with
++ * iet_write_space()
++ */
++static void set_conn_wspace_wait(struct iscsi_conn *conn)
++{
++	struct network_thread_info *info = &amp;conn-&gt;session-&gt;target-&gt;nthread_info;
++	struct sock *sk = conn-&gt;sock-&gt;sk;
++
++	spin_lock_bh(&amp;info-&gt;nthread_lock);
++
++	if (sk_stream_wspace(sk) &lt; sk_stream_min_wspace(sk))
++		set_bit(CONN_WSPACE_WAIT, &amp;conn-&gt;state);
++
++	spin_unlock_bh(&amp;info-&gt;nthread_lock);
++}
++
+ /* This is taken from the Ardis code. */
+ static int write_data(struct iscsi_conn *conn)
+ {
+@@ -399,8 +421,11 @@
+ 	conn-&gt;write_offset = (idx &lt;&lt; PAGE_CACHE_SHIFT) + offset;
+  out_iov:
+ 	conn-&gt;write_size = size;
+-	if ((saved_size == size) &amp;&amp; res == -EAGAIN)
+-		return res;
++	if (res == -EAGAIN) {
++		set_conn_wspace_wait(conn);
++		if (saved_size == size)
++			return res;
++	}
+ 
+ 	return saved_size - size;
+ 
+@@ -557,6 +582,9 @@
+ 		goto out;
+ 	}
+ 
++	if (test_bit(CONN_WSPACE_WAIT, &amp;conn-&gt;state))
++		goto out;
++
+ 	res = send(conn);
+ 
+ 	if (!list_empty(&amp;conn-&gt;write_list) || conn-&gt;write_cmnd)
+@@ -572,6 +600,7 @@
+ static void close_conn(struct iscsi_conn *conn)
+ {
+ 	struct iscsi_session *session = conn-&gt;session;
++	struct iscsi_target *target = session-&gt;target;
+ 	struct iscsi_cmnd *cmnd;
+ 
+ 	assert(conn);
+@@ -579,8 +608,9 @@
+ 	conn-&gt;sock-&gt;ops-&gt;shutdown(conn-&gt;sock, 2);
+ 
+ 	write_lock_bh(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
+-	conn-&gt;sock-&gt;sk-&gt;sk_state_change = session-&gt;target-&gt;nthread_info.old_state_change;
+-	conn-&gt;sock-&gt;sk-&gt;sk_data_ready = session-&gt;target-&gt;nthread_info.old_data_ready;
++	conn-&gt;sock-&gt;sk-&gt;sk_state_change = target-&gt;nthread_info.old_state_change;
++	conn-&gt;sock-&gt;sk-&gt;sk_data_ready = target-&gt;nthread_info.old_data_ready;
++	conn-&gt;sock-&gt;sk-&gt;sk_write_space = target-&gt;nthread_info.old_write_space;
+ 	write_unlock_bh(&amp;conn-&gt;sock-&gt;sk-&gt;sk_callback_lock);
+ 
+ 	fput(conn-&gt;file);
+@@ -604,11 +634,11 @@
+ 		assert(0);
+ 	}
+ 
+-	event_send(session-&gt;target-&gt;tid, session-&gt;sid, conn-&gt;cid, E_CONN_CLOSE, 0);
++	event_send(target-&gt;tid, session-&gt;sid, conn-&gt;cid, E_CONN_CLOSE, 0);
+ 	conn_free(conn);
+ 
+ 	if (list_empty(&amp;session-&gt;conn_list))
+-		session_del(session-&gt;target, session-&gt;sid);
++		session_del(target, session-&gt;sid);
+ }
+ 
+ static int istd(void *arg)
+@@ -654,6 +684,7 @@
+ 
+ 	info-&gt;old_state_change = NULL;
+ 	info-&gt;old_data_ready = NULL;
++	info-&gt;old_write_space = NULL;
+ 
+ 	INIT_LIST_HEAD(&amp;info-&gt;active_conns);
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000083.html">[Iscsitarget-svn] r171 - trunk/doc/manpages
+</A></li>
+	<LI>Next message: <A HREF="000085.html">[Iscsitarget-svn] r173 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84">[ date ]</a>
+              <a href="thread.html#84">[ thread ]</a>
+              <a href="subject.html#84">[ subject ]</a>
+              <a href="author.html#84">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

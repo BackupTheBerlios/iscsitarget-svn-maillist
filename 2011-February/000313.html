@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[401] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B401%5D%20trunk&In-Reply-To=%3CE1PqRin-0004no-Ja%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000312.html">
+   <LINK REL="Next"  HREF="000314.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[401] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B401%5D%20trunk&In-Reply-To=%3CE1PqRin-0004no-Ja%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[401] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Fri Feb 18 15:54:13 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000312.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[400] trunk/kernel/iscsi.c
+</A></li>
+        <LI>Next message: <A HREF="000314.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[402] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#313">[ date ]</a>
+              <a href="thread.html#313">[ thread ]</a>
+              <a href="subject.html#313">[ subject ]</a>
+              <a href="author.html#313">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 401
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=401&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=401&amp;view=rev</A>
+Author:   rswwalker
+Date:     2011-02-18 14:54:13 +0000 (Fri, 18 Feb 2011)
+
+Log Message:
+-----------
+This patch fixes connection accounting in ietd in relation to
+connection reinstatement and removes an erroneous warning of a
+missing session in relation to session reinstatement.
+
+Compile tested on CentOS5
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/kernel/conn.c
+    trunk/usr/conn.c
+    trunk/usr/event.c
+
+Modified: trunk/kernel/conn.c
+===================================================================
+--- trunk/kernel/conn.c	2011-02-18 14:51:15 UTC (rev 400)
++++ trunk/kernel/conn.c	2011-02-18 14:54:13 UTC (rev 401)
+@@ -241,8 +241,6 @@
+ 		conn_close(conn);
+ 
+ 	err = iet_conn_alloc(session, info);
+-	if (!err &amp;&amp; conn)
+-		err = -EEXIST;
+ 
+ 	return err;
+ }
+
+Modified: trunk/usr/conn.c
+===================================================================
+--- trunk/usr/conn.c	2011-02-18 14:51:15 UTC (rev 400)
++++ trunk/usr/conn.c	2011-02-18 14:54:13 UTC (rev 401)
+@@ -51,7 +51,7 @@
+ 			      conn-&gt;session_param[key_data_digest].val);
+ 	if (!err)
+ 		conn-&gt;session-&gt;conn_cnt++;
+-	else if (err &lt; 0 &amp;&amp; err != -EEXIST)
++	else
+ 		log_error(&quot;unable to create connection %u for session %#&quot; PRIx64 &quot; in target %u: %d&quot;,
+ 			conn-&gt;cid, conn-&gt;session-&gt;sid.id64, conn-&gt;tid, errno);
+ 
+
+Modified: trunk/usr/event.c
+===================================================================
+--- trunk/usr/event.c	2011-02-18 14:51:15 UTC (rev 400)
++++ trunk/usr/event.c	2011-02-18 14:54:13 UTC (rev 401)
+@@ -87,10 +87,9 @@
+ 
+ 	switch (event.state) {
+ 	case E_CONN_CLOSE:
+-		if (!(session = session_find_id(event.tid, event.sid))) {
+-			log_warning(&quot;session %llu not found?&quot;, event.sid);
+-			goto retry;
+-		}
++		if (!(session = session_find_id(event.tid, event.sid)))
++			/* session previously closed for reinstatement? */
++			break;
+ 
+ 		if (--session-&gt;conn_cnt &lt;= 0)
+ 			session_remove(session);
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000312.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[400] trunk/kernel/iscsi.c
+</A></li>
+	<LI>Next message: <A HREF="000314.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[402] branches/1.4.20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#313">[ date ]</a>
+              <a href="thread.html#313">[ thread ]</a>
+              <a href="subject.html#313">[ subject ]</a>
+              <a href="author.html#313">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

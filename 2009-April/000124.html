@@ -1,0 +1,94 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r212 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r212%20-%20trunk/usr&In-Reply-To=%3C200904281812.n3SICXYT014138%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r212 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r212%20-%20trunk/usr&In-Reply-To=%3C200904281812.n3SICXYT014138%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r212 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Apr 28 20:12:33 CEST 2009</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#124">[ date ]</a>
+              <a href="thread.html#124">[ thread ]</a>
+              <a href="subject.html#124">[ subject ]</a>
+              <a href="author.html#124">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-04-28 20:12:32 +0200 (Tue, 28 Apr 2009)
+New Revision: 212
+
+Modified:
+   trunk/usr/iscsid.c
+Log:
+Return proper status class in case of login failures.
+
+From: sdrb &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sdrb at onet.eu</A>&gt;
+
+&quot;This bug caused that windows loses iSCSI connection while we are 
+restarting ietd. In this case windows initiator changes its state to 
+&quot;Inactive&quot;.
+
+I attached patch for fixing this bug. With this fix windows initiator 
+transition state is as follows:
+
+Connected -&gt; Reconnecting... -&gt; Connected
+
+so windows is able to re-establish connection after we restarted ietd.&quot;
+
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-03-26 07:31:37 UTC (rev 211)
++++ trunk/usr/iscsid.c	2009-04-28 18:12:32 UTC (rev 212)
+@@ -455,7 +455,7 @@
+ 
+ 		if (ki-&gt;param_get(conn-&gt;tid, 0, key_session,
+ 				  conn-&gt;session_param)) {
+-			rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERROR;
++			rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
+ 			rsp-&gt;status_detail = ISCSI_STATUS_SVC_UNAVAILABLE;
+ 			conn-&gt;state = STATE_EXIT;
+ 		}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#124">[ date ]</a>
+              <a href="thread.html#124">[ thread ]</a>
+              <a href="subject.html#124">[ subject ]</a>
+              <a href="author.html#124">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

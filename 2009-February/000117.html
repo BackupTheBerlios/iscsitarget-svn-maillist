@@ -1,0 +1,395 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r205 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r205%20-%20trunk/kernel&In-Reply-To=%3C200902040652.n146q6kQ021408%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000118.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r205 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r205%20-%20trunk/kernel&In-Reply-To=%3C200902040652.n146q6kQ021408%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r205 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Feb  4 07:52:06 CET 2009</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000118.html">[Iscsitarget-svn] r206 - in trunk: . patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#117">[ date ]</a>
+              <a href="thread.html#117">[ thread ]</a>
+              <a href="subject.html#117">[ subject ]</a>
+              <a href="author.html#117">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-02-04 07:52:05 +0100 (Wed, 04 Feb 2009)
+New Revision: 205
+
+Modified:
+   trunk/kernel/iscsi.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/param.c
+   trunk/kernel/target.c
+   trunk/kernel/wthread.c
+Log:
+From: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+Worker Thread Pool
+
+Currently the iet starts by default eight worker threads per target.
+There are some limitations of this design.  The most important is,
+that a lot of resources are wasted when using a larger number of
+targets.
+
+The current implementation adds the thread pool as one possibility of
+using threads.  The old one is still there and it's the default one.
+
+When the worker thread pool should be used, the kernel module must be
+loaded with a parameter giving the size of the pool (worker_thread_pool_size,
+the wthreads configuration of the target is ignored then).
+
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2009-01-24 13:35:56 UTC (rev 204)
++++ trunk/kernel/iscsi.c	2009-02-04 06:52:05 UTC (rev 205)
+@@ -14,6 +14,7 @@
+ #include &quot;iotype.h&quot;
+ 
+ unsigned long debug_enable_flags;
++unsigned long worker_thread_pool_size;
+ 
+ static struct kmem_cache *iscsi_cmnd_cache;
+ static u8 dummy_data[PAGE_SIZE];
+@@ -1731,6 +1732,8 @@
+ 
+ static void iscsi_exit(void)
+ {
++	wthread_module_exit();
++
+ 	unregister_chrdev(ctr_major, ctr_name);
+ 
+ 	iet_procfs_exit();
+@@ -1772,6 +1775,9 @@
+ 	if ((err = iotype_init()) &lt; 0)
+ 		goto err;
+ 
++	if ((err = wthread_module_init()) &lt; 0)
++		goto err;
++
+ 	return 0;
+ 
+ err:
+@@ -1779,6 +1785,11 @@
+ 	return err;
+ }
+ 
++module_param(worker_thread_pool_size, ulong, S_IRUGO);
++MODULE_PARM_DESC(worker_thread_pool_size,
++		 &quot;Size of the worker thread pool &quot;
++		 &quot;(0 = dedicated threads per target (default))&quot;);
++
+ module_param(debug_enable_flags, ulong, S_IRUGO | S_IWUSR);
+ MODULE_PARM_DESC(debug_enable_flags,
+ 		 &quot;debug bitmask, low bits (0 ... 8) used, see iscsi_dbg.h&quot;);
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2009-01-24 13:35:56 UTC (rev 204)
++++ trunk/kernel/iscsi.h	2009-02-04 06:52:05 UTC (rev 205)
+@@ -114,7 +114,8 @@
+ 	struct list_head session_list;
+ 
+ 	struct network_thread_info nthread_info;
+-	struct worker_thread_info wthread_info;
++	/* Points either to own list or global pool */
++	struct worker_thread_info * wthread_info;
+ 
+ 	struct semaphore target_sem;
+ };
+@@ -287,6 +288,7 @@
+ #define ISCSI_OP_SCSI_ABORT	ISCSI_OP_VENDOR4_CMD
+ 
+ /* iscsi.c */
++extern unsigned long worker_thread_pool_size;
+ extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *, int);
+ extern void cmnd_rx_start(struct iscsi_cmnd *);
+ extern void cmnd_rx_end(struct iscsi_cmnd *);
+@@ -312,11 +314,14 @@
+ extern void nthread_wakeup(struct iscsi_target *);
+ 
+ /* wthread.c */
+-extern int wthread_init(struct iscsi_target *);
+-extern int wthread_start(struct iscsi_target *);
+-extern int wthread_stop(struct iscsi_target *);
++extern int wthread_init(struct worker_thread_info *info);
++extern int wthread_start(struct worker_thread_info *info, int wthreads, u32 tid);
++extern int wthread_stop(struct worker_thread_info *info);
+ extern void wthread_queue(struct iscsi_cmnd *);
+ extern struct target_type *target_type_array[];
++extern int wthread_module_init(void);
++extern void wthread_module_exit(void);
++extern struct worker_thread_info *worker_thread_pool;
+ 
+ /* target.c */
+ extern int target_lock(struct iscsi_target *, int);
+
+Modified: trunk/kernel/param.c
+===================================================================
+--- trunk/kernel/param.c	2009-01-24 13:35:56 UTC (rev 204)
++++ trunk/kernel/param.c	2009-02-04 06:52:05 UTC (rev 205)
+@@ -124,8 +124,10 @@
+ 	struct iscsi_trgt_param *param = &amp;target-&gt;trgt_param;
+ 	u32 *iparam = info-&gt;target_param;
+ 
+-	if (SET_PARAM(param, info, iparam, wthreads))
+-		wthread_start(target);
++	if (!worker_thread_pool &amp;&amp;
++	    SET_PARAM(param, info, iparam, wthreads))
++		wthread_start(target-&gt;wthread_info,
++			      target-&gt;trgt_param.wthreads, target-&gt;tid);
+ 	SET_PARAM(param, info, iparam, target_type);
+ 	SET_PARAM(param, info, iparam, queued_cmnds);
+ }
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2009-01-24 13:35:56 UTC (rev 204)
++++ trunk/kernel/target.c	2009-02-04 06:52:05 UTC (rev 205)
+@@ -100,8 +100,11 @@
+ 	if ((err = nthread_start(target)) &lt; 0)
+ 		return err;
+ 
+-	if ((err = wthread_start(target)) &lt; 0) {
+-		nthread_stop(target);
++	if (!worker_thread_pool) {
++		err = wthread_start(target-&gt;wthread_info,
++				    target-&gt;trgt_param.wthreads, target-&gt;tid);
++		if (err)
++			nthread_stop(target);
+ 	}
+ 
+ 	return err;
+@@ -109,7 +112,9 @@
+ 
+ static void target_thread_stop(struct iscsi_target *target)
+ {
+-	wthread_stop(target);
++	if (!worker_thread_pool)
++		wthread_stop(target-&gt;wthread_info);
++
+ 	nthread_stop(target);
+ }
+ 
+@@ -137,6 +142,14 @@
+ 		goto out;
+ 	}
+ 
++	if (!worker_thread_pool) {
++		target-&gt;wthread_info = kmalloc(sizeof(struct worker_thread_info), GFP_KERNEL);
++		if (!target-&gt;wthread_info) {
++			err = -ENOMEM;
++			goto out;
++		}
++	}
++
+ 	target-&gt;tid = info-&gt;tid = tid;
+ 
+ 	memcpy(&amp;target-&gt;sess_param, &amp;default_session_param, sizeof(default_session_param));
+@@ -152,8 +165,13 @@
+ 	atomic_set(&amp;target-&gt;nr_volumes, 0);
+ 
+ 	nthread_init(target);
+-	wthread_init(target);
+ 
++	if (!worker_thread_pool)
++		wthread_init(target-&gt;wthread_info);
++	else
++		target-&gt;wthread_info = worker_thread_pool;
++
++
+ 	if ((err = target_thread_start(target)) &lt; 0) {
+ 		target_thread_stop(target);
+ 		goto out;
+@@ -163,6 +181,8 @@
+ 
+ 	return 0;
+ out:
++	if (!worker_thread_pool)
++		kfree(target-&gt;wthread_info);
+ 	kfree(target);
+ 	module_put(THIS_MODULE);
+ 
+@@ -217,6 +237,8 @@
+ 		iscsi_volume_destroy(volume);
+ 	}
+ 
++	if (!worker_thread_pool)
++		kfree(target-&gt;wthread_info);
+ 	kfree(target);
+ 
+ 	module_put(THIS_MODULE);
+
+Modified: trunk/kernel/wthread.c
+===================================================================
+--- trunk/kernel/wthread.c	2009-01-24 13:35:56 UTC (rev 204)
++++ trunk/kernel/wthread.c	2009-02-04 06:52:05 UTC (rev 205)
+@@ -9,9 +9,11 @@
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+ 
++struct worker_thread_info *worker_thread_pool;
++
+ void wthread_queue(struct iscsi_cmnd *cmnd)
+ {
+-	struct worker_thread_info *info = &amp;cmnd-&gt;conn-&gt;session-&gt;target-&gt;wthread_info;
++	struct worker_thread_info *info = cmnd-&gt;conn-&gt;session-&gt;target-&gt;wthread_info;
+ 
+ 	if (!list_empty(&amp;cmnd-&gt;list)) {
+ 		struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
+@@ -89,9 +91,8 @@
+ 	return 0;
+ }
+ 
+-static int start_one_worker_thread(struct iscsi_target *target)
++static int start_one_worker_thread(struct worker_thread_info *info, u32 tid)
+ {
+-	struct worker_thread_info *info = &amp;target-&gt;wthread_info;
+ 	struct worker_thread *wt;
+ 	struct task_struct *task;
+ 
+@@ -99,7 +100,7 @@
+ 		return -ENOMEM;
+ 
+ 	wt-&gt;w_info = info;
+-	task = kthread_create(worker_thread, wt, &quot;istiod%d&quot;, target-&gt;tid);
++	task = kthread_create(worker_thread, wt, &quot;istiod%d&quot;, tid);
+ 	if (IS_ERR(task)) {
+ 		kfree(wt);
+ 		return PTR_ERR(task);
+@@ -132,10 +133,8 @@
+ 	return 0;
+ }
+ 
+-int wthread_init(struct iscsi_target *target)
++int wthread_init(struct worker_thread_info *info)
+ {
+-	struct worker_thread_info *info = &amp;target-&gt;wthread_info;
+-
+ 	spin_lock_init(&amp;info-&gt;wthread_lock);
+ 
+ 	info-&gt;nr_running_wthreads = 0;
+@@ -148,19 +147,18 @@
+ 	return 0;
+ }
+ 
+-int wthread_start(struct iscsi_target *target)
++int wthread_start(struct worker_thread_info *info, int wthreads, u32 tid)
+ {
+ 	int err = 0;
+-	struct worker_thread_info *info = &amp;target-&gt;wthread_info;
+ 
+-	while (info-&gt;nr_running_wthreads &lt; target-&gt;trgt_param.wthreads) {
+-		if ((err = start_one_worker_thread(target)) &lt; 0) {
++	while (info-&gt;nr_running_wthreads &lt; wthreads) {
++		if ((err = start_one_worker_thread(info, tid)) &lt; 0) {
+ 			eprintk(&quot;Fail to create a worker thread %d\n&quot;, err);
+ 			goto out;
+ 		}
+ 	}
+ 
+-	while (info-&gt;nr_running_wthreads &gt; target-&gt;trgt_param.wthreads) {
++	while (info-&gt;nr_running_wthreads &gt; wthreads) {
+ 		struct worker_thread *wt;
+ 		wt = list_entry(info-&gt;wthread_list.next, struct worker_thread, w_list);
+ 		if ((err = stop_one_worker_thread(wt)) &lt; 0) {
+@@ -172,11 +170,10 @@
+ 	return err;
+ }
+ 
+-int wthread_stop(struct iscsi_target *target)
++int wthread_stop(struct worker_thread_info *info)
+ {
+ 	struct worker_thread *wt, *tmp;
+ 	int err = 0;
+-	struct worker_thread_info *info = &amp;target-&gt;wthread_info;
+ 
+ 	list_for_each_entry_safe(wt, tmp, &amp;info-&gt;wthread_list, w_list) {
+ 		if ((err = stop_one_worker_thread(wt)) &lt; 0) {
+@@ -187,3 +184,39 @@
+ 
+ 	return err;
+ }
++
++int wthread_module_init()
++{
++	int err;
++
++	if (!worker_thread_pool_size)
++		return 0;
++
++	worker_thread_pool = kmalloc(sizeof(struct worker_thread_info),
++				     GFP_KERNEL);
++	if (!worker_thread_pool)
++		return -ENOMEM;
++
++	wthread_init(worker_thread_pool);
++
++	err = wthread_start(worker_thread_pool, worker_thread_pool_size, 0);
++	if (err) {
++		kfree(worker_thread_pool);
++		worker_thread_pool = NULL;
++		return err;
++	}
++
++	iprintk(&quot;iscsi_trgt using worker thread pool; size = %ld\n&quot;,
++		worker_thread_pool_size);
++
++	return 0;
++}
++
++void wthread_module_exit()
++{
++	if (!worker_thread_pool_size)
++		return;
++
++	wthread_stop(worker_thread_pool);
++	kfree(worker_thread_pool);
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000118.html">[Iscsitarget-svn] r206 - in trunk: . patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#117">[ date ]</a>
+              <a href="thread.html#117">[ thread ]</a>
+              <a href="subject.html#117">[ subject ]</a>
+              <a href="author.html#117">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

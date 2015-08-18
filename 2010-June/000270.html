@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[361]	branches/1.4.20/usr/isns.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B361%5D%0A%09branches/1.4.20/usr/isns.c&In-Reply-To=%3CE1OU182-0005fw-Rb%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000273.html">
+   <LINK REL="Next"  HREF="000271.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[361]	branches/1.4.20/usr/isns.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B361%5D%0A%09branches/1.4.20/usr/isns.c&In-Reply-To=%3CE1OU182-0005fw-Rb%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[361]	branches/1.4.20/usr/isns.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jun 30 19:31:18 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000273.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[360] trunk/usr/ietd.c
+</A></li>
+        <LI>Next message: <A HREF="000271.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[362]	branches/1.4.20/usr/session.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#270">[ date ]</a>
+              <a href="thread.html#270">[ thread ]</a>
+              <a href="subject.html#270">[ subject ]</a>
+              <a href="author.html#270">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 361
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=361&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=361&amp;view=rev</A>
+Author:   agr1
+Date:     2010-06-30 17:31:18 +0000 (Wed, 30 Jun 2010)
+
+Log Message:
+-----------
+Fix invalid read in isns_init()
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    branches/1.4.20/usr/isns.c
+
+Modified: branches/1.4.20/usr/isns.c
+===================================================================
+--- branches/1.4.20/usr/isns.c	2010-06-30 17:27:11 UTC (rev 360)
++++ branches/1.4.20/usr/isns.c	2010-06-30 17:31:18 UTC (rev 361)
+@@ -921,7 +921,7 @@
+ 		log_error(&quot;getaddrinfo error %s, %s&quot;, gai_strerror(err), addr);
+ 		return -1;
+ 	}
+-	memcpy(&amp;ss, res-&gt;ai_addr, sizeof(ss));
++	memcpy(&amp;ss, res-&gt;ai_addr, sizeof(*res-&gt;ai_addr));
+ 	freeaddrinfo(res);
+ 
+ 	rxbuf = calloc(2, BUFSIZE);
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000273.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[360] trunk/usr/ietd.c
+</A></li>
+	<LI>Next message: <A HREF="000271.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[362]	branches/1.4.20/usr/session.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#270">[ date ]</a>
+              <a href="thread.html#270">[ thread ]</a>
+              <a href="subject.html#270">[ subject ]</a>
+              <a href="author.html#270">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

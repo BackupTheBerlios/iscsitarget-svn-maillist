@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r274 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r274%20-%20trunk&In-Reply-To=%3C200911151814.nAFIEoKS001036%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000185.html">
+   <LINK REL="Next"  HREF="000187.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r274 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r274%20-%20trunk&In-Reply-To=%3C200911151814.nAFIEoKS001036%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r274 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Sun Nov 15 19:14:50 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000185.html">[Iscsitarget-svn] r273 - trunk
+</A></li>
+        <LI>Next message: <A HREF="000187.html">[Iscsitarget-svn] r275 - in trunk: . include
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#186">[ date ]</a>
+              <a href="thread.html#186">[ thread ]</a>
+              <a href="subject.html#186">[ subject ]</a>
+              <a href="author.html#186">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-11-15 19:14:50 +0100 (Sun, 15 Nov 2009)
+New Revision: 274
+
+Modified:
+   trunk/RELEASE_NOTES
+Log:
+From: Ross S. W. Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Update RELEASE_NOTES
+
+
+Modified: trunk/RELEASE_NOTES
+===================================================================
+--- trunk/RELEASE_NOTES	2009-11-12 20:25:13 UTC (rev 273)
++++ trunk/RELEASE_NOTES	2009-11-15 18:14:50 UTC (rev 274)
+@@ -2,17 +2,35 @@
+                Release Notes for iSCSI Enterprise Target
+                =========================================
+ 
+-                           October 5th, 2009
+-                             Version 1.4.18
++                          November 15th, 2009
++                             Version 1.4.19
+                              --------------
+ 
+ The IET development team is pleased to announce the release of version
+-1.4.18 of the iSCSI Enterprise Target.
++1.4.19 of the iSCSI Enterprise Target.
+ 
+ This release includes numerous bug fixes and compatibility improvements
+ and it is highly recommended that all production servers be on this
+ version for compatibility and stability reasons.
+ 
++We would like to thank all those that contributed for this release. As
++we are a small project we rely heavily on user contributions and we
++welcome all who wish to participate in improving IET.
++
++New since 1.4.18:
++
++- Added ability to limit number of sessions per target (MaxSessions)
++- Added NOP-In heartbeat for connections so dropped or abandoned
++  connections and their sessions close faster
++- Fixed a serious bug in initiators.allow code
++- Updated RPM .spec file with added SuSE compatibility and better
++  overall cross-platform friendliness.
++
++
++                           October 5th, 2009
++                             Version 1.4.18
++                             --------------
++
+ The version numbering of IET has changed in this release from the 0.X.X
+ series to the 1.X.X series. We did this because we felt that, since IET
+ has been stable and in production use for many years now, it deserved a
+@@ -20,10 +38,6 @@
+ are preserving the minor/maintenance numbers though in order to help
+ maintain some consistency between prior and future releases.
+ 
+-We would like to thank all those that contributed for this release. As
+-we are a small project we rely heavily on user contributions and we
+-welcome all who wish to participate in improving IET.
+-
+ New since 0.4.17:
+ 
+ - Added support for recent kernel versions up to 2.6.31
+@@ -49,12 +63,15 @@
+ Plus many many bug and compatibility fixes (see ChangeLog for details)
+ 
+ 
+-Special thanks go to:
++                         Special thanks go to:
++                         ---------------------
+ 
+ Shreyansh Jain, Lars Ellenberg, Ming Zhang, Francois Micaux, Cheng Renquan,
+-Andreas Florath, sdrb, Xie Gang, Stefan Rubner, FUJITA Tomonori, and to all
+-list members who submitted bug reports, suggestions and comments.
++Andreas Florath, sdrb, Xie Gang, Stefan Rubner, FUJITA Tomonori, Oliver R.,
++Matthew Wild, Kevin Ye and to all list members who submitted bug reports,
++suggestions and comments.
+ 
+-Without whose contributions this release would not have been possible.
++Without whose contributions IET would not have been possible.
+ 
+ Arne Redlich &amp; Ross Walker
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000185.html">[Iscsitarget-svn] r273 - trunk
+</A></li>
+	<LI>Next message: <A HREF="000187.html">[Iscsitarget-svn] r275 - in trunk: . include
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#186">[ date ]</a>
+              <a href="thread.html#186">[ thread ]</a>
+              <a href="subject.html#186">[ subject ]</a>
+              <a href="author.html#186">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

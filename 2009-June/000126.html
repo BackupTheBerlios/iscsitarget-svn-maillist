@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r214 - in trunk: . kernel patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r214%20-%20in%20trunk%3A%20.%20kernel%20patches&In-Reply-To=%3C200906241132.n5OBWr5M008833%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000125.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r214 - in trunk: . kernel patches</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r214%20-%20in%20trunk%3A%20.%20kernel%20patches&In-Reply-To=%3C200906241132.n5OBWr5M008833%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r214 - in trunk: . kernel patches">agr at mail.berlios.de
+       </A><BR>
+    <I>Wed Jun 24 13:32:53 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000125.html">[Iscsitarget-svn] r213 - trunk/usr
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#126">[ date ]</a>
+              <a href="thread.html#126">[ thread ]</a>
+              <a href="subject.html#126">[ subject ]</a>
+              <a href="author.html#126">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-06-24 13:32:52 +0200 (Wed, 24 Jun 2009)
+New Revision: 214
+
+Added:
+   trunk/patches/compat-2.6.29.patch
+Modified:
+   trunk/Makefile
+   trunk/kernel/config.c
+Log:
+2.6.30 compile fix
+
+proc_entry.owner is now gone
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2009-06-03 06:56:05 UTC (rev 213)
++++ trunk/Makefile	2009-06-24 11:32:52 UTC (rev 214)
+@@ -51,6 +51,11 @@
+ # base first the earlier patch sets will not need to be modified.
+ #
+ 
++# Compatibility patch for kernels &lt;= 2.6.29
++ifeq ($(call kver_le,2,6,29),1)
++	PATCHES := $(PATCHES) compat-2.6.29.patch
++endif
++
+ # Compatibility patch for kernels &lt;= 2.6.28
+ ifeq ($(call kver_le,2,6,28),1)
+ 	PATCHES := $(PATCHES) compat-2.6.28.patch
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2009-06-03 06:56:05 UTC (rev 213)
++++ trunk/kernel/config.c	2009-06-24 11:32:52 UTC (rev 214)
+@@ -43,8 +43,6 @@
+ 	if (!(proc_iet_dir = proc_mkdir(&quot;iet&quot;, init_net.proc_net)))
+ 		goto err;
+ 
+-	proc_iet_dir-&gt;owner = THIS_MODULE;
+-
+ 	for (i = 0; i &lt; ARRAY_SIZE(iet_proc_entries); i++) {
+ 		ent = create_proc_entry(iet_proc_entries[i].name, 0, proc_iet_dir);
+ 		if (ent)
+
+Added: trunk/patches/compat-2.6.29.patch
+===================================================================
+--- trunk/patches/compat-2.6.29.patch	2009-06-03 06:56:05 UTC (rev 213)
++++ trunk/patches/compat-2.6.29.patch	2009-06-24 11:32:52 UTC (rev 214)
+@@ -0,0 +1,13 @@
++diff --git a/kernel/config.c b/kernel/config.c
++index 51331fb..9e479c0 100644
++--- a/kernel/config.c
+++++ b/kernel/config.c
++@@ -43,6 +43,8 @@ int iet_procfs_init(void)
++ 	if (!(proc_iet_dir = proc_mkdir(&quot;iet&quot;, init_net.proc_net)))
++ 		goto err;
++ 
+++	proc_iet_dir-&gt;owner = THIS_MODULE;
+++
++ 	for (i = 0; i &lt; ARRAY_SIZE(iet_proc_entries); i++) {
++ 		ent = create_proc_entry(iet_proc_entries[i].name, 0, proc_iet_dir);
++ 		if (ent)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000125.html">[Iscsitarget-svn] r213 - trunk/usr
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#126">[ date ]</a>
+              <a href="thread.html#126">[ thread ]</a>
+              <a href="subject.html#126">[ subject ]</a>
+              <a href="author.html#126">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

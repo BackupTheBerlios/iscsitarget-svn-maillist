@@ -1,0 +1,323 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[368]	branches/1.4.20/usr/iscsid.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-July/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B368%5D%0A%09branches/1.4.20/usr/iscsid.c&In-Reply-To=%3CE1OWFB2-0007S5-TN%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000279.html">
+   <LINK REL="Next"  HREF="000281.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[368]	branches/1.4.20/usr/iscsid.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B368%5D%0A%09branches/1.4.20/usr/iscsid.c&In-Reply-To=%3CE1OWFB2-0007S5-TN%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[368]	branches/1.4.20/usr/iscsid.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Jul  6 22:55:36 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000279.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[367] trunk/usr/isns.c
+</A></li>
+        <LI>Next message: <A HREF="000281.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[369] trunk/usr/iscsid.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#280">[ date ]</a>
+              <a href="thread.html#280">[ thread ]</a>
+              <a href="subject.html#280">[ subject ]</a>
+              <a href="author.html#280">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 368
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=368&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=368&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-07-06 20:55:36 +0000 (Tue, 06 Jul 2010)
+
+Log Message:
+-----------
+Cleanup iSCSI login response error handling.
+
+- Lots of repetitive code replaced by error handling routine.
+
+- Set rsp-&gt;sid = req-&gt;sid at beginning of cmnd_execute_login
+  so error responses have the proper SID value. Should fix
+  issues with QLogic HBAs.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    branches/1.4.20/usr/iscsid.c
+
+Modified: branches/1.4.20/usr/iscsid.c
+===================================================================
+--- branches/1.4.20/usr/iscsid.c	2010-07-01 21:17:35 UTC (rev 367)
++++ branches/1.4.20/usr/iscsid.c	2010-07-06 20:55:36 UTC (rev 368)
+@@ -210,9 +210,30 @@
+ 	return cops-&gt;account_query(tid, dir, pass, pass) &lt; 0 ? 1 : 0;
+ }
+ 
++static void login_rsp_err(struct connection *conn, int status_class,
++							int status_detail)
++{
++	struct iscsi_login_rsp_hdr *rsp =
++				(struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
++
++	rsp-&gt;flags = 0;
++	rsp-&gt;status_class = status_class;
++	rsp-&gt;status_detail = status_detail;
++	conn-&gt;state = STATE_EXIT;
++}
++
++static inline void login_rsp_ini_err(struct connection *conn, int status_detail)
++{
++	login_rsp_err(conn, ISCSI_STATUS_INITIATOR_ERR, status_detail);
++}
++
++static inline void login_rsp_tgt_err(struct connection *conn, int status_detail)
++{
++	login_rsp_err(conn, ISCSI_STATUS_TARGET_ERR, status_detail);
++}
++
+ static void text_scan_security(struct connection *conn)
+ {
+-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
+ 	char *key, *value, *data, *nextValue;
+ 	int datasize;
+ 
+@@ -248,17 +269,14 @@
+ 		} else
+ 			text_key_add(conn, key, &quot;NotUnderstood&quot;);
+ 	}
+-	if (conn-&gt;auth_method == AUTH_UNKNOWN) {
+-		rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-		rsp-&gt;status_detail = ISCSI_STATUS_AUTH_FAILED;
+-		conn-&gt;state = STATE_EXIT;
+-	}
++	if (conn-&gt;auth_method == AUTH_UNKNOWN)
++		login_rsp_ini_err(conn, ISCSI_STATUS_AUTH_FAILED);
+ }
+ 
+ static void login_security_done(struct connection *conn)
+ {
+-	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
+-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
++	struct iscsi_login_req_hdr *req =
++				(struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
+ 	struct session *session;
+ 
+ 	if (!conn-&gt;tid)
+@@ -269,17 +287,12 @@
+ 			/* do session reinstatement */
+ 			log_debug(1, &quot;session %#&quot; PRIx64 &quot; reinstated&quot;,
+ 								req-&gt;sid.id64);
+-			if (session_remove(session)) {
+-				rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
+-				rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
+-				conn-&gt;state = STATE_EXIT;
+-			}
++			if (session_remove(session))
++				login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
+ 			return;
+ 		} else if (req-&gt;sid.id.tsih != session-&gt;sid.id.tsih) {
+ 			/* fail the login */
+-			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-			rsp-&gt;status_detail = ISCSI_STATUS_SESSION_NOT_FOUND;
+-			conn-&gt;state = STATE_EXIT;
++			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
+ 			return;
+ 		}
+ 		/* add connection to existing session */
+@@ -290,9 +303,7 @@
+ 	} else {
+ 		if (req-&gt;sid.id.tsih) {
+ 			/* fail the login */
+-			rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-			rsp-&gt;status_detail = ISCSI_STATUS_SESSION_NOT_FOUND;
+-			conn-&gt;state = STATE_EXIT;
++			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
+ 			return;
+ 		}
+ 		/* instantiate a new session */
+@@ -303,7 +314,6 @@
+ {
+ 	char *key, *value, *data;
+ 	int datasize, idx;
+-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
+ 
+ 	data = conn-&gt;req.data;
+ 	datasize = conn-&gt;req.datasize;
+@@ -330,12 +340,8 @@
+ 				    == KEY_STATE_START) {
+ 					text_key_add_reject(conn, key);
+ 					continue;
+-				} else {
+-					rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-					rsp-&gt;status_detail = ISCSI_STATUS_INIT_ERR;
+-					conn-&gt;state = STATE_EXIT;
+-					goto out;
+-				}
++				} else
++					goto init_err;
+ 			}
+ 
+ 			err = param_check_val(session_keys, idx, &amp;val);
+@@ -351,12 +357,9 @@
+ 				break;
+ 			case KEY_STATE_REQUEST:
+ 				if (val != conn-&gt;session_param[idx].val) {
+-					rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-					rsp-&gt;status_detail = ISCSI_STATUS_INIT_ERR;
+-					conn-&gt;state = STATE_EXIT;
+ 					log_warning(&quot;%s %u %u\n&quot;, key,
+ 					val, conn-&gt;session_param[idx].val);
+-					goto out;
++					goto init_err;
+ 				}
+ 				break;
+ 			case KEY_STATE_DONE:
+@@ -367,8 +370,10 @@
+ 			text_key_add(conn, key, &quot;NotUnderstood&quot;);
+ 	}
+ 
+-out:
+ 	return;
++init_err:
++	login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
++	return;
+ }
+ 
+ static int text_check_param(struct connection *conn)
+@@ -413,19 +418,10 @@
+ 	return cnt;
+ }
+ 
+-static void login_rsp_ini_err(struct connection *conn, int status_detail)
+-{
+-	struct iscsi_login_rsp_hdr * const rsp =
+-		(struct iscsi_login_rsp_hdr * const)&amp;conn-&gt;rsp.bhs;
+-
+-	rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-	rsp-&gt;status_detail = status_detail;
+-	conn-&gt;state = STATE_EXIT;
+-}
+-
+ static void login_start(struct connection *conn)
+ {
+-	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
++	struct iscsi_login_req_hdr *req =
++				(struct iscsi_login_req_hdr *)&amp;conn-&gt;req.bhs;
+ 
+ 	char *name, *alias, *session_type, *target_name;
+ 	struct sockaddr_storage ss;
+@@ -483,17 +479,12 @@
+ 		}
+ 
+ 		if (target_redirected(target, conn, (struct sockaddr *) &amp;ss)) {
+-			struct iscsi_login_rsp_hdr *rsp =
+-				(struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
+-
+ 			log_debug(1, &quot;redirected target %s login to %s:%s&quot;,
+ 					target-&gt;name, target-&gt;redirect.addr,
+ 					strlen(target-&gt;redirect.port) ?
+ 					target-&gt;redirect.port : &quot;3260&quot;);
+ 
+-			rsp-&gt;status_class = ISCSI_STATUS_REDIRECT;
+-			rsp-&gt;status_detail = target-&gt;redirect.type;
+-			conn-&gt;state = STATE_EXIT;
++			login_rsp_err(conn, ISCSI_STATUS_REDIRECT, target-&gt;redirect.type);
+ 			return;
+ 		}
+ 
+@@ -519,15 +510,11 @@
+ 
+ static void login_finish(struct connection *conn)
+ {
+-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&amp;conn-&gt;rsp.bhs;
+-
+ 	switch (conn-&gt;session_type) {
+ 	case SESSION_NORMAL:
+ 		/* create or re-create in case the session closed */
+ 		if (session_create(conn)) {
+-			rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
+-			rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
+-			conn-&gt;state = STATE_EXIT;
++			login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
+ 			return;
+ 		}
+ 		conn-&gt;sid = conn-&gt;session-&gt;sid;
+@@ -605,12 +592,11 @@
+ 	rsp-&gt;max_version = ISCSI_VERSION;
+ 	rsp-&gt;active_version = ISCSI_VERSION;
+ 	rsp-&gt;itt = req-&gt;itt;
++	rsp-&gt;sid = req-&gt;sid;
+ 
+ 	if (/*req-&gt;max_version &lt; ISCSI_VERSION ||*/
+ 	    req-&gt;min_version &gt; ISCSI_VERSION) {
+-		rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-		rsp-&gt;status_detail = ISCSI_STATUS_NO_VERSION;
+-		conn-&gt;state = STATE_EXIT;
++		login_rsp_ini_err(conn, ISCSI_STATUS_NO_VERSION);
+ 		return;
+ 	}
+ 
+@@ -750,22 +736,13 @@
+ 	rsp-&gt;max_cmd_sn = cpu_to_be32(conn-&gt;max_cmd_sn);
+ 	return;
+ init_err:
+-	rsp-&gt;flags = 0;
+-	rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-	rsp-&gt;status_detail = ISCSI_STATUS_INIT_ERR;
+-	conn-&gt;state = STATE_EXIT;
++	login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
+ 	return;
+ auth_err:
+-	rsp-&gt;flags = 0;
+-	rsp-&gt;status_class = ISCSI_STATUS_INITIATOR_ERR;
+-	rsp-&gt;status_detail = ISCSI_STATUS_AUTH_FAILED;
+-	conn-&gt;state = STATE_EXIT;
++	login_rsp_ini_err(conn, ISCSI_STATUS_AUTH_FAILED);
+ 	return;
+ target_err:
+-	rsp-&gt;flags = 0;
+-	rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
+-	rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
+-	conn-&gt;state = STATE_EXIT;
++	login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
+ 	return;
+ }
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000279.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[367] trunk/usr/isns.c
+</A></li>
+	<LI>Next message: <A HREF="000281.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[369] trunk/usr/iscsid.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#280">[ date ]</a>
+              <a href="thread.html#280">[ thread ]</a>
+              <a href="subject.html#280">[ subject ]</a>
+              <a href="author.html#280">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

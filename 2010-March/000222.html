@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[310] trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B310%5D%20trunk/usr&In-Reply-To=%3CE1NwfvA-0006WE-Bu%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000221.html">
+   <LINK REL="Next"  HREF="000223.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[310] trunk/usr</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B310%5D%20trunk/usr&In-Reply-To=%3CE1NwfvA-0006WE-Bu%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[310] trunk/usr">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Mar 30 20:12:12 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000221.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[309] trunk
+</A></li>
+        <LI>Next message: <A HREF="000223.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[311]	trunk/iscsitarget.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#222">[ date ]</a>
+              <a href="thread.html#222">[ thread ]</a>
+              <a href="subject.html#222">[ subject ]</a>
+              <a href="author.html#222">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 310
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=310&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=310&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-03-30 18:12:09 +0000 (Tue, 30 Mar 2010)
+
+Log Message:
+-----------
+There is a small race condition with connection reinstatement
+where a session could be closed out before a connection is
+reinstated. This makes the race condition window even smaller.
+
+The ideal fix is to remove all session state from ietd and have
+the kernel module handle the creation/reinstatement of sessions
+and connections. Then ietd merely has to query the kernel for
+some basic validity check info and pass the connection on if
+it passes.
+
+Tested on RHEL5 with MS initiator.
+
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/usr/iscsid.c
+    trunk/usr/session.c
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2010-03-30 18:08:19 UTC (rev 309)
++++ trunk/usr/iscsid.c	2010-03-30 18:12:09 UTC (rev 310)
+@@ -519,13 +519,12 @@
+ 
+ 	switch (conn-&gt;session_type) {
+ 	case SESSION_NORMAL:
+-		if (!conn-&gt;session) {
+-			if (session_create(conn)) {
+-				rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
+-				rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
+-				conn-&gt;state = STATE_EXIT;
+-				return;
+-			}
++		/* create or re-create in case the session closed */
++		if (session_create(conn)) {
++			rsp-&gt;status_class = ISCSI_STATUS_TARGET_ERR;
++			rsp-&gt;status_detail = ISCSI_STATUS_TARGET_ERROR;
++			conn-&gt;state = STATE_EXIT;
++			return;
+ 		}
+ 		conn-&gt;sid = conn-&gt;session-&gt;sid;
+ 		break;
+
+Modified: trunk/usr/session.c
+===================================================================
+--- trunk/usr/session.c	2010-03-30 18:08:19 UTC (rev 309)
++++ trunk/usr/session.c	2010-03-30 18:12:09 UTC (rev 310)
+@@ -85,21 +85,28 @@
+ 	static u16 tsih = 1;
+ 	int err;
+ 
+-	session = session_alloc(conn-&gt;tid);
+-	if (!session)
+-		return -ENOMEM;
++	if (!conn-&gt;session) {
++		session = session_alloc(conn-&gt;tid);
++		if (!session)
++			return -ENOMEM;
+ 
+-	session-&gt;sid = conn-&gt;sid;
+-	session-&gt;sid.id.tsih = tsih;
++		session-&gt;sid = conn-&gt;sid;
++		session-&gt;sid.id.tsih = tsih;
+ 
+-	while (session_exist(conn-&gt;tid, session-&gt;sid.id64))
+-		session-&gt;sid.id.tsih++;
++		while (session_exist(conn-&gt;tid, session-&gt;sid.id64))
++			session-&gt;sid.id.tsih++;
+ 
+-	tsih = session-&gt;sid.id.tsih + 1;
++		tsih = session-&gt;sid.id.tsih + 1;
++		session-&gt;initiator = strdup(conn-&gt;initiator);
+ 
+-	conn-&gt;session = session;
+-	conn-&gt;session-&gt;initiator = strdup(conn-&gt;initiator);
++		conn-&gt;session = session;
++	} else {
++		session = conn-&gt;session;
+ 
++		if (session_exist(conn-&gt;tid, session-&gt;sid.id64))
++			return 0;
++	}
++
+ 	log_debug(1, &quot;session_create: %#&quot; PRIx64, session-&gt;sid.id64);
+ 
+ 	err = ki-&gt;session_create(conn-&gt;tid, session-&gt;sid.id64, conn-&gt;exp_cmd_sn,
+@@ -119,6 +126,12 @@
+ 	return 0;
+ out:
+ 	conn-&gt;session = NULL;
++
++	if (session-&gt;target) {
++		remque(&amp;session-&gt;slist);
++		--session-&gt;target-&gt;nr_sessions;
++	}
++
+ 	free(session-&gt;initiator);
+ 	free(session);
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000221.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[309] trunk
+</A></li>
+	<LI>Next message: <A HREF="000223.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[311]	trunk/iscsitarget.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#222">[ date ]</a>
+              <a href="thread.html#222">[ thread ]</a>
+              <a href="subject.html#222">[ subject ]</a>
+              <a href="author.html#222">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

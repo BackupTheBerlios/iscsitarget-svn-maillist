@@ -1,0 +1,391 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r160 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r160%20-%20trunk/kernel&In-Reply-To=%3C200806250233.m5P2XStI024714%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000071.html">
+   <LINK REL="Next"  HREF="000073.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r160 - trunk/kernel</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r160%20-%20trunk/kernel&In-Reply-To=%3C200806250233.m5P2XStI024714%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r160 - trunk/kernel">tomo at mail.berlios.de
+       </A><BR>
+    <I>Wed Jun 25 04:33:28 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000071.html">[Iscsitarget-svn] r159 - trunk/usr
+</A></li>
+        <LI>Next message: <A HREF="000073.html">[Iscsitarget-svn] r161 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72">[ date ]</a>
+              <a href="thread.html#72">[ thread ]</a>
+              <a href="subject.html#72">[ subject ]</a>
+              <a href="author.html#72">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2008-06-25 04:33:27 +0200 (Wed, 25 Jun 2008)
+New Revision: 160
+
+Modified:
+   trunk/kernel/block-io.c
+   trunk/kernel/config.c
+   trunk/kernel/digest.c
+   trunk/kernel/event.c
+   trunk/kernel/file-io.c
+   trunk/kernel/iscsi.h
+   trunk/kernel/target_disk.c
+   trunk/kernel/volume.c
+Log:
+Subject: Fix WCE and RCD bits of the caching mode page
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Date: Thu, 19 Jun 2008 14:04:30 +0200
+
+This patch is a RFC, since it hard-wires block-io's cache settings to
+WCE=0 and RCD=1. This is in line with the values we return for fileio
+sync (WCE=0) vs. async (WCE=1) mode, but completely ignores disk or RAID
+controller caches. For those it would probably be best to make these
+params user configurable!?
+
+
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/block-io.c	2008-06-25 02:33:27 UTC (rev 160)
+@@ -29,10 +29,15 @@
+ 	struct completion tio_complete;
+ };
+ 
+-static void blockio_bio_endio(struct bio *bio, int error)
++static int
++blockio_bio_endio(struct bio *bio, unsigned int bytes_done, int error)
+ {
+ 	struct tio_work *tio_work = bio-&gt;bi_private;
+ 
++	/* Ignore partials */
++	if (bio-&gt;bi_size)
++		return 1;
++
+ 	error = test_bit(BIO_UPTODATE, &amp;bio-&gt;bi_flags) ? error : -EIO;
+ 
+ 	if (error)
+@@ -43,6 +48,8 @@
+ 		complete(&amp;tio_work-&gt;tio_complete);
+ 
+ 	bio_put(bio);
++
++	return 0;
+ }
+ 
+ /*
+@@ -332,7 +339,7 @@
+ }
+ 
+ static int
+-blockio_attach (struct iet_volume *volume, char *args)
++blockio_attach(struct iet_volume *volume, char *args)
+ {
+ 	struct blockio_data *bio_data;
+ 	int err = 0;
+@@ -358,6 +365,10 @@
+ 	/* Assign a vendor id, generate scsi id if none exists */
+ 	gen_scsiid(volume, bio_data-&gt;bdev-&gt;bd_inode);
+ 
++	/* Offer neither write nor read caching */
++	ClearLURCache(volume);
++	ClearLUWCache(volume);
++
+ 	volume-&gt;blk_shift = SECTOR_SIZE_BITS;
+ 	volume-&gt;blk_cnt = bio_data-&gt;bdev-&gt;bd_inode-&gt;i_size &gt;&gt; volume-&gt;blk_shift;
+ 
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/config.c	2008-06-25 02:33:27 UTC (rev 160)
+@@ -40,7 +40,7 @@
+ 	int i;
+ 	struct proc_dir_entry *ent;
+ 
+-	if (!(proc_iet_dir = proc_mkdir(&quot;iet&quot;, init_net.proc_net)))
++	if (!(proc_iet_dir = proc_mkdir(&quot;net/iet&quot;, 0)))
+ 		goto err;
+ 
+ 	proc_iet_dir-&gt;owner = THIS_MODULE;
+
+Modified: trunk/kernel/digest.c
+===================================================================
+--- trunk/kernel/digest.c	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/digest.c	2008-06-25 02:33:27 UTC (rev 160)
+@@ -161,17 +161,22 @@
+ 	}
+ }
+ 
++/* Copied from linux-iscsi initiator and slightly adjusted */
++#define SETSG(sg, p, l) do {					\
++	(sg).page = virt_to_page((p));				\
++	(sg).offset = ((unsigned long)(p) &amp; ~PAGE_CACHE_MASK);	\
++	(sg).length = (l);					\
++} while (0)
++
+ static void digest_header(struct hash_desc *hash, struct iscsi_pdu *pdu,
+ 			  u8 *crc)
+ {
+ 	struct scatterlist sg[2];
+ 	unsigned int nbytes = sizeof(struct iscsi_hdr);
+ 
+-	sg_init_table(sg, pdu-&gt;ahssize ? 2 : 1);
+-
+-	sg_set_buf(&amp;sg[0], &amp;pdu-&gt;bhs, nbytes);
++	SETSG(sg[0], &amp;pdu-&gt;bhs, nbytes);
+ 	if (pdu-&gt;ahssize) {
+-		sg_set_buf(&amp;sg[1], pdu-&gt;ahs, pdu-&gt;ahssize);
++		SETSG(sg[1], pdu-&gt;ahs, pdu-&gt;ahssize);
+ 		nbytes += pdu-&gt;ahssize;
+ 	}
+ 
+@@ -215,7 +220,6 @@
+ 
+ 	assert(count &lt;= ISCSI_CONN_IOV_MAX);
+ 
+-	sg_init_table(sg, ARRAY_SIZE(cmnd-&gt;conn-&gt;hash_sg));
+ 	crypto_hash_init(hash);
+ 
+ 	for (i = 0; size; i++) {
+@@ -224,13 +228,13 @@
+ 		else
+ 			length = size;
+ 
+-		sg_set_page(&amp;sg[i], tio-&gt;pvec[idx + i], length, offset);
++		sg[i].page = tio-&gt;pvec[idx + i];
++		sg[i].offset = offset;
++		sg[i].length = length;
+ 		size -= length;
+ 		offset = 0;
+ 	}
+ 
+-	sg_mark_end(&amp;sg[i - 1]);
+-
+ 	crypto_hash_update(hash, sg, nbytes);
+ 	crypto_hash_final(hash, crc);
+ }
+
+Modified: trunk/kernel/event.c
+===================================================================
+--- trunk/kernel/event.c	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/event.c	2008-06-25 02:33:27 UTC (rev 160)
+@@ -28,7 +28,7 @@
+ 	return 0;
+ }
+ 
+-static void event_recv_skb(struct sk_buff *skb)
++static int event_recv_skb(struct sk_buff *skb)
+ {
+ 	int err;
+ 	struct nlmsghdr	*nlh;
+@@ -37,7 +37,7 @@
+ 	while (skb-&gt;len &gt;= NLMSG_SPACE(0)) {
+ 		nlh = (struct nlmsghdr *)skb-&gt;data;
+ 		if (nlh-&gt;nlmsg_len &lt; sizeof(*nlh) || skb-&gt;len &lt; nlh-&gt;nlmsg_len)
+-			break;
++			return 0;
+ 		rlen = NLMSG_ALIGN(nlh-&gt;nlmsg_len);
+ 		if (rlen &gt; skb-&gt;len)
+ 			rlen = skb-&gt;len;
+@@ -47,8 +47,21 @@
+ 			netlink_ack(skb, nlh, 0);
+ 		skb_pull(skb, rlen);
+ 	}
++	return 0;
+ }
+ 
++static void event_recv(struct sock *sk, int length)
++{
++	struct sk_buff *skb;
++
++	while ((skb = skb_dequeue(&amp;sk-&gt;sk_receive_queue))) {
++		if (event_recv_skb(skb) &amp;&amp; skb-&gt;len)
++			skb_queue_head(&amp;sk-&gt;sk_receive_queue, skb);
++		else
++			kfree_skb(skb);
++	}
++}
++
+ static int notify(void *data, int len, int gfp_mask)
+ {
+ 	struct sk_buff *skb;
+@@ -82,8 +95,8 @@
+ 
+ int event_init(void)
+ {
+-	nl = netlink_kernel_create(&amp;init_net, NETLINK_IET, 1, event_recv_skb,
+-				   NULL, THIS_MODULE);
++	nl = netlink_kernel_create(NETLINK_IET, 1, event_recv, NULL,
++				   THIS_MODULE);
+ 	if (!nl)
+ 		return -ENOMEM;
+ 	else
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/file-io.c	2008-06-25 02:33:27 UTC (rev 160)
+@@ -299,6 +299,8 @@
+ 	lu-&gt;blk_shift = SECTOR_SIZE_BITS;
+ 	lu-&gt;blk_cnt = inode-&gt;i_size &gt;&gt; lu-&gt;blk_shift;
+ 
++	/* we're using the page cache */
++	SetLURCache(lu);
+ out:
+ 	if (err &lt; 0)
+ 		fileio_detach(lu);
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/iscsi.h	2008-06-25 02:33:27 UTC (rev 160)
+@@ -153,15 +153,21 @@
+ 
+ enum lu_flags {
+ 	LU_READONLY,
+-	LU_ASYNC,
++	LU_WCACHE,
++	LU_RCACHE,
+ };
+ 
+ #define LUReadonly(lu) test_bit(LU_READONLY, &amp;(lu)-&gt;flags)
+ #define SetLUReadonly(lu) set_bit(LU_READONLY, &amp;(lu)-&gt;flags)
+ 
+-#define LUAsync(lu) test_bit(LU_ASYNC, &amp;(lu)-&gt;flags)
+-#define SetLUAsync(lu) set_bit(LU_ASYNC, &amp;(lu)-&gt;flags)
++#define LUWCache(lu) test_bit(LU_WCACHE, &amp;(lu)-&gt;flags)
++#define SetLUWCache(lu) set_bit(LU_WCACHE, &amp;(lu)-&gt;flags)
++#define ClearLUWCache(lu) clear_bit(LU_WCACHE, &amp;(lu)-&gt;flags)
+ 
++#define LURCache(lu) test_bit(LU_RCACHE, &amp;(lu)-&gt;flags)
++#define SetLURCache(lu) set_bit(LU_RCACHE, &amp;(lu)-&gt;flags)
++#define ClearLURCache(lu) clear_bit(LU_RCACHE, &amp;(lu)-&gt;flags)
++
+ #define IET_HASH_ORDER		8
+ #define	cmnd_hashfn(itt)	hash_long((itt), IET_HASH_ORDER)
+ 
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/target_disk.c	2008-06-25 02:33:27 UTC (rev 160)
+@@ -22,15 +22,18 @@
+ 	return sizeof(disconnect_pg);
+ }
+ 
+-static int insert_caching_pg(u8 *ptr, int async)
++static int insert_caching_pg(u8 *ptr, int wcache, int rcache)
+ {
+ 	unsigned char caching_pg[] = {0x08, 0x12, 0x10, 0x00, 0xff, 0xff, 0x00, 0x00,
+ 				      0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0x00, 0x00,
+ 				      0x00, 0x00, 0x00, 0x00};
+ 
+ 	memcpy(ptr, caching_pg, sizeof(caching_pg));
+-	if (async)
++	if (wcache)
+ 		ptr[2] |= 0x04;	/* set WCE bit if we're caching writes */
++	if (!rcache)
++		ptr[2] |= 0x01; /* Read Cache Disable */
++
+ 	return sizeof(caching_pg);
+ }
+ 
+@@ -124,7 +127,8 @@
+ 		len += insert_geo_m_pg(data + len, cmnd-&gt;lun-&gt;blk_cnt);
+ 		break;
+ 	case 0x8:
+-		len += insert_caching_pg(data + len, LUAsync(cmnd-&gt;lun));
++		len += insert_caching_pg(data + len, LUWCache(cmnd-&gt;lun),
++					 LURCache(cmnd-&gt;lun));
+ 		break;
+ 	case 0xa:
+ 		len += insert_ctrl_m_pg(data + len);
+@@ -136,7 +140,8 @@
+ 		len += insert_disconnect_pg(data + len);
+ 		len += insert_format_m_pg(data + len);
+ 		len += insert_geo_m_pg(data + len, cmnd-&gt;lun-&gt;blk_cnt);
+-		len += insert_caching_pg(data + len, LUAsync(cmnd-&gt;lun));
++		len += insert_caching_pg(data + len, LUWCache(cmnd-&gt;lun),
++					 LURCache(cmnd-&gt;lun));
+ 		len += insert_ctrl_m_pg(data + len);
+ 		len += insert_iec_m_pg(data + len);
+ 		break;
+@@ -367,7 +372,7 @@
+ 
+ 	list_del_init(&amp;cmnd-&gt;list);
+ 	err = tio_write(cmnd-&gt;lun, tio);
+-	if (!err &amp;&amp; !LUAsync(cmnd-&gt;lun))
++	if (!err &amp;&amp; !LUWCache(cmnd-&gt;lun))
+ 		err = tio_sync(cmnd-&gt;lun, tio);
+ 
+ 	return err;
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2008-06-18 23:10:19 UTC (rev 159)
++++ trunk/kernel/volume.c	2008-06-25 02:33:27 UTC (rev 160)
+@@ -64,7 +64,7 @@
+ 			if (argp &amp;&amp; !strcmp(argp, &quot;ro&quot;))
+ 				SetLUReadonly(volume);
+ 			else if (argp &amp;&amp; !strcmp(argp, &quot;wb&quot;))
+-				SetLUAsync(volume);
++				SetLUWCache(volume);
+ 			kfree(argp);
+ 			break;
+ 		default:
+@@ -233,10 +233,11 @@
+ 			   volume-&gt;lun, volume-&gt;l_state, volume-&gt;iotype-&gt;name);
+ 		if (LUReadonly(volume))
+ 			seq_printf(seq, &quot; iomode:ro&quot;);
+-		else if (LUAsync(volume))
++		else if (LUWCache(volume))
+ 			seq_printf(seq, &quot; iomode:wb&quot;);
+ 		else
+ 			seq_printf(seq, &quot; iomode:wt&quot;);
++
+ 		if (volume-&gt;iotype-&gt;show)
+ 			volume-&gt;iotype-&gt;show(volume, seq);
+ 		else
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000071.html">[Iscsitarget-svn] r159 - trunk/usr
+</A></li>
+	<LI>Next message: <A HREF="000073.html">[Iscsitarget-svn] r161 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72">[ date ]</a>
+              <a href="thread.html#72">[ thread ]</a>
+              <a href="subject.html#72">[ subject ]</a>
+              <a href="author.html#72">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

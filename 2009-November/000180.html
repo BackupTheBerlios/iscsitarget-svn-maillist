@@ -1,0 +1,105 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r268 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r268%20-%20trunk/usr&In-Reply-To=%3C200911101828.nAAISGDb012016%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000179.html">
+   <LINK REL="Next"  HREF="000181.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r268 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r268%20-%20trunk/usr&In-Reply-To=%3C200911101828.nAAISGDb012016%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r268 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov 10 19:28:16 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000179.html">[Iscsitarget-svn] r267 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000181.html">[Iscsitarget-svn] r269 - trunk/etc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#180">[ date ]</a>
+              <a href="thread.html#180">[ thread ]</a>
+              <a href="subject.html#180">[ subject ]</a>
+              <a href="author.html#180">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-11-10 19:28:15 +0100 (Tue, 10 Nov 2009)
+New Revision: 268
+
+Modified:
+   trunk/usr/plain.c
+Log:
+From: Ross S. W. Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Fix bug in match() in plain.c
+
+There is a bug in match() in plain.c that causes all
+initiator_allow() lookups to match against the first target entry.
+
+Compiled and tested on RHEL5 against MS initiator.
+
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-11-10 18:24:30 UTC (rev 267)
++++ trunk/usr/plain.c	2009-11-10 18:28:15 UTC (rev 268)
+@@ -421,15 +421,13 @@
+ 		if (!p || *p == '#')
+ 			continue;
+ 
+-		target = target_find_by_name(p);
+-		u32 tid = 0;
++		if (strcmp(p, &quot;ALL&quot;)) {
++			if (!(target = target_find_by_name(p)))
++				continue;
++			if (target-&gt;tid != tid)
++				continue;
++		}
+ 
+-		if (target)
+-			tid = target-&gt;tid;
+-
+-		if (tid != tid &amp;&amp; strcmp(p, &quot;ALL&quot;))
+-			continue;
+-
+ 		if (__match(sa, initiator, q))
+ 			err = 0;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000179.html">[Iscsitarget-svn] r267 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000181.html">[Iscsitarget-svn] r269 - trunk/etc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#180">[ date ]</a>
+              <a href="thread.html#180">[ thread ]</a>
+              <a href="subject.html#180">[ subject ]</a>
+              <a href="author.html#180">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

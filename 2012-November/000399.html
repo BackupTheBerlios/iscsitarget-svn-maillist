@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[488]	trunk/kernel/target_disk.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B488%5D%0A%09trunk/kernel/target_disk.c&In-Reply-To=%3CE1TU0fl-00077v-6p%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000400.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[488]	trunk/kernel/target_disk.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B488%5D%0A%09trunk/kernel/target_disk.c&In-Reply-To=%3CE1TU0fl-00077v-6p%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[488]	trunk/kernel/target_disk.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Thu Nov  1 20:43:25 CET 2012</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000400.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[489] trunk/usr/iscsid.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#399">[ date ]</a>
+              <a href="thread.html#399">[ thread ]</a>
+              <a href="subject.html#399">[ subject ]</a>
+              <a href="author.html#399">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 488
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=488&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=488&amp;view=rev</A>
+Author:   agr1
+Date:     2012-11-01 19:43:24 +0000 (Thu, 01 Nov 2012)
+Log Message:
+-----------
+Fix SAI/READ CAPACITY(16) parameter data length
+
+The parameter data has a fixed size of 32.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/target_disk.c
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2012-10-30 17:59:33 UTC (rev 487)
++++ trunk/kernel/target_disk.c	2012-11-01 19:43:24 UTC (rev 488)
+@@ -375,7 +375,7 @@
+ 	data64[0] = cpu_to_be64(cmnd-&gt;lun-&gt;blk_cnt - 1);
+ 	data[2] = cpu_to_be32(1UL &lt;&lt; cmnd-&gt;lun-&gt;blk_shift);
+ 
+-	tio_set(tio, 12, 0);
++	tio_set(tio, 32, 0);
+ }
+ 
+ static void build_read_response(struct iscsi_cmnd *cmnd)
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000400.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[489] trunk/usr/iscsid.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#399">[ date ]</a>
+              <a href="thread.html#399">[ thread ]</a>
+              <a href="subject.html#399">[ subject ]</a>
+              <a href="author.html#399">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

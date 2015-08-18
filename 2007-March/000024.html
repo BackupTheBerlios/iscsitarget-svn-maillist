@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r112 - trunk/include
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r112%20-%20trunk/include&In-Reply-To=%3C200703260320.l2Q3Kgbl025686%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000023.html">
+   <LINK REL="Next"  HREF="000025.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r112 - trunk/include</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r112%20-%20trunk/include&In-Reply-To=%3C200703260320.l2Q3Kgbl025686%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r112 - trunk/include">tomo at mail.berlios.de
+       </A><BR>
+    <I>Mon Mar 26 05:20:42 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000023.html">[Iscsitarget-svn] r111 - trunk/patches
+</A></li>
+        <LI>Next message: <A HREF="000025.html">[Iscsitarget-svn] r113 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24">[ date ]</a>
+              <a href="thread.html#24">[ thread ]</a>
+              <a href="subject.html#24">[ subject ]</a>
+              <a href="author.html#24">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2007-03-26 05:20:41 +0200 (Mon, 26 Mar 2007)
+New Revision: 112
+
+Modified:
+   trunk/include/iet_u.h
+Log:
+Subject: fix ioctl alignment issue
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Date: Sun, 25 Mar 2007 12:46:45 +0200
+
+Fix an alignment issue in struct volume_info, introduced with rev 100:
+
+32-bit =&gt; sizeof(struct volume_info) == 20
+64-bit =&gt; sizeof(struct volume_info) == 24
+
+
+Modified: trunk/include/iet_u.h
+===================================================================
+--- trunk/include/iet_u.h	2007-03-22 14:14:31 UTC (rev 111)
++++ trunk/include/iet_u.h	2007-03-26 03:20:41 UTC (rev 112)
+@@ -25,7 +25,7 @@
+ struct volume_info {
+ 	u32 tid;
+ 	u32 lun;
+-	u64 args_ptr;
++	aligned_u64 args_ptr;
+ 	u32 args_len;
+ };
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000023.html">[Iscsitarget-svn] r111 - trunk/patches
+</A></li>
+	<LI>Next message: <A HREF="000025.html">[Iscsitarget-svn] r113 - trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24">[ date ]</a>
+              <a href="thread.html#24">[ thread ]</a>
+              <a href="subject.html#24">[ subject ]</a>
+              <a href="author.html#24">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,110 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r179 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-November/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r179%20-%20trunk/usr&In-Reply-To=%3C200811161216.mAGCGVfw021053%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000090.html">
+   <LINK REL="Next"  HREF="000092.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r179 - trunk/usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r179%20-%20trunk/usr&In-Reply-To=%3C200811161216.mAGCGVfw021053%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r179 - trunk/usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Sun Nov 16 13:16:31 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000090.html">[Iscsitarget-svn] r178 - in trunk: . patches
+</A></li>
+        <LI>Next message: <A HREF="000092.html">[Iscsitarget-svn] r180 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#91">[ date ]</a>
+              <a href="thread.html#91">[ thread ]</a>
+              <a href="subject.html#91">[ subject ]</a>
+              <a href="author.html#91">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2008-11-16 13:16:31 +0100 (Sun, 16 Nov 2008)
+New Revision: 179
+
+Modified:
+   trunk/usr/ietd.c
+Log:
+Check return values of chdir(), ftruncate() and write()
+
+Recent versions of the glibc insist on the return value being checked by
+introducing __attribute__((warn_unused_result)) to these functions.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+
+
+Modified: trunk/usr/ietd.c
+===================================================================
+--- trunk/usr/ietd.c	2008-11-16 12:14:28 UTC (rev 178)
++++ trunk/usr/ietd.c	2008-11-16 12:16:31 UTC (rev 179)
+@@ -503,14 +503,25 @@
+ 		} else if (pid)
+ 			exit(0);
+ 
+-		chdir(&quot;/&quot;);
++		if (chdir(&quot;/&quot;) &lt; 0) {
++			log_error(&quot;failed to set working dir to /: %m&quot;);
++			exit(1);
++		}
++
+ 		if (lockf(fd, F_TLOCK, 0) &lt; 0) {
+ 			log_error(&quot;unable to lock pid file&quot;);
+ 			exit(1);
+ 		}
+-		ftruncate(fd, 0);
++		if (ftruncate(fd, 0) &lt; 0) {
++			log_error(&quot;failed to ftruncate the PID file: %m&quot;);
++			exit(1);
++		}
++
+ 		sprintf(buf, &quot;%d\n&quot;, getpid());
+-		write(fd, buf, strlen(buf));
++		if (write(fd, buf, strlen(buf)) &lt; strlen(buf)) {
++			log_error(&quot;failed to write PID to PID file: %m&quot;);
++			exit(1);
++		}
+ 
+ 		close(0);
+ 		open(&quot;/dev/null&quot;, O_RDWR);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000090.html">[Iscsitarget-svn] r178 - in trunk: . patches
+</A></li>
+	<LI>Next message: <A HREF="000092.html">[Iscsitarget-svn] r180 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#91">[ date ]</a>
+              <a href="thread.html#91">[ thread ]</a>
+              <a href="subject.html#91">[ subject ]</a>
+              <a href="author.html#91">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

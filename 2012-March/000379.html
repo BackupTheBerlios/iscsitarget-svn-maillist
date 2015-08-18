@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[469]	branches/1.4.20/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2012-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B469%5D%0A%09branches/1.4.20/kernel&In-Reply-To=%3CE1SApVX-0004Cu-37%40sfp-svn-3.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000381.html">
+   <LINK REL="Next"  HREF="000380.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[469]	branches/1.4.20/kernel</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B469%5D%0A%09branches/1.4.20/kernel&In-Reply-To=%3CE1SApVX-0004Cu-37%40sfp-svn-3.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[469]	branches/1.4.20/kernel">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Thu Mar 22 22:25:19 CET 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000381.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[468]	trunk/kernel/persist.c
+</A></li>
+        <LI>Next message: <A HREF="000380.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[470] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#379">[ date ]</a>
+              <a href="thread.html#379">[ thread ]</a>
+              <a href="subject.html#379">[ subject ]</a>
+              <a href="author.html#379">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 469
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=469&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=469&amp;view=rev</A>
+Author:   agr1
+Date:     2012-03-22 21:25:18 +0000 (Thu, 22 Mar 2012)
+Log Message:
+-----------
+Compile fix for kernels 3.1 and 3.2
+
+Submitted by Emmanuel Florac &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">eflorac at intellique.com</A>&gt;
+
+Modified Paths:
+--------------
+    branches/1.4.20/kernel/event.c
+    branches/1.4.20/kernel/iscsi.h
+    branches/1.4.20/kernel/nthread.c
+
+Modified: branches/1.4.20/kernel/event.c
+===================================================================
+--- branches/1.4.20/kernel/event.c	2012-03-22 21:10:50 UTC (rev 468)
++++ branches/1.4.20/kernel/event.c	2012-03-22 21:25:18 UTC (rev 469)
+@@ -6,6 +6,7 @@
+  * Some functions are based on audit code.
+  */
+ 
++#include &lt;linux/module.h&gt;
+ #include &lt;net/tcp.h&gt;
+ #include &quot;iet_u.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+
+Modified: branches/1.4.20/kernel/iscsi.h
+===================================================================
+--- branches/1.4.20/kernel/iscsi.h	2012-03-22 21:10:50 UTC (rev 468)
++++ branches/1.4.20/kernel/iscsi.h	2012-03-22 21:25:18 UTC (rev 469)
+@@ -9,7 +9,9 @@
+ #define __ISCSI_H__
+ 
+ #include &lt;linux/blkdev.h&gt;
++#include &lt;linux/module.h&gt;
+ #include &lt;linux/completion.h&gt;
++#include &lt;linux/completion.h&gt;
+ #include &lt;linux/pagemap.h&gt;
+ #include &lt;linux/seq_file.h&gt;
+ #include &lt;linux/mm.h&gt;
+
+Modified: branches/1.4.20/kernel/nthread.c
+===================================================================
+--- branches/1.4.20/kernel/nthread.c	2012-03-22 21:10:50 UTC (rev 468)
++++ branches/1.4.20/kernel/nthread.c	2012-03-22 21:25:18 UTC (rev 469)
+@@ -6,6 +6,8 @@
+  * This code is licenced under the GPL.
+  */
+ 
++#include &lt;linux/module.h&gt;
++#include &lt;linux/file.h&gt;
+ #include &lt;linux/sched.h&gt;
+ #include &lt;linux/file.h&gt;
+ #include &lt;linux/kthread.h&gt;
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000381.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[468]	trunk/kernel/persist.c
+</A></li>
+	<LI>Next message: <A HREF="000380.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[470] trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#379">[ date ]</a>
+              <a href="thread.html#379">[ thread ]</a>
+              <a href="subject.html#379">[ subject ]</a>
+              <a href="author.html#379">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

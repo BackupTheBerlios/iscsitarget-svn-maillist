@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[335]	branches/1.4.20/kernel/target_disk.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B335%5D%0A%09branches/1.4.20/kernel/target_disk.c&In-Reply-To=%3CE1O5zgu-0001Gy-6a%40sfp-svn-5.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000246.html">
+   <LINK REL="Next"  HREF="000248.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[335]	branches/1.4.20/kernel/target_disk.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B335%5D%0A%09branches/1.4.20/kernel/target_disk.c&In-Reply-To=%3CE1O5zgu-0001Gy-6a%40sfp-svn-5.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[335]	branches/1.4.20/kernel/target_disk.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Sun Apr 25 13:08:00 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000246.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[334] branches/1.4.20/
+</A></li>
+        <LI>Next message: <A HREF="000248.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[336]	branches/1.4.20/kernel/target_disk.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#247">[ date ]</a>
+              <a href="thread.html#247">[ thread ]</a>
+              <a href="subject.html#247">[ subject ]</a>
+              <a href="author.html#247">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 335
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=335&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=335&amp;view=rev</A>
+Author:   agr1
+Date:     2010-04-25 11:07:59 +0000 (Sun, 25 Apr 2010)
+
+Log Message:
+-----------
+Merge trunk, rev 330:
+
+Author: rswwalker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rswwalker at 48a34bb2-7106-0410-bc49-8aa7273d22a1</A>&gt;
+Date:   Wed Apr 21 20:38:55 2010 +0000
+
+    Serial number field in the 0x80 page is defined as a right
+    aligned ascii character field which per the spec is:
+    
+        ASCII data fields shall contain only ASCII graphic codes
+        (i.e., code values 20h through 7Eh) and may be terminated
+        with one or more ASCII null (00h) characters.
+    
+        ASCII data fields described as being right-aligned shall
+        have any unused bytes at the start of the field (i.e.,
+        lowest offset) and the unused bytes shall be filled with
+        ASCII space characters (20h).
+    
+    Per that, any leading space character is an UNUSED byte and
+    therefore should not be counted.
+    
+    For compatibility with VMware which doesn't strip the leading
+    spaces of the 0x80 serial number field, this patch will adjust
+    the field down to the previous 16 character field if the
+    supplied scsi_sn is 16 characters or less.
+    
+    Bugs fixed in first revision:
+    
+    - While we adjusted len, we still used SCSI_SN_LEN when
+    calculating the offset.
+    
+    Thanks goes to Steffen Plotner for quickly testing the
+    first patch and reporting the bug in it.
+    
+    Tested against ESX by Steffen Plotner.
+    
+    Signed-off-by: Ross Walker
+
+Revision Links:
+--------------
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=330&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=330&amp;view=rev</A>
+
+Modified Paths:
+--------------
+    branches/1.4.20/kernel/target_disk.c
+
+Modified: branches/1.4.20/kernel/target_disk.c
+===================================================================
+--- branches/1.4.20/kernel/target_disk.c	2010-04-25 10:29:21 UTC (rev 334)
++++ branches/1.4.20/kernel/target_disk.c	2010-04-25 11:07:59 UTC (rev 335)
+@@ -217,13 +217,20 @@
+ 			tio_set(tio, 7, 0);
+ 			err = 0;
+ 		} else if (scb[2] == 0x80) {
+-			u32 len = (cmnd-&gt;lun) ? SCSI_SN_LEN : 4;
++			u32 len = 4;
+ 
++			if (cmnd-&gt;lun) {
++				if (strlen(cmnd-&gt;lun-&gt;scsi_sn) &lt;= 16)
++					len = 16;
++				else
++					len = SCSI_SN_LEN;
++			}
++
+ 			data[1] = 0x80;
+ 			data[3] = len;
+ 			memset(data + 4, 0x20, len);
+ 			if (cmnd-&gt;lun) {
+-				size_t offset = SCSI_SN_LEN -
++				size_t offset = len -
+ 						strlen(cmnd-&gt;lun-&gt;scsi_sn);
+ 				memcpy(data + 4 + offset, cmnd-&gt;lun-&gt;scsi_sn,
+ 						strlen(cmnd-&gt;lun-&gt;scsi_sn));
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000246.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[334] branches/1.4.20/
+</A></li>
+	<LI>Next message: <A HREF="000248.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[336]	branches/1.4.20/kernel/target_disk.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#247">[ date ]</a>
+              <a href="thread.html#247">[ thread ]</a>
+              <a href="subject.html#247">[ subject ]</a>
+              <a href="author.html#247">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

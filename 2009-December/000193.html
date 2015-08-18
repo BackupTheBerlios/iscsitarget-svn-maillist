@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r281 - in trunk: kernel patches
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-December/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r281%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200912171843.nBHIhTxO005049%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000192.html">
+   <LINK REL="Next"  HREF="000194.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r281 - in trunk: kernel patches</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r281%20-%20in%20trunk%3A%20kernel%20patches&In-Reply-To=%3C200912171843.nBHIhTxO005049%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r281 - in trunk: kernel patches">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Dec 17 19:43:29 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000192.html">[Iscsitarget-svn] r280 - in trunk: . kernel patches
+</A></li>
+        <LI>Next message: <A HREF="000194.html">[Iscsitarget-svn] r282 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#193">[ date ]</a>
+              <a href="thread.html#193">[ thread ]</a>
+              <a href="subject.html#193">[ subject ]</a>
+              <a href="author.html#193">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-12-17 19:43:29 +0100 (Thu, 17 Dec 2009)
+New Revision: 281
+
+Modified:
+   trunk/kernel/file-io.c
+   trunk/patches/compat-2.6.14-2.6.18.patch
+Log:
+From: Ross S. W. Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt;
+
+Replace do_sync_read/write with vfs_read/write in fileio for all
+kernel versions.
+
+This allows file systems that lack aio_read/write but have their
+own registered functions instead to work properly (BTRFS).
+
+It should also allow better IO accounting as a side benefit.
+
+Compiled and tested on RHEL5
+Tested on Ubuntu by Steven Umbehocker
+
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2009-12-16 19:46:37 UTC (rev 280)
++++ trunk/kernel/file-io.c	2009-12-17 18:43:29 UTC (rev 281)
+@@ -53,9 +53,9 @@
+ 		set_fs(get_ds());
+ 
+ 		if (rw == READ)
+-			ret = do_sync_read(filp, buf, count, &amp;ppos);
++			ret = vfs_read(filp, buf, count, &amp;ppos);
+ 		else
+-			ret = do_sync_write(filp, buf, count, &amp;ppos);
++			ret = vfs_write(filp, buf, count, &amp;ppos);
+ 
+ 		set_fs(oldfs);
+ 
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2009-12-16 19:46:37 UTC (rev 280)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2009-12-17 18:43:29 UTC (rev 281)
+@@ -173,22 +173,6 @@
+ +	digest_data(cmnd-&gt;conn-&gt;tx_digest_tfm, cmnd, tio,
+  		    be32_to_cpu(req-&gt;buffer_offset), (u8 *) &amp;cmnd-&gt;ddigest);
+  }
+-Index: kernel/file-io.c
+-===================================================================
+---- 1/kernel/file-io.c	(revision 105)
+-+++ 2/kernel/file-io.c	(working copy)
+-@@ -53,9 +53,9 @@ static int fileio_make_request(struct ie
+- 		set_fs(get_ds());
+- 
+- 		if (rw == READ)
+--			ret = do_sync_read(filp, buf, count, &amp;ppos);
+-+			ret = generic_file_read(filp, buf, count, &amp;ppos);
+- 		else
+--			ret = do_sync_write(filp, buf, count, &amp;ppos);
+-+			ret = generic_file_write(filp, buf, count, &amp;ppos);
+- 
+- 		set_fs(oldfs);
+- 
+ Index: kernel/iscsi.c
+ ===================================================================
+ --- 1/kernel/iscsi.c	(revision 105)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000192.html">[Iscsitarget-svn] r280 - in trunk: . kernel patches
+</A></li>
+	<LI>Next message: <A HREF="000194.html">[Iscsitarget-svn] r282 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#193">[ date ]</a>
+              <a href="thread.html#193">[ thread ]</a>
+              <a href="subject.html#193">[ subject ]</a>
+              <a href="author.html#193">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

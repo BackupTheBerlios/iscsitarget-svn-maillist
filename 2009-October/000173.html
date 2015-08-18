@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r261 - in trunk: doc/manpages etc usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r261%20-%20in%20trunk%3A%20doc/manpages%20etc%20usr&In-Reply-To=%3C200910081845.n98Ijvq8019551%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000172.html">
+   <LINK REL="Next"  HREF="000174.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r261 - in trunk: doc/manpages etc usr</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r261%20-%20in%20trunk%3A%20doc/manpages%20etc%20usr&In-Reply-To=%3C200910081845.n98Ijvq8019551%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r261 - in trunk: doc/manpages etc usr">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 20:45:57 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000172.html">[Iscsitarget-svn] r260 - trunk/doc/manpages
+</A></li>
+        <LI>Next message: <A HREF="000174.html">[Iscsitarget-svn] r262 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#173">[ date ]</a>
+              <a href="thread.html#173">[ thread ]</a>
+              <a href="subject.html#173">[ subject ]</a>
+              <a href="author.html#173">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 20:45:56 +0200 (Thu, 08 Oct 2009)
+New Revision: 261
+
+Modified:
+   trunk/doc/manpages/ietd.conf.5
+   trunk/etc/ietd.conf
+   trunk/usr/iscsid.c
+   trunk/usr/plain.c
+   trunk/usr/session.c
+Log:
+From: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+Re-enable MaxSessions parameter
+
+Signed-off-by: Andreas Florath &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">sf at flonatel.org</A>&gt;
+
+
+Modified: trunk/doc/manpages/ietd.conf.5
+===================================================================
+--- trunk/doc/manpages/ietd.conf.5	2009-10-08 18:32:34 UTC (rev 260)
++++ trunk/doc/manpages/ietd.conf.5	2009-10-08 18:45:56 UTC (rev 261)
+@@ -32,6 +32,7 @@
+     HeaderDigest None
+     DataDigest None
+     MaxConnections 1
++    MaxSessions 0
+     InitialR2T Yes
+     ImmediateData No
+     MaxRecvDataSegmentLength 8192
+@@ -205,7 +206,9 @@
+ .TP
+ .B [MaxConnections &lt;value&gt;]
+ Optional. The number of connections within a session. Has to be set to &quot;1&quot; (in words: one), which is also the default since MC/S is not supported.
+-.TP 
++.TP
++.B [MaxSessions &lt;value&gt;]
++Optional. The maximum number of sessions for this target. If this is set to 0 (wich is the default) there is no explicit session limit.
+ .B [InitialR2T &lt;Yes|No&gt;]
+ Optional. If set to &quot;Yes&quot; (default), the initiator has to wait for the target to solicit SCSI data before sending it. Setting it to &quot;No&quot; allows the initiator to send a burst of
+ .B FirstBurstLength
+
+Modified: trunk/etc/ietd.conf
+===================================================================
+--- trunk/etc/ietd.conf	2009-10-08 18:32:34 UTC (rev 260)
++++ trunk/etc/ietd.conf	2009-10-08 18:45:56 UTC (rev 261)
+@@ -66,6 +66,8 @@
+ 	#
+ 	#MaxConnections		1		# Number of connections/session
+ 						# We only support 1
++	#MaxSessions		0		# Number of sessions/target
++						# 0 = no explicit limit
+ 	#InitialR2T		Yes		# Wait first for R2T
+ 						# Yes = no unsolicited data
+ 	#ImmediateData		Yes		# Data can accompany command
+
+Modified: trunk/usr/iscsid.c
+===================================================================
+--- trunk/usr/iscsid.c	2009-10-08 18:32:34 UTC (rev 260)
++++ trunk/usr/iscsid.c	2009-10-08 18:45:56 UTC (rev 261)
+@@ -456,12 +456,14 @@
+ 
+ 		conn-&gt;tid = target-&gt;tid;
+ 
+-/*		if (conn-&gt;target-&gt;max_sessions &amp;&amp; */
+-/*		    (++conn-&gt;target-&gt;session_cnt &gt; conn-&gt;target-&gt;max_sessions)) { */
+-/*			conn-&gt;target-&gt;session_cnt--; */
+-/*			login_rsp_ini_err(conn, ISCSI_STATUS_TOO_MANY_CONN); */
+-/*			return; */
+-/*		} */
++		if (target-&gt;max_nr_sessions &amp;&amp;
++		    (++target-&gt;nr_sessions &gt; target-&gt;max_nr_sessions)) {
++			--target-&gt;nr_sessions;
++			log_debug(1, &quot;rejecting session for target '%s': &quot;
++				  &quot;too many sessions&quot;, target_name);
++			login_rsp_ini_err(conn, ISCSI_STATUS_TOO_MANY_CONN);
++			return;
++		}
+ 
+ 		if (ki-&gt;param_get(conn-&gt;tid, 0, key_session,
+ 				  conn-&gt;session_param))
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2009-10-08 18:32:34 UTC (rev 260)
++++ trunk/usr/plain.c	2009-10-08 18:45:56 UTC (rev 261)
+@@ -617,7 +617,12 @@
+ 		} else if (!strcasecmp(p, &quot;Alias&quot;) &amp;&amp; tid) {
+ 			;
+ 		} else if (!strcasecmp(p, &quot;MaxSessions&quot;) &amp;&amp; tid) {
+-			/* target-&gt;max_sessions = strtol(q, &amp;q, 0); */
++			struct target * const target =
++				target_find_by_id(tid);
++			if (target)
++				target-&gt;max_nr_sessions = strtol(q, &amp;q, 0);
++			else
++				log_warning(&quot;Target '%s' not found&quot;, q);
+ 		} else if (!strcasecmp(p, &quot;Lun&quot;) &amp;&amp; tid) {
+ 			u32 lun = strtol(q, &amp;q, 10);
+ 			__plain_lunit_create(tid, lun, q, 0);
+
+Modified: trunk/usr/session.c
+===================================================================
+--- trunk/usr/session.c	2009-10-08 18:32:34 UTC (rev 260)
++++ trunk/usr/session.c	2009-10-08 18:45:56 UTC (rev 261)
+@@ -158,7 +158,7 @@
+ 
+ 	if (session-&gt;target) {
+ 		remque(&amp;session-&gt;slist);
+-/* 		session-&gt;target-&gt;nr_sessions--; */
++		--session-&gt;target-&gt;nr_sessions;
+ 	}
+ 
+ 	free(session-&gt;initiator);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000172.html">[Iscsitarget-svn] r260 - trunk/doc/manpages
+</A></li>
+	<LI>Next message: <A HREF="000174.html">[Iscsitarget-svn] r262 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#173">[ date ]</a>
+              <a href="thread.html#173">[ thread ]</a>
+              <a href="subject.html#173">[ subject ]</a>
+              <a href="author.html#173">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

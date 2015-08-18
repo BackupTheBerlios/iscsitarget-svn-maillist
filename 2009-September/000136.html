@@ -1,0 +1,105 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r224 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r224%20-%20trunk/kernel&In-Reply-To=%3C200909061112.n86BCee7022671%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000135.html">
+   <LINK REL="Next"  HREF="000137.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r224 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r224%20-%20trunk/kernel&In-Reply-To=%3C200909061112.n86BCee7022671%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r224 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Sun Sep  6 13:12:40 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000135.html">[Iscsitarget-svn] r223 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000137.html">[Iscsitarget-svn] r225 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#136">[ date ]</a>
+              <a href="thread.html#136">[ thread ]</a>
+              <a href="subject.html#136">[ subject ]</a>
+              <a href="author.html#136">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-06 13:12:39 +0200 (Sun, 06 Sep 2009)
+New Revision: 224
+
+Modified:
+   trunk/kernel/ua.c
+Log:
+Fix bool / int mess in ua.c, breaking backward compatibility for older kernels
+
+Thanks to Stefan Rubner for pointing it out.
+
+
+Modified: trunk/kernel/ua.c
+===================================================================
+--- trunk/kernel/ua.c	2009-09-04 15:29:35 UTC (rev 223)
++++ trunk/kernel/ua.c	2009-09-06 11:12:39 UTC (rev 224)
+@@ -57,7 +57,7 @@
+ 	struct ua_entry *ua;
+ 
+ 	spin_lock(&amp;sess-&gt;ua_hash_lock);
+-	ua = ua_find_hash(sess, lun, 0, 0, false);
++	ua = ua_find_hash(sess, lun, 0, 0, 0);
+ 	spin_unlock(&amp;sess-&gt;ua_hash_lock);
+ 
+ 	dprintk_ua(ua, sess, lun);
+@@ -83,7 +83,7 @@
+ 	struct ua_entry *ua;
+ 
+ 	spin_lock(&amp;sess-&gt;ua_hash_lock);
+-	ua = __ua_get_hash(sess, lun, 0, 0, false);
++	ua = __ua_get_hash(sess, lun, 0, 0, 0);
+ 	spin_unlock(&amp;sess-&gt;ua_hash_lock);
+ 
+ 	dprintk_ua(ua, sess, lun);
+@@ -97,7 +97,7 @@
+ 	struct ua_entry *ua;
+ 
+ 	spin_lock(&amp;sess-&gt;ua_hash_lock);
+-	ua = __ua_get_hash(sess, lun, asc, ascq, true);
++	ua = __ua_get_hash(sess, lun, asc, ascq, 1);
+ 	spin_unlock(&amp;sess-&gt;ua_hash_lock);
+ 
+ 	dprintk_ua(ua, sess, lun);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000135.html">[Iscsitarget-svn] r223 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000137.html">[Iscsitarget-svn] r225 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#136">[ date ]</a>
+              <a href="thread.html#136">[ thread ]</a>
+              <a href="subject.html#136">[ subject ]</a>
+              <a href="author.html#136">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

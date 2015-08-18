@@ -1,0 +1,389 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r258 - trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-October/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r258%20-%20trunk/kernel&In-Reply-To=%3C200910081831.n98IVCfK016352%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000169.html">
+   <LINK REL="Next"  HREF="000171.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r258 - trunk/kernel</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r258%20-%20trunk/kernel&In-Reply-To=%3C200910081831.n98IVCfK016352%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r258 - trunk/kernel">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct  8 20:31:12 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000169.html">[Iscsitarget-svn] r257 - in trunk: include kernel usr
+</A></li>
+        <LI>Next message: <A HREF="000171.html">[Iscsitarget-svn] r259 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#170">[ date ]</a>
+              <a href="thread.html#170">[ thread ]</a>
+              <a href="subject.html#170">[ subject ]</a>
+              <a href="author.html#170">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-10-08 20:31:12 +0200 (Thu, 08 Oct 2009)
+New Revision: 258
+
+Modified:
+   trunk/kernel/iscsi.c
+   trunk/kernel/iscsi.h
+Log:
+Ping the initiator with NOP-In PDUs
+
+General idea: generate a fake NOP-Out request for internal housekeeping - the
+actual NOP-In ping is treated as a response to it. This way the existing
+mechanisms can be leveraged with minimal changes only (cmnds with a TTT !=
+RESERVED must be permitted in the hash table now).
+
+
+Modified: trunk/kernel/iscsi.c
+===================================================================
+--- trunk/kernel/iscsi.c	2009-10-08 18:30:14 UTC (rev 257)
++++ trunk/kernel/iscsi.c	2009-10-08 18:31:12 UTC (rev 258)
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (C) 2002-2003 Ardis Technolgies &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">roman at ardistech.com</A>&gt;
++ * Copyright (C) 2008 Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+  *
+  * Released under the terms of the GNU GPL v2.0.
+  */
+@@ -406,6 +407,12 @@
+ 
+ 	if (!cmnd)
+ 		return;
++
++	if (cmnd_timer_active(cmnd)) {
++		clear_cmnd_timer_active(cmnd);
++		del_timer_sync(&amp;cmnd-&gt;timer);
++	}
++
+ 	dprintk(D_GENERIC, &quot;%p\n&quot;, cmnd);
+ 	conn = cmnd-&gt;conn;
+ 	kfree(cmnd-&gt;pdu.ahs);
+@@ -565,7 +572,7 @@
+ 	return cmnd;
+ }
+ 
+-static int cmnd_insert_hash(struct iscsi_cmnd *cmnd)
++static int cmnd_insert_hash_ttt(struct iscsi_cmnd *cmnd, u32 ttt)
+ {
+ 	struct iscsi_session *session = cmnd-&gt;conn-&gt;session;
+ 	struct iscsi_cmnd *tmp;
+@@ -573,17 +580,11 @@
+ 	int err = 0;
+ 	u32 itt = cmnd-&gt;pdu.bhs.itt;
+ 
+-	dprintk(D_GENERIC, &quot;%p:%x\n&quot;, cmnd, itt);
+-	if (itt == ISCSI_RESERVED_TAG) {
+-		err = -ISCSI_REASON_PROTOCOL_ERROR;
+-		goto out;
+-	}
+-
+ 	head = &amp;session-&gt;cmnd_hash[cmnd_hashfn(cmnd-&gt;pdu.bhs.itt)];
+ 
+ 	spin_lock(&amp;session-&gt;cmnd_hash_lock);
+ 
+-	tmp = __cmnd_find_hash(session, itt, ISCSI_RESERVED_TAG);
++	tmp = __cmnd_find_hash(session, itt, ttt);
+ 	if (!tmp) {
+ 		list_add_tail(&amp;cmnd-&gt;hash_list, head);
+ 		set_cmnd_hashed(cmnd);
+@@ -592,12 +593,24 @@
+ 
+ 	spin_unlock(&amp;session-&gt;cmnd_hash_lock);
+ 
++	return err;
++}
++
++static int cmnd_insert_hash(struct iscsi_cmnd *cmnd)
++{
++	int err;
++
++	dprintk(D_GENERIC, &quot;%p:%x\n&quot;, cmnd, cmnd-&gt;pdu.bhs.itt);
++
++	if (cmnd-&gt;pdu.bhs.itt == ISCSI_RESERVED_TAG)
++		return -ISCSI_REASON_PROTOCOL_ERROR;
++
++	err = cmnd_insert_hash_ttt(cmnd, ISCSI_RESERVED_TAG);
+ 	if (!err) {
+ 		update_stat_sn(cmnd);
+ 		err = check_cmd_sn(cmnd);
+ 	}
+ 
+-out:
+ 	return err;
+ }
+ 
+@@ -613,8 +626,8 @@
+ 
+ 	spin_lock(&amp;session-&gt;cmnd_hash_lock);
+ 
+-	tmp = __cmnd_find_hash(session, cmnd-&gt;pdu.bhs.itt, ISCSI_RESERVED_TAG);
+-
++	tmp = __cmnd_find_hash(session, cmnd-&gt;pdu.bhs.itt,
++			       cmnd-&gt;target_task_tag);
+ 	if (tmp &amp;&amp; tmp == cmnd)
+ 		__cmnd_remove_hash(tmp);
+ 	else
+@@ -831,18 +844,28 @@
+ 	int i, err = 0;
+ 
+ 	if (cmnd_ttt(cmnd) != cpu_to_be32(ISCSI_RESERVED_TAG)) {
+-		/*
+-		 * We don't request a NOP-Out by sending a NOP-In.
+-		 * See 10.18.2 in the draft 20.
+-		 */
+-		eprintk(&quot;initiator bug %x\n&quot;, cmnd_itt(cmnd));
+-		err = -ISCSI_REASON_PROTOCOL_ERROR;
+-		goto out;
++		cmnd-&gt;req = cmnd_find_hash(conn-&gt;session, cmnd-&gt;pdu.bhs.itt,
++					   cmnd-&gt;pdu.bhs.ttt);
++		if (!cmnd-&gt;req) {
++			/*
++			 * We didn't request this NOP-Out (by sending a
++			 * NOP-In, see 10.18.2 of the RFC) or our fake NOP-Out
++			 * timed out.
++			 */
++			eprintk(&quot;initiator bug %x\n&quot;, cmnd_itt(cmnd));
++			err = -ISCSI_REASON_PROTOCOL_ERROR;
++			goto out;
++		}
++
++		del_timer_sync(&amp;cmnd-&gt;req-&gt;timer);
++		clear_cmnd_timer_active(cmnd-&gt;req);
++		dprintk(D_GENERIC, &quot;NOP-Out: %p, ttt %x, timer %p\n&quot;,
++			cmnd-&gt;req, cmnd_ttt(cmnd-&gt;req), &amp;cmnd-&gt;req-&gt;timer);
+ 	}
+ 
+ 	if (cmnd_itt(cmnd) == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+ 		if (!(cmnd-&gt;pdu.bhs.opcode &amp; ISCSI_OP_IMMEDIATE))
+-			eprintk(&quot;%s\n&quot;,&quot;initiator bug!&quot;);
++			eprintk(&quot;%s\n&quot;, &quot;initiator bug!&quot;);
+ 		update_stat_sn(cmnd);
+ 		err = check_cmd_sn(cmnd);
+ 		if (err)
+@@ -1313,19 +1336,24 @@
+ 	iscsi_cmnd_init_write(rsp);
+ }
+ 
++static void nop_hdr_setup(struct iscsi_hdr *hdr, u8 opcode, __be32 itt,
++			  __be32 ttt)
++{
++	hdr-&gt;opcode = opcode;
++	hdr-&gt;flags = ISCSI_FLG_FINAL;
++	hdr-&gt;itt = itt;
++	hdr-&gt;ttt = ttt;
++}
++
+ static void nop_out_exec(struct iscsi_cmnd *req)
+ {
+ 	struct iscsi_cmnd *rsp;
+-	struct iscsi_nop_in_hdr *rsp_hdr;
+ 
+ 	if (cmnd_itt(req) != cpu_to_be32(ISCSI_RESERVED_TAG)) {
+ 		rsp = iscsi_cmnd_create_rsp_cmnd(req, 1);
+ 
+-		rsp_hdr = (struct iscsi_nop_in_hdr *)&amp;rsp-&gt;pdu.bhs;
+-		rsp_hdr-&gt;opcode = ISCSI_OP_NOP_IN;
+-		rsp_hdr-&gt;flags = ISCSI_FLG_FINAL;
+-		rsp_hdr-&gt;itt = req-&gt;pdu.bhs.itt;
+-		rsp_hdr-&gt;ttt = cpu_to_be32(ISCSI_RESERVED_TAG);
++		nop_hdr_setup(&amp;rsp-&gt;pdu.bhs, ISCSI_OP_NOP_IN, req-&gt;pdu.bhs.itt,
++			      cpu_to_be32(ISCSI_RESERVED_TAG));
+ 
+ 		if (req-&gt;pdu.datasize)
+ 			assert(req-&gt;tio);
+@@ -1340,10 +1368,86 @@
+ 		assert(get_pgcnt(req-&gt;pdu.datasize, 0) &lt; ISCSI_CONN_IOV_MAX);
+ 		rsp-&gt;pdu.datasize = req-&gt;pdu.datasize;
+ 		iscsi_cmnd_init_write(rsp);
+-	} else
++	} else {
++		if (req-&gt;req) {
++			dprintk(D_GENERIC, &quot;releasing NOP-Out %p, ttt %x; &quot;
++				&quot;removing NOP-In %p, ttt %x\n&quot;, req-&gt;req,
++				cmnd_ttt(req-&gt;req), req, cmnd_ttt(req));
++			cmnd_release(req-&gt;req, 0);
++		}
+ 		iscsi_cmnd_remove(req);
++	}
+ }
+ 
++static void nop_in_timeout(unsigned long data)
++{
++	struct iscsi_cmnd *req = (struct iscsi_cmnd *)data;
++
++	printk(KERN_INFO &quot;NOP-In ping timed out - closing sid:cid %llu:%u\n&quot;,
++	       req-&gt;conn-&gt;session-&gt;sid, req-&gt;conn-&gt;cid);
++	clear_cmnd_timer_active(req);
++	conn_close(req-&gt;conn);
++}
++
++/* create a fake NOP-Out req and treat the NOP-In as our rsp to it */
++void send_nop_in(struct iscsi_conn *conn)
++{
++	struct iscsi_cmnd *req = cmnd_alloc(conn, 1);
++	struct iscsi_cmnd *rsp = iscsi_cmnd_create_rsp_cmnd(req, 0);
++
++	req-&gt;target_task_tag = get_next_ttt(conn-&gt;session);
++
++
++	nop_hdr_setup(&amp;req-&gt;pdu.bhs, ISCSI_OP_NOP_OUT,
++		      cpu_to_be32(ISCSI_RESERVED_TAG), req-&gt;target_task_tag);
++	nop_hdr_setup(&amp;rsp-&gt;pdu.bhs, ISCSI_OP_NOP_IN,
++		      cpu_to_be32(ISCSI_RESERVED_TAG), req-&gt;target_task_tag);
++
++	dprintk(D_GENERIC, &quot;NOP-Out: %p, ttt %x, timer %p; &quot;
++		&quot;NOP-In: %p, ttt %x;\n&quot;, req, cmnd_ttt(req), &amp;req-&gt;timer, rsp,
++		cmnd_ttt(rsp));
++
++	init_timer(&amp;req-&gt;timer);
++	req-&gt;timer.data = (unsigned long)req;
++	req-&gt;timer.function = nop_in_timeout;
++
++	if (cmnd_insert_hash_ttt(req, req-&gt;target_task_tag)) {
++		eprintk(&quot;%s\n&quot;,
++			&quot;failed to insert fake NOP-Out into hash table&quot;);
++		cmnd_release(rsp, 0);
++		cmnd_release(req, 0);
++	} else
++		iscsi_cmnd_init_write(rsp);
++}
++
++static void nop_in_tx_end(struct iscsi_cmnd *cmnd)
++{
++	struct iscsi_conn *conn = cmnd-&gt;conn;
++	u32 t;
++
++	if (cmnd-&gt;pdu.bhs.ttt == cpu_to_be32(ISCSI_RESERVED_TAG))
++		return;
++
++	/*
++	 * NOP-In ping issued by the target.
++	 * FIXME: Sanitize the NOP timeout earlier, during configuration
++	 */
++	t = conn-&gt;session-&gt;target-&gt;trgt_param.nop_timeout;
++
++	if (!t || t &gt; conn-&gt;session-&gt;target-&gt;trgt_param.nop_interval) {
++		eprintk(&quot;Adjusting NOPTimeout of tid %u from %u to %u &quot;
++			&quot;(== NOPInterval)\n&quot;, conn-&gt;session-&gt;target-&gt;tid,
++			conn-&gt;session-&gt;target-&gt;trgt_param.nop_timeout,
++			conn-&gt;session-&gt;target-&gt;trgt_param.nop_interval);
++		t = conn-&gt;session-&gt;target-&gt;trgt_param.nop_interval;
++		conn-&gt;session-&gt;target-&gt;trgt_param.nop_timeout = t;
++	}
++
++	dprintk(D_GENERIC, &quot;NOP-In %p, %x: timer %p\n&quot;,	cmnd, cmnd_ttt(cmnd),
++		&amp;cmnd-&gt;req-&gt;timer); set_cmnd_timer_active(cmnd-&gt;req);
++	mod_timer(&amp;cmnd-&gt;req-&gt;timer, jiffies + HZ * t);
++}
++
+ static void logout_exec(struct iscsi_cmnd *req)
+ {
+ 	struct iscsi_logout_req_hdr *req_hdr;
+@@ -1492,7 +1596,14 @@
+ 
+ 	switch (cmnd_opcode(cmnd)) {
+ 	case ISCSI_OP_NOP_IN:
+-		cmnd_set_sn(cmnd, 1);
++		if (cmnd-&gt;pdu.bhs.itt == ISCSI_RESERVED_TAG) {
++			/* NOP-In ping generated by us. Don't advance StatSN. */
++			cmnd_set_sn(cmnd, 0);
++			cmnd_set_sn(cmnd-&gt;req, 0);
++			cmnd-&gt;pdu.bhs.sn = cpu_to_be32(conn-&gt;stat_sn);
++			cmnd-&gt;req-&gt;pdu.bhs.sn = cpu_to_be32(conn-&gt;stat_sn);
++		} else
++			cmnd_set_sn(cmnd, 1);
+ 		cmnd_send_pdu(conn, cmnd);
+ 		break;
+ 	case ISCSI_OP_SCSI_RSP:
+@@ -1548,6 +1659,8 @@
+ 	dprintk(D_GENERIC, &quot;%p:%x\n&quot;, cmnd, cmnd_opcode(cmnd));
+ 	switch (cmnd_opcode(cmnd)) {
+ 	case ISCSI_OP_NOP_IN:
++		nop_in_tx_end(cmnd);
++		break;
+ 	case ISCSI_OP_SCSI_RSP:
+ 	case ISCSI_OP_SCSI_TASK_MGT_RSP:
+ 	case ISCSI_OP_TEXT_RSP:
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2009-10-08 18:30:14 UTC (rev 257)
++++ trunk/kernel/iscsi.h	2009-10-08 18:31:12 UTC (rev 258)
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (C) 2002-2003 Ardis Technolgies &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">roman at ardistech.com</A>&gt;
++ * Copyright (C) 2008 Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+  *
+  * Released under the terms of the GNU GPL v2.0.
+  */
+@@ -286,6 +287,8 @@
+ 
+ 	u8 status;
+ 
++	struct timer_list timer;
++
+ 	u32 r2t_sn;
+ 	u32 r2t_length;
+ 	u32 is_unsolicited_data;
+@@ -471,6 +474,7 @@
+ 	CMND_pending,
+ 	CMND_tmfabort,
+ 	CMND_rxstart,
++	CMND_timer_active,
+ };
+ 
+ #define set_cmnd_hashed(cmnd)	set_bit(CMND_hashed, &amp;(cmnd)-&gt;flags)
+@@ -501,6 +505,11 @@
+ #define set_cmnd_rxstart(cmnd)	set_bit(CMND_rxstart, &amp;(cmnd)-&gt;flags)
+ #define cmnd_rxstart(cmnd)	test_bit(CMND_rxstart, &amp;(cmnd)-&gt;flags)
+ 
++#define set_cmnd_timer_active(cmnd)  set_bit(CMND_timer_active, &amp;(cmnd)-&gt;flags)
++#define clear_cmnd_timer_active(cmnd) \
++	                        clear_bit(CMND_timer_active, &amp;(cmnd)-&gt;flags)
++#define cmnd_timer_active(cmnd) test_bit(CMND_timer_active, &amp;(cmnd)-&gt;flags)
++
+ #define VENDOR_ID	&quot;IET&quot;
+ #define PRODUCT_ID	&quot;VIRTUAL-DISK&quot;
+ #define PRODUCT_REV	&quot;0&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000169.html">[Iscsitarget-svn] r257 - in trunk: include kernel usr
+</A></li>
+	<LI>Next message: <A HREF="000171.html">[Iscsitarget-svn] r259 - trunk/kernel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#170">[ date ]</a>
+              <a href="thread.html#170">[ thread ]</a>
+              <a href="subject.html#170">[ subject ]</a>
+              <a href="author.html#170">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

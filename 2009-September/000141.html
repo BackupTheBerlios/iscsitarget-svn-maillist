@@ -1,0 +1,102 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r229 - trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2009-September/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r229%20-%20trunk&In-Reply-To=%3C200909100555.n8A5ts6Q007456%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000140.html">
+   <LINK REL="Next"  HREF="000142.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r229 - trunk</H1>
+    <B>agr at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r229%20-%20trunk&In-Reply-To=%3C200909100555.n8A5ts6Q007456%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r229 - trunk">agr at mail.berlios.de
+       </A><BR>
+    <I>Thu Sep 10 07:55:54 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000140.html">[Iscsitarget-svn] r228 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000142.html">[Iscsitarget-svn] r230 - in trunk: . etc usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#141">[ date ]</a>
+              <a href="thread.html#141">[ thread ]</a>
+              <a href="subject.html#141">[ subject ]</a>
+              <a href="author.html#141">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: agr
+Date: 2009-09-10 07:55:54 +0200 (Thu, 10 Sep 2009)
+New Revision: 229
+
+Modified:
+   trunk/iscsitarget.spec
+Log:
+From: &quot;Ross S. W. Walker&quot; &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">RWalker at medallion.com</A>&gt; 
+
+iscsitarget.spec: change iet version string for svn build
+
+This patch modifies iscsitarget.spec to change the
+IET_VERSION_STRING for SVN based builds to track the SVN revision
+number for version control.
+
+Tested on RHEL5.
+
+
+Modified: trunk/iscsitarget.spec
+===================================================================
+--- trunk/iscsitarget.spec	2009-09-09 20:56:09 UTC (rev 228)
++++ trunk/iscsitarget.spec	2009-09-10 05:55:54 UTC (rev 229)
+@@ -44,7 +44,7 @@
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://sourceforge.net/projects/iscsitarget/">http://sourceforge.net/projects/iscsitarget/</A>
+-Packager: Iscsitarget Developer [<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">iscsitarget-devel at lists.sourceforge.net</A>]
++Packager: IET development team &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">iscsitarget-devel at lists.sourceforge.net</A>&gt;
+ 
+ ## Source files
+ %if %svn
+@@ -126,6 +126,8 @@
+ %if %svn
+ %setup -q -T -c -n %{name}-%{version}
+ svn export --force --non-interactive -q %{svn_url} .
++sed -i -e &quot;s/\(#define IET_VERSION_STRING\).*/\1\t\&quot;%{version}\&quot;/&quot; include/iet_u.h
++
+ %else
+ %setup -q -n %{name}-%{version}
+ %endif
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000140.html">[Iscsitarget-svn] r228 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000142.html">[Iscsitarget-svn] r230 - in trunk: . etc usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#141">[ date ]</a>
+              <a href="thread.html#141">[ thread ]</a>
+              <a href="subject.html#141">[ subject ]</a>
+              <a href="author.html#141">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

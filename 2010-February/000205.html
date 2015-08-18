@@ -1,0 +1,268 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[293] trunk/usr/ctldev.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-February/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B293%5D%20trunk/usr/ctldev.c&In-Reply-To=%3CE1Ng2T4-0004vg-GE%40sfp-svn-4.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000204.html">
+   <LINK REL="Next"  HREF="000206.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[293] trunk/usr/ctldev.c</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B293%5D%20trunk/usr/ctldev.c&In-Reply-To=%3CE1Ng2T4-0004vg-GE%40sfp-svn-4.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[293] trunk/usr/ctldev.c">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Fri Feb 12 21:50:26 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000204.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[292] trunk
+</A></li>
+        <LI>Next message: <A HREF="000206.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[294] trunk/usr/ctldev.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#205">[ date ]</a>
+              <a href="thread.html#205">[ thread ]</a>
+              <a href="subject.html#205">[ subject ]</a>
+              <a href="author.html#205">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 293
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=293&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=293&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-02-12 20:50:26 +0000 (Fri, 12 Feb 2010)
+
+Log Message:
+-----------
+The ioctl syscall function sanitizes the return codes from the
+kernel to, -1, 0 or a positive integer and sets errno to the
+actual error returned from the kernel. Unfortunately the user
+code was expecting the actual error codes returned from the
+kernel.
+
+Fixed to test errno and return the negated errno to the user
+code.
+
+Tested-by: Jonathan Kelley
+Signed-off-by: Ross Walker
+
+Modified Paths:
+--------------
+    trunk/usr/ctldev.c
+
+Modified: trunk/usr/ctldev.c
+===================================================================
+--- trunk/usr/ctldev.c	2010-02-12 20:49:29 UTC (rev 292)
++++ trunk/usr/ctldev.c	2010-02-12 20:50:26 UTC (rev 293)
+@@ -75,10 +75,10 @@
+ 	int err;
+ 
+ 	err = ioctl(ctrl_fd, GET_MODULE_INFO, info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl GET_MODULE_INFO: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_target_create(u32 *tid, char *name)
+@@ -92,14 +92,12 @@
+ 	info.tid = *tid;
+ 
+ 	err = ioctl(ctrl_fd, ADD_TARGET, &amp;info);
+-	if (err == -EFAULT) {
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_TARGET: %m&quot;);
+-		return err;
+-	}
++	else if (!err)
++		*tid = info.tid;
+ 
+-	*tid = info.tid;
+-
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_target_destroy(u32 tid)
+@@ -111,15 +109,19 @@
+ 	info.tid = tid;
+ 
+ 	err = ioctl(ctrl_fd, DEL_TARGET, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_TARGET: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static inline int iscsi_target_destroy_all(void)
+ {
+-	return ioctl(ctrl_fd, DEL_TARGET_ALL, NULL);
++	int err;
++
++	err = ioctl(ctrl_fd, DEL_TARGET_ALL, NULL);
++
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_lunit_create(u32 tid, u32 lun, char *args)
+@@ -142,10 +144,10 @@
+ 	info.args_len = strlen(args);
+ 
+ 	err = ioctl(ctrl_fd, ADD_VOLUME, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_VOLUME: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_lunit_destroy(u32 tid, u32 lun)
+@@ -158,10 +160,10 @@
+ 	info.lun = lun;
+ 
+ 	err = ioctl(ctrl_fd, DEL_VOLUME, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_VOLUME: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
+@@ -174,10 +176,10 @@
+ 	info.cid = cid;
+ 
+ 	err = ioctl(ctrl_fd, DEL_CONN, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_CONN: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param)
+@@ -191,7 +193,7 @@
+ 	info.param_type = type;
+ 
+ 	err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ISCSI_PARAM_GET: %m&quot;);
+ 	else if (!err) {
+ 		if (type == key_session)
+@@ -202,7 +204,7 @@
+ 				param[i].val = info.target_param[i];
+ 	}
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial, struct iscsi_param *param)
+@@ -224,10 +226,10 @@
+ 			info.target_param[i] = param[i].val;
+ 
+ 	err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ISCSI_PARAM_SET: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn, u32 max_cmd_sn, char *name)
+@@ -244,10 +246,10 @@
+ 	strncpy(info.initiator_name, name, sizeof(info.initiator_name) - 1);
+ 
+ 	err = ioctl(ctrl_fd, ADD_SESSION, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_SESSION: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_session_destroy(u32 tid, u64 sid)
+@@ -261,10 +263,10 @@
+ 	info.sid = sid;
+ 
+ 	err = ioctl(ctrl_fd, DEL_SESSION, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl DEL_SESSION: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
+@@ -285,10 +287,10 @@
+ 	info.data_digest = ddigest;
+ 
+ 	err = ioctl(ctrl_fd, ADD_CONN, &amp;info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl ADD_CONN: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ static int iscsi_session_info(struct session_info *info)
+@@ -296,10 +298,10 @@
+ 	int err;
+ 
+ 	err = ioctl(ctrl_fd, GET_SESSION_INFO, info);
+-	if (err == -EFAULT)
++	if (err &lt; 0 &amp;&amp; errno == EFAULT)
+ 		log_error(&quot;error calling ioctl GET_SESSION_INFO: %m&quot;);
+ 
+-	return err;
++	return (err &lt; 0) ? -errno : 0;
+ }
+ 
+ struct iscsi_kernel_interface ioctl_ki = {
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000204.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[292] trunk
+</A></li>
+	<LI>Next message: <A HREF="000206.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[294] trunk/usr/ctldev.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#205">[ date ]</a>
+              <a href="thread.html#205">[ thread ]</a>
+              <a href="subject.html#205">[ subject ]</a>
+              <a href="author.html#205">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

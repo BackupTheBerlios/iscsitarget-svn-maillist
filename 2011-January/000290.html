@@ -1,0 +1,310 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[378] trunk/kernel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-January/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B378%5D%20trunk/kernel&In-Reply-To=%3CE1Pd7Tk-0003EE-Mn%40sfp-svn-1.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000289.html">
+   <LINK REL="Next"  HREF="000291.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[378] trunk/kernel</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B378%5D%20trunk/kernel&In-Reply-To=%3CE1Pd7Tk-0003EE-Mn%40sfp-svn-1.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[378] trunk/kernel">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Wed Jan 12 21:39:36 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000289.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[377]	branches/1.4.20/iscsitarget.spec
+</A></li>
+        <LI>Next message: <A HREF="000291.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[379] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#290">[ date ]</a>
+              <a href="thread.html#290">[ thread ]</a>
+              <a href="subject.html#290">[ subject ]</a>
+              <a href="author.html#290">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 378
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=378&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=378&amp;view=rev</A>
+Author:   agr1
+Date:     2011-01-12 20:39:36 +0000 (Wed, 12 Jan 2011)
+
+Log Message:
+-----------
+Convert semaphores to mutexes
+
+As of 2.6.37, using semaphores as mutexes is finally not supported anymore
+after having been deprecated for several years now.
+Compile tested on 2.6.35.
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/kernel/config.c
+    trunk/kernel/iscsi.h
+    trunk/kernel/target.c
+    trunk/kernel/volume.c
+
+Modified: trunk/kernel/config.c
+===================================================================
+--- trunk/kernel/config.c	2011-01-10 22:35:06 UTC (rev 377)
++++ trunk/kernel/config.c	2011-01-12 20:39:36 UTC (rev 378)
+@@ -9,7 +9,7 @@
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+ 
+-static DECLARE_MUTEX(ioctl_sem);
++static DEFINE_MUTEX(ioctl_mutex);
+ 
+ struct proc_entries {
+ 	const char *name;
+@@ -258,7 +258,7 @@
+ 	long err;
+ 	u32 id;
+ 
+-	err = down_interruptible(&amp;ioctl_sem);
++	err = mutex_lock_interruptible(&amp;ioctl_mutex);
+ 	if (err &lt; 0)
+ 		return err;
+ 
+@@ -339,7 +339,7 @@
+ 
+ 	target_unlock(target);
+ done:
+-	up(&amp;ioctl_sem);
++	mutex_unlock(&amp;ioctl_mutex);
+ 
+ 	return err;
+ }
+@@ -347,9 +347,9 @@
+ static int release(struct inode *i __attribute__((unused)),
+ 		   struct file *f __attribute__((unused)))
+ {
+-	down(&amp;ioctl_sem);
++	mutex_lock(&amp;ioctl_mutex);
+ 	target_del_all();
+-	up(&amp;ioctl_sem);
++	mutex_unlock(&amp;ioctl_mutex);
+ 
+ 	return 0;
+ }
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2011-01-10 22:35:06 UTC (rev 377)
++++ trunk/kernel/iscsi.h	2011-01-12 20:39:36 UTC (rev 378)
+@@ -130,7 +130,7 @@
+ 	/* Points either to own list or global pool */
+ 	struct worker_thread_info * wthread_info;
+ 
+-	struct semaphore target_sem;
++	struct mutex target_mutex;
+ };
+ 
+ struct iscsi_queue {
+
+Modified: trunk/kernel/target.c
+===================================================================
+--- trunk/kernel/target.c	2011-01-10 22:35:06 UTC (rev 377)
++++ trunk/kernel/target.c	2011-01-12 20:39:36 UTC (rev 378)
+@@ -4,6 +4,8 @@
+  * Released under the terms of the GNU GPL v2.0.
+  */
+ 
++#include &lt;linux/mutex.h&gt;
++
+ #include &quot;iscsi.h&quot;
+ #include &quot;digest.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+@@ -11,7 +13,7 @@
+ #define	MAX_NR_TARGETS	(1UL &lt;&lt; 30)
+ 
+ static LIST_HEAD(target_list);
+-static DECLARE_MUTEX(target_list_sem);
++static DEFINE_MUTEX(target_list_mutex);
+ static u32 next_target_id;
+ static u32 nr_targets;
+ 
+@@ -48,16 +50,16 @@
+ 	int err = 0;
+ 
+ 	if (interruptible)
+-		err = down_interruptible(&amp;target-&gt;target_sem);
++		err = mutex_lock_interruptible(&amp;target-&gt;target_mutex);
+ 	else
+-		down(&amp;target-&gt;target_sem);
++		mutex_lock(&amp;target-&gt;target_mutex);
+ 
+ 	return err;
+ }
+ 
+ inline void target_unlock(struct iscsi_target *target)
+ {
+-	up(&amp;target-&gt;target_sem);
++	mutex_unlock(&amp;target-&gt;target_mutex);
+ }
+ 
+ static struct iscsi_target *__target_lookup_by_id(u32 id)
+@@ -86,9 +88,9 @@
+ {
+ 	struct iscsi_target *target;
+ 
+-	down(&amp;target_list_sem);
++	mutex_lock(&amp;target_list_mutex);
+ 	target = __target_lookup_by_id(id);
+-	up(&amp;target_list_sem);
++	mutex_unlock(&amp;target_list_mutex);
+ 
+ 	return target;
+ }
+@@ -157,7 +159,7 @@
+ 
+ 	strncpy(target-&gt;name, name, sizeof(target-&gt;name) - 1);
+ 
+-	init_MUTEX(&amp;target-&gt;target_sem);
++	mutex_init(&amp;target-&gt;target_mutex);
+ 	spin_lock_init(&amp;target-&gt;session_list_lock);
+ 
+ 	INIT_LIST_HEAD(&amp;target-&gt;session_list);
+@@ -195,7 +197,7 @@
+ 	u32 tid = info-&gt;tid;
+ 	int err;
+ 
+-	err = down_interruptible(&amp;target_list_sem);
++	err = mutex_lock_interruptible(&amp;target_list_mutex);
+ 	if (err &lt; 0)
+ 		return err;
+ 
+@@ -204,7 +206,7 @@
+ 		goto out;
+ 	}
+ 
+-	if (__target_lookup_by_name(info-&gt;name) || 
++	if (__target_lookup_by_name(info-&gt;name) ||
+ 			(tid &amp;&amp; __target_lookup_by_id(tid))) {
+ 		err = -EEXIST;
+ 		goto out;
+@@ -223,7 +225,7 @@
+ 	if (!err)
+ 		nr_targets++;
+ out:
+-	up(&amp;target_list_sem);
++	mutex_unlock(&amp;target_list_mutex);
+ 
+ 	return err;
+ }
+@@ -248,7 +250,7 @@
+ 	module_put(THIS_MODULE);
+ }
+ 
+-/* @locking: target_list_sem must be locked */
++/* @locking: target_list_mutex must be locked */
+ static int __target_del(struct iscsi_target *target)
+ {
+ 	int err;
+@@ -283,7 +285,7 @@
+ 	struct iscsi_target *target;
+ 	int err;
+ 
+-	err = down_interruptible(&amp;target_list_sem);
++	err = mutex_lock_interruptible(&amp;target_list_mutex);
+ 	if (err &lt; 0)
+ 		return err;
+ 
+@@ -295,7 +297,7 @@
+ 
+ 	err = __target_del(target);
+ out:
+-	up(&amp;target_list_sem);
++	mutex_unlock(&amp;target_list_mutex);
+ 
+ 	return err;
+ }
+@@ -305,7 +307,7 @@
+ 	struct iscsi_target *target, *tmp;
+ 	int err;
+ 
+-	down(&amp;target_list_sem);
++	mutex_lock(&amp;target_list_mutex);
+ 
+ 	if (!list_empty(&amp;target_list))
+ 		iprintk(&quot;Removing all connections, sessions and targets\n&quot;);
+@@ -319,7 +321,7 @@
+ 
+ 	next_target_id = 0;
+ 
+-	up(&amp;target_list_sem);
++	mutex_unlock(&amp;target_list_mutex);
+ }
+ 
+ static void *iet_seq_start(struct seq_file *m, loff_t *pos)
+@@ -327,7 +329,7 @@
+ 	int err;
+ 
+ 	/* are you sure this is to be interruptible? */
+-	err = down_interruptible(&amp;target_list_sem);
++	err = mutex_lock_interruptible(&amp;target_list_mutex);
+ 	if (err &lt; 0)
+ 		return ERR_PTR(err);
+ 
+@@ -341,7 +343,7 @@
+ 
+ static void iet_seq_stop(struct seq_file *m, void *v)
+ {
+-	up(&amp;target_list_sem);
++	mutex_unlock(&amp;target_list_mutex);
+ }
+ 
+ static int iet_seq_show(struct seq_file *m, void *p)
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2011-01-10 22:35:06 UTC (rev 377)
++++ trunk/kernel/volume.c	2011-01-12 20:39:36 UTC (rev 378)
+@@ -6,6 +6,7 @@
+ 
+ #include &lt;linux/types.h&gt;
+ #include &lt;linux/parser.h&gt;
++#include &lt;linux/blkdev.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000289.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[377]	branches/1.4.20/iscsitarget.spec
+</A></li>
+	<LI>Next message: <A HREF="000291.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[379] trunk
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#290">[ date ]</a>
+              <a href="thread.html#290">[ thread ]</a>
+              <a href="subject.html#290">[ subject ]</a>
+              <a href="author.html#290">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

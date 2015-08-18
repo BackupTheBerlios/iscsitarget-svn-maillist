@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[449]	branches/1.4.20/kernel/iscsi.c
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2011-May/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B449%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1QObB9-0004At-Al%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000362.html">
+   <LINK REL="Next"  HREF="000360.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[449]	branches/1.4.20/kernel/iscsi.c</H1>
+    <B>agr1 at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B449%5D%0A%09branches/1.4.20/kernel/iscsi.c&In-Reply-To=%3CE1QObB9-0004At-Al%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[449]	branches/1.4.20/kernel/iscsi.c">agr1 at users.sourceforge.net
+       </A><BR>
+    <I>Mon May 23 21:52:39 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000362.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[448] trunk
+</A></li>
+        <LI>Next message: <A HREF="000360.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[450]	branches/1.4.20/ChangeLog
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#359">[ date ]</a>
+              <a href="thread.html#359">[ thread ]</a>
+              <a href="subject.html#359">[ subject ]</a>
+              <a href="author.html#359">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 449
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=449&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=449&amp;view=rev</A>
+Author:   agr1
+Date:     2011-05-23 19:52:38 +0000 (Mon, 23 May 2011)
+
+Log Message:
+-----------
+Fix oops after write attempts to readonly LUs
+
+Reported-by Darko Kraus:
+
+BUG: unable to handle kernel NULL pointer dereference at 00000008
+IP: [&lt;e0cef2c7&gt;] cmnd_recv_pdu+0x27/0x1f0 [iscsi_trgt]
+*pde = 00000000
+Oops: 0000 [#1] SMP
+last sysfs file: /sys/module/iscsi_trgt/initstate
+Modules linked in: iscsi_trgt ipv6 lp fuse ppdev parport_pc parport rtc_cmos processor rtc_core intel_agp container thermal button thermal_sys agpgart vmxnet3 hwmon i2c_piix4 shpchp psmouse ac i2c_core rtc_lib serio_raw sg evdev
+
+Pid: 2000, comm: istd1 Not tainted 2.6.33.4-smp #2 440BX Desktop Reference Platform/VMware Virtual Platform
+EIP: 0060:[&lt;e0cef2c7&gt;] EFLAGS: 00010246 CPU: 0
+EIP is at cmnd_recv_pdu+0x27/0x1f0 [iscsi_trgt]
+EAX: da957000 EBX: da957000 ECX: 00000000 EDX: 00000000
+ESI: ded776dc EDI: 00000200 EBP: df2bde78 ESP: df2bde44
+ DS: 007b ES: 007b FS: 00d8 GS: 00e0 SS: 0068
+Process istd1 (pid: 2000, ti=df2bc000 task=defe6e10 task.ti=df2bc000)
+Stack:
+ c10320bc 00000000 c1beae20 1464c69b c2408280 defe6e10 df2bded8 df2bde78
+&lt;0&gt; 00000000 da957000 da957000 ded776dc ded776c0 df2bded8 e0cf12af 00000200
+&lt;0&gt; 00000246 df2bdeb4 c1881a42 c2408280 c1cff280 c1cff280 c1beae20 c18819a7
+Call Trace:
+ [&lt;c10320bc&gt;] ? finish_task_switch+0x3c/0xb0
+ [&lt;e0cf12af&gt;] ? cmnd_rx_start+0x40f/0xc10 [iscsi_trgt]
+ [&lt;c1881a42&gt;] ? lock_sock_nested+0x92/0xa0
+ [&lt;c18819a7&gt;] ? release_sock+0x97/0xa0
+ [&lt;c105e3c9&gt;] ? down+0x29/0x40
+ [&lt;e0cf2489&gt;] ? istd+0x289/0x11a0 [iscsi_trgt]
+ [&lt;c195255e&gt;] ? schedule+0x27e/0x920
+ [&lt;c18c06c0&gt;] ? tcp_sendpage+0x0/0x480
+ [&lt;e0cf2200&gt;] ? istd+0x0/0x11a0 [iscsi_trgt]
+ [&lt;c1058cf4&gt;] ? kthread+0x74/0x80
+ [&lt;c1058c80&gt;] ? kthread+0x0/0x80
+ [&lt;c10035be&gt;] ? kernel_thread_helper+0x6/0x10
+Code: 90 90 90 90 55 89 e5 57 56 53 83 ec 28 0f 1f 44 00 00 f6 05 24 e5 cf e0 04 8b 7d 08 89 45 f0 89 55 ec 0f 85 94 01 00 00 8b 55 ec &lt;8b&gt; 42 08 8d 34 01 8b 4a 0c 8d 14 01 39 d6 0f 83 47 01 00 00 8d
+EIP: [&lt;e0cef2c7&gt;] cmnd_recv_pdu+0x27/0x1f0 [iscsi_trgt] SS:ESP 0068:df2bde44
+CR2: 0000000000000008
+---[ end trace c19cb27f6cb23114 ]---
+
+Signed-off-by: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">arne.redlich at googlemail.com</A>&gt;
+
+Modified Paths:
+--------------
+    branches/1.4.20/kernel/iscsi.c
+
+Modified: branches/1.4.20/kernel/iscsi.c
+===================================================================
+--- branches/1.4.20/kernel/iscsi.c	2011-05-23 19:24:57 UTC (rev 448)
++++ branches/1.4.20/kernel/iscsi.c	2011-05-23 19:52:38 UTC (rev 449)
+@@ -1031,16 +1031,16 @@
+ 		loff_t offset;
+ 		u32 length;
+ 
+-		req-&gt;r2t_length = be32_to_cpu(req_hdr-&gt;data_length) - req-&gt;pdu.datasize;
+-		req-&gt;is_unsolicited_data = !(req_hdr-&gt;flags &amp; ISCSI_CMD_FINAL);
+-		req-&gt;target_task_tag = get_next_ttt(conn-&gt;session);
+-
+ 		if (LUReadonly(req-&gt;lun)) {
+ 			create_sense_rsp(req, DATA_PROTECT, 0x27, 0x0);
+ 			cmnd_skip_data(req);
+ 			break;
+ 		}
+ 
++		req-&gt;r2t_length = be32_to_cpu(req_hdr-&gt;data_length) - req-&gt;pdu.datasize;
++		req-&gt;is_unsolicited_data = !(req_hdr-&gt;flags &amp; ISCSI_CMD_FINAL);
++		req-&gt;target_task_tag = get_next_ttt(conn-&gt;session);
++
+ 		if (!param-&gt;immediate_data &amp;&amp; req-&gt;pdu.datasize)
+ 			eprintk(&quot;%x %x\n&quot;, cmnd_itt(req), req_hdr-&gt;scb[0]);
+ 
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000362.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[448] trunk
+</A></li>
+	<LI>Next message: <A HREF="000360.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[450]	branches/1.4.20/ChangeLog
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#359">[ date ]</a>
+              <a href="thread.html#359">[ thread ]</a>
+              <a href="subject.html#359">[ subject ]</a>
+              <a href="author.html#359">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

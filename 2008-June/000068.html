@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] r156 - trunk/usr
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2008-June/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r156%20-%20trunk/usr&In-Reply-To=%3C200806182305.m5IN5kVw029268%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000067.html">
+   <LINK REL="Next"  HREF="000069.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] r156 - trunk/usr</H1>
+    <B>tomo at BerliOS</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20r156%20-%20trunk/usr&In-Reply-To=%3C200806182305.m5IN5kVw029268%40sheep.berlios.de%3E"
+       TITLE="[Iscsitarget-svn] r156 - trunk/usr">tomo at mail.berlios.de
+       </A><BR>
+    <I>Thu Jun 19 01:05:46 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000067.html">[Iscsitarget-svn] r155 - trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000069.html">[Iscsitarget-svn] r157 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68">[ date ]</a>
+              <a href="thread.html#68">[ thread ]</a>
+              <a href="subject.html#68">[ subject ]</a>
+              <a href="author.html#68">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: tomo
+Date: 2008-06-19 01:05:45 +0200 (Thu, 19 Jun 2008)
+New Revision: 156
+
+Modified:
+   trunk/usr/iscsid.h
+   trunk/usr/isns.c
+   trunk/usr/misc.h
+   trunk/usr/plain.c
+   trunk/usr/target.c
+Log:
+Subject: Rename struct qelem -&gt; __qelem
+From: Arne Redlich &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">agr at powerkom-dd.de</A>&gt;
+Date: Wed, 18 Jun 2008 14:59:45 +0200
+
+It conflicts with the struct qelem provided by glibc if _GNU_SOURCE is defined,
+which is required when building IET against glibc &gt;= 2.8.
+
+
+
+Modified: trunk/usr/iscsid.h
+===================================================================
+--- trunk/usr/iscsid.h	2008-06-18 23:01:59 UTC (rev 155)
++++ trunk/usr/iscsid.h	2008-06-18 23:05:45 UTC (rev 156)
+@@ -32,7 +32,7 @@
+ #define KEY_STATE_DONE		2
+ 
+ struct session {
+-	struct qelem slist;
++	struct __qelem slist;
+ 
+ 	char *initiator;
+ 	struct target *target;
+@@ -122,9 +122,9 @@
+ #define INCOMING_BUFSIZE	8192
+ 
+ struct target {
+-	struct qelem tlist;
++	struct __qelem tlist;
+ 
+-	struct qelem sessions_list;
++	struct __qelem sessions_list;
+ 
+ 	u32 tid;
+ 	char name[ISCSI_NAME_LEN];
+@@ -133,7 +133,7 @@
+ 	int max_nr_sessions;
+ 	int nr_sessions;
+ 
+-	struct qelem isns_head;
++	struct __qelem isns_head;
+ };
+ 
+ /* chap.c */
+@@ -180,7 +180,7 @@
+ extern void session_remove(struct session *session);
+ 
+ /* target.c */
+-extern struct qelem targets_list;
++extern struct __qelem targets_list;
+ extern int target_add(u32 *, char *);
+ extern int target_del(u32);
+ extern u32 target_find_by_name(const char *name);
+
+Modified: trunk/usr/isns.c
+===================================================================
+--- trunk/usr/isns.c	2008-06-18 23:01:59 UTC (rev 155)
++++ trunk/usr/isns.c	2008-06-18 23:05:45 UTC (rev 156)
+@@ -44,12 +44,12 @@
+ struct isns_qry_mgmt {
+ 	char name[ISCSI_NAME_LEN];
+ 	uint16_t transaction;
+-	struct qelem qlist;
++	struct __qelem qlist;
+ };
+ 
+ struct isns_initiator {
+ 	char name[ISCSI_NAME_LEN];
+-	struct qelem ilist;
++	struct __qelem ilist;
+ };
+ 
+ static LIST_HEAD(qry_list);
+
+Modified: trunk/usr/misc.h
+===================================================================
+--- trunk/usr/misc.h	2008-06-18 23:01:59 UTC (rev 155)
++++ trunk/usr/misc.h	2008-06-18 23:05:45 UTC (rev 156)
+@@ -5,9 +5,9 @@
+ #ifndef MISC_H
+ #define MISC_H
+ 
+-struct qelem {
+-	struct qelem *q_forw;
+-	struct qelem *q_back;
++struct __qelem {
++	struct __qelem *q_forw;
++	struct __qelem *q_back;
+ };
+ 
+ /* stolen list stuff from Linux kernel */
+@@ -21,18 +21,18 @@
+ 
+ #define LIST_HEAD_INIT(name) { &amp;(name), &amp;(name) }
+ #define LIST_HEAD(name) \
+-	struct qelem name = LIST_HEAD_INIT(name)
++	struct __qelem name = LIST_HEAD_INIT(name)
+ 
+ #define INIT_LIST_HEAD(ptr) do { \
+ 	(ptr)-&gt;q_forw = (ptr); (ptr)-&gt;q_back = (ptr); \
+ } while (0)
+ 
+-static inline int list_empty(const struct qelem *head)
++static inline int list_empty(const struct __qelem *head)
+ {
+ 	return head-&gt;q_forw == head;
+ }
+ 
+-static inline int list_length_is_one(const struct qelem *head)
++static inline int list_length_is_one(const struct __qelem *head)
+ {
+         return head-&gt;q_forw == head-&gt;q_back;
+ }
+
+Modified: trunk/usr/plain.c
+===================================================================
+--- trunk/usr/plain.c	2008-06-18 23:01:59 UTC (rev 155)
++++ trunk/usr/plain.c	2008-06-18 23:05:45 UTC (rev 156)
+@@ -31,7 +31,7 @@
+  */
+ 
+ struct user {
+-	struct qelem ulist;
++	struct __qelem ulist;
+ 
+ 	u32 tid;
+ 	char *name;
+@@ -62,18 +62,18 @@
+ 	{NULL,},
+ };
+ 
+-static struct qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
+-static struct qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
++static struct __qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
++static struct __qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
+ 
+ #define HASH_ORDER	4
+ #define acct_hash(x)	((x) &amp; ((1 &lt;&lt; HASH_ORDER) - 1))
+ 
+-static struct qelem trgt_acct_in[1 &lt;&lt; HASH_ORDER];
+-static struct qelem trgt_acct_out[1 &lt;&lt; HASH_ORDER];
++static struct __qelem trgt_acct_in[1 &lt;&lt; HASH_ORDER];
++static struct __qelem trgt_acct_out[1 &lt;&lt; HASH_ORDER];
+ 
+-static struct qelem *account_list_get(u32 tid, int dir)
++static struct __qelem *account_list_get(u32 tid, int dir)
+ {
+-	struct qelem *list = NULL;
++	struct __qelem *list = NULL;
+ 
+ 	if (tid) {
+ 		list = (dir == AUTH_DIR_INCOMING) ?
+@@ -125,7 +125,7 @@
+ /* Return the first account if the length of name is zero */
+ static struct user *account_lookup_by_name(u32 tid, int dir, char *name)
+ {
+-	struct qelem *list = account_list_get(tid, dir);
++	struct __qelem *list = account_list_get(tid, dir);
+ 	struct user *user = NULL;
+ 
+ 	list_for_each_entry(user, list, ulist) {
+@@ -196,7 +196,7 @@
+ {
+ 	int err = -ENOMEM;
+ 	struct user *user;
+-	struct qelem *list;
++	struct __qelem *list;
+ 
+ 	if (!name || !pass)
+ 		return -EINVAL;
+
+Modified: trunk/usr/target.c
+===================================================================
+--- trunk/usr/target.c	2008-06-18 23:01:59 UTC (rev 155)
++++ trunk/usr/target.c	2008-06-18 23:05:45 UTC (rev 156)
+@@ -14,7 +14,7 @@
+ 
+ #include &quot;iscsid.h&quot;
+ 
+-struct qelem targets_list = LIST_HEAD_INIT(targets_list);
++struct __qelem targets_list = LIST_HEAD_INIT(targets_list);
+ 
+ void target_list_build(struct connection *conn, char *addr, char *name)
+ {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000067.html">[Iscsitarget-svn] r155 - trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000069.html">[Iscsitarget-svn] r157 - trunk/usr
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68">[ date ]</a>
+              <a href="thread.html#68">[ thread ]</a>
+              <a href="subject.html#68">[ subject ]</a>
+              <a href="author.html#68">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

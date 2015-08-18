@@ -1,0 +1,651 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[301] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-March/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B301%5D%20trunk&In-Reply-To=%3CE1NmI4U-0007ms-8H%40sfp-svn-6.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000212.html">
+   <LINK REL="Next"  HREF="000214.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[301] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B301%5D%20trunk&In-Reply-To=%3CE1NmI4U-0007ms-8H%40sfp-svn-6.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[301] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Tue Mar  2 03:42:54 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000212.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[300] trunk
+</A></li>
+        <LI>Next message: <A HREF="000214.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[302]	trunk/kernel/file-io.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#215">[ date ]</a>
+              <a href="thread.html#215">[ thread ]</a>
+              <a href="subject.html#215">[ subject ]</a>
+              <a href="author.html#215">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 301
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=301&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=301&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-03-02 02:42:53 +0000 (Tue, 02 Mar 2010)
+
+Log Message:
+-----------
+
+Add a per LUN BlockSize parameter, defaulting to 512,
+which allows us to specify the SCSI level block size.
+
+This also renames the nullio Sectors=&lt;size&gt; to
+Blocks=&lt;count&gt;, keeping the Sectors= as a compat alias.
+
+Finally, it adds &quot; blocks:%llu blocksize:%u&quot; to
+iet_volume_info_show, which made nullio_data and
+nullio_show, obsolete.
+
+This can be used as a testbed for testing initiator io
+stack robustness for block size != 512, without
+actually having access to a physical drive or array
+with these properties.
+
+It also allows us better performance on disks and arrays
+with &quot;physical&quot; block size of 4k and &quot;logical&quot; block size
+of 512 byte -- which do the read-modify-write cycle
+internally in firmware for block sizes != 4k.
+
+Finally it makes iet usable on top of disks and arrays
+with both logical and physical block size != 512,
+which will be shipping soon enough.
+
+Signed-off-by: Lars Ellenberg &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">lars.ellenberg at linbit.com</A>&gt;
+Signed-off-by: Ross Walker &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">rswwalker at gmail.com</A>&gt;
+
+Modified Paths:
+--------------
+    trunk/Makefile
+    trunk/dkms.conf
+    trunk/doc/manpages/ietd.conf.5
+    trunk/kernel/block-io.c
+    trunk/kernel/file-io.c
+    trunk/kernel/iscsi.h
+    trunk/kernel/null-io.c
+    trunk/kernel/volume.c
+
+Added Paths:
+-----------
+    trunk/patches/compat-2.6.30.patch
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/Makefile	2010-03-02 02:42:53 UTC (rev 301)
+@@ -61,6 +61,11 @@
+ 	PATCHES := $(PATCHES) compat-2.6.31.patch
+ endif
+ 
++# Compatibility patch for kernels &lt;= 2.6.30
++ifeq ($(call kver_le,2,6,30),1)
++	PATCHES := $(PATCHES) compat-2.6.30.patch
++endif
++
+ # Compatibility patch for kernels &lt;= 2.6.29
+ ifeq ($(call kver_le,2,6,29),1)
+ 	PATCHES := $(PATCHES) compat-2.6.29.patch
+
+Modified: trunk/dkms.conf
+===================================================================
+--- trunk/dkms.conf	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/dkms.conf	2010-03-02 02:42:53 UTC (rev 301)
+@@ -23,33 +23,36 @@
+ PATCH[0]=&quot;compat-2.6.31.patch&quot;
+ PATCH_MATCH[0]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31)&quot;
+ 
+-PATCH[1]=&quot;compat-2.6.29.patch&quot;
+-PATCH_MATCH[1]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29)&quot;
++PATCH[1]=&quot;compat-2.6.30.patch&quot;
++PATCH_MATCH[1]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30)&quot;
+ 
+-PATCH[2]=&quot;compat-2.6.28.patch&quot;
+-PATCH_MATCH[2]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28)&quot;
++PATCH[2]=&quot;compat-2.6.29.patch&quot;
++PATCH_MATCH[2]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29)&quot;
+ 
+-PATCH[3]=&quot;compat-2.6.25-2.6.27.patch&quot;
+-PATCH_MATCH[3]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27)&quot;
++PATCH[3]=&quot;compat-2.6.28.patch&quot;
++PATCH_MATCH[3]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28)&quot;
+ 
+-PATCH[4]=&quot;compat-2.6.24.patch&quot;
+-PATCH_MATCH[4]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24)&quot;
++PATCH[4]=&quot;compat-2.6.25-2.6.27.patch&quot;
++PATCH_MATCH[4]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24|25|26|27)&quot;
+ 
+-PATCH[5]=&quot;compat-2.6.23.patch&quot;
+-PATCH_MATCH[5]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23)&quot;
++PATCH[5]=&quot;compat-2.6.24.patch&quot;
++PATCH_MATCH[5]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23|24)&quot;
+ 
+-PATCH[6]=&quot;compat-2.6.22.patch&quot;
+-PATCH_MATCH[6]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22)&quot;
++PATCH[6]=&quot;compat-2.6.23.patch&quot;
++PATCH_MATCH[6]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22|23)&quot;
+ 
+-PATCH[7]=&quot;compat-2.6.19-2.6.21.patch&quot;
+-PATCH_MATCH[7]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21)&quot;
++PATCH[7]=&quot;compat-2.6.22.patch&quot;
++PATCH_MATCH[7]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21|22)&quot;
+ 
+-PATCH[8]=&quot;compat-2.6.14-2.6.18.patch&quot;
+-PATCH_MATCH[8]=&quot;2\.6\.(9|14|15|16|17|18)&quot;
++PATCH[8]=&quot;compat-2.6.19-2.6.21.patch&quot;
++PATCH_MATCH[8]=&quot;2\.6\.(9|14|15|16|17|18|19|20|21)&quot;
+ 
+-PATCH[9]=&quot;compat-sles10sp2.patch&quot;
+-PATCH_MATCH[9]=&quot;2\.6\.16\.60-.*&quot;
++PATCH[9]=&quot;compat-2.6.14-2.6.18.patch&quot;
++PATCH_MATCH[9]=&quot;2\.6\.(9|14|15|16|17|18)&quot;
+ 
+-PATCH[10]=&quot;compat-rhel4.patch&quot;
+-PATCH_MATCH[10]=&quot;2\.6\.9-.*\.(el|plus\.c4)&quot;
++PATCH[10]=&quot;compat-sles10sp2.patch&quot;
++PATCH_MATCH[10]=&quot;2\.6\.16\.60-.*&quot;
+ 
++PATCH[11]=&quot;compat-rhel4.patch&quot;
++PATCH_MATCH[11]=&quot;2\.6\.9-.*\.(el|plus\.c4)&quot;
++
+
+Modified: trunk/doc/manpages/ietd.conf.5
+===================================================================
+--- trunk/doc/manpages/ietd.conf.5	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/doc/manpages/ietd.conf.5	2010-03-02 02:42:53 UTC (rev 301)
+@@ -27,7 +27,7 @@
+     IncomingUser jim othersecret
+     OutgoingUser james yetanothersecret
+     Lun 0 Path=/dev/sdc,Type=fileio
+-    Lun 1 Sectors=10000,Type=nullio
++    Lun 1 Blocks=10000,BlockSize=4096,Type=nullio
+     Alias Test
+     HeaderDigest None
+     DataDigest None
+@@ -127,17 +127,20 @@
+ .I &lt;username&gt;
+ given.
+ .TP
+-.B Lun &lt;lun&gt; Path=&lt;device&gt;,Type=(fileio|blockio)[,ScsiId=&lt;scsi_id&gt;][,ScsiSN=&lt;scsi_sn&gt;][,IOMode=(wb|ro)] | Sectors=&lt;size&gt;,Type=nullio
+-Parameters after &lt;lun&gt; should not contain any blank space character except the first blank space after &lt;lun&gt; is needed.
+-.br
+-
+-.br
+-This line must occur at least once. The value of
++.nf
++.B Lun &lt;lun&gt; Type=(fileio|blockio),Path=&lt;device&gt;[,ScsiId=&lt;scsi_id&gt;][,ScsiSN=&lt;scsi_sn&gt;][,IOMode=(wb|ro|wt)][,BlockSize=&lt;size&gt;]
++.TP
++.B Lun &lt;lun&gt; Type=nullio[,Blocks=&lt;count&gt;][,BlockSize=&lt;size&gt;]
++.fi
++.RS
++Parameters after &lt;lun&gt; should not contain any blank space characters except the first blank space after &lt;lun&gt; is needed.
++.P
++The value of
+ .I &lt;lun&gt;
+-can be between 0 and 2^14\-1.
+-.br
+-
+-.br
++can be from 0 to 16384. The first
++.I &lt;lun&gt;
++defined MUST be 0.
++.P
+ In
+ .I fileio
+ mode (default), it defines a mapping between a &quot;Logical Unit Number&quot;
+@@ -145,53 +148,78 @@
+ and a given device
+ .I &lt;device&gt;
+ , which can be any block device (including regular block devices like hdX and sdX and virtual block devices like LVM and Software RAID devices) or regular files.
+-.br
+-
+-.br
++.P
+ In
+ .I blockio
+ mode, it defines a mapping between a &quot;Logical Unit Number&quot;
+ .I &lt;lun&gt;
+ and a given block device
+ .I &lt;device&gt;.
+-This mode will perform direct block i/o with the device, bypassing page-cache for all operations.
+-This allows for efficient handling of non-aligned sector transfers (virtualized environments) and large block transfers (media servers).
+-This mode works ideally with high-end storage HBAs and for applications that either do not need caching between application and disk or need the large block throughput.
+-.br
+-
+-.br
+-Optionally a
++This mode will perform direct block i/o with the device, bypassing page-cache for all operations. This allows for efficient handling of non-aligned sector transfers (virtualized environments) and large block transfers (media servers). This mode works ideally with high-end storage HBAs and for applications that either do not need caching between application and disk or need the large block throughput.
++.P
++A
++.I ScsiId
++can be specified to assign a unique SCSI ID (VPD 0x83) to an iSCSI volume. This is used by initiator hosts to uniquely identify a SCSI volume. This is necessary with multipath\-aware hosts accessing the same
++.I &lt;device&gt;
++through multiple iSCSI sessions. The
+ .I &lt;scsi_id&gt;
+-can be specified to assign a unique ID to the iSCSI volume. This is useful e.g. in conjunction with a multipath\-aware initiator host accessing the same
++must not exceed 16 characters.
++.P
++Also a
++.I ScsiSN
++can be specified to assign a unique serial number (VPD 0x80) to an iSCSI volume. This is used by certain initiator hosts (e.g. VMware ESX) to uniquely identify a SCSI volume. This is essential when used in conjunction with VMware ESX hosts accessing the same
+ .I &lt;device&gt;
+-through several targets.
+-The
+-.I &lt;scsi_id&gt;
+-must not exceed 16 characters and controls the content of VPD 0x83. The
++through multiple iSCSI sessions. The
+ .I &lt;scsi_sn&gt;
+-must not exceed 16 characters and controls the content VPD 0x80.
+-.br
+-
+-.br
+-By default, LUNs are writable, employing write-through caching. By setting
++must not exceed 16 characters.
++.P
++By default LUNs are writable, employing write-through caching. By setting
+ .I IOMode
+-to &quot;ro&quot; a LUN can only be accessed read only. Setting
++to &quot;ro&quot; a LUN can be set to read only mode. Setting
+ .I IOMode
+-to &quot;wb&quot; will enable write-back caching.
+-Please note that this could lead to data loss e.g. in case of power outages, so it is strongly recommended to use an UPS when enabling write-back caching.
+-NOTE:
++to &quot;wb&quot; will enable write-back caching of a LUN. Setting
+ .I IOMode
+-&quot;wb&quot; is ignored when employing blockio.
+-.br
+-
+-.br
++to &quot;wt&quot; is only symbolic as that is the default behavior.
++.P
++.B NOTE:
++.I IOMode
++&quot;wb&quot; is ignored when employing blockio as it performs no caching.
++.P
++.B WARNING: IOMode=wb could lead to serious data loss from an unexpected system failure (power loss, system crash). Use at your own risk!
++.P
++You can specify a logical
++.I BlockSize
++for an iSCSI volume. This
++.I &lt;size&gt;
++must be one of (512, 1024, 2048, 4096). If
++.I BlockSize
++isn't specified the default is 512 bytes for fileio, and the logical block size of the lower level device for blockio (which typically is 512 bytes).
++.P
++.B NOTE:
++For blockio, you CANNOT specify a
++.I BlockSize
++less than the lower level device's logical block size which is the minimum size the device can handle. An error will be reported and the LUN will fail to attach if you try. You CAN use fileio though to export a LUN with a
++.I BlockSize
++less than the lower level device's logical block size.
++.P
++.B WARNING: Once your data is written at a given BlockSize you cannot change this BlockSize without risking corruption of your existing data.
++.P
+ In
+ .I nullio
+ mode, it defines a mapping between a &quot;Logical Unit Number&quot;
+ .I &lt;lun&gt;
+-and an unnamed virtual device with
+-.I &lt;size&gt;
+-sectors. This is ONLY useful for performance measurement purposes. All writes to this virtual device will be discarded and reads will return random data.
++and an unnamed virtual device with a specified number of
++.I Blocks
++of
++.I BlockSize
++bytes. If
++.I Blocks
++is not specified then it will default to 64GB's worth given the curent
++.I BlockSize
++which defaults to 512 bytes. This is ONLY useful for performance measurement purposes. All writes to this virtual device will be discarded and all reads will return random data.
++.P
++.B WARNING: By sending random kernel memory over the IP network you can potentially expose sensitive information.
++.RE
+ .TP
+ .B [Alias &lt;aliasname&gt;]
+ This assigns an optional
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/kernel/block-io.c	2010-03-02 02:42:53 UTC (rev 301)
+@@ -86,7 +86,8 @@
+ 			goto out;
+ 		}
+ 
+-		bio-&gt;bi_sector = ppos &gt;&gt; volume-&gt;blk_shift;
++		/* bi_sector is ALWAYS in units of 512 bytes */
++		bio-&gt;bi_sector = ppos &gt;&gt; 9;
+ 		bio-&gt;bi_bdev = bio_data-&gt;bdev;
+ 		bio-&gt;bi_end_io = blockio_bio_endio;
+ 		bio-&gt;bi_private = tio_work;
+@@ -244,6 +245,7 @@
+ 	{Opt_path, &quot;Path=%s&quot;},
+ 	{Opt_ignore, &quot;Type=%s&quot;},
+ 	{Opt_ignore, &quot;IOMode=%s&quot;},
++	{Opt_ignore, &quot;BlockSize=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+@@ -315,6 +317,7 @@
+ 			volume-&gt;target-&gt;name, volume-&gt;lun);
+ 		err = -EINVAL;
+ 	}
++
+   out:
+ 	return err;
+ }
+@@ -350,12 +353,27 @@
+ 
+ 	volume-&gt;private = bio_data;
+ 
+-	if ((err = parse_blockio_params(volume, args)) &lt; 0) {
++	err = parse_blockio_params(volume, args);
++	if (!err) {
++		/* see Documentation/ABI/testing/sysfs-block */
++		unsigned bsz = bdev_logical_block_size(bio_data-&gt;bdev);
++		if (!volume-&gt;blk_shift)
++			volume-&gt;blk_shift = ilog2(bsz);
++		else if (volume-&gt;blk_shift &lt; ilog2(bsz)) {
++			eprintk(&quot;Specified block size (%u) smaller than &quot;
++				&quot;device %s logical block size (%u)\n&quot;,
++				(1 &lt;&lt; volume-&gt;blk_shift), bio_data-&gt;path, bsz);
++			err = -EINVAL;
++		}
++	}
++	if (err &lt; 0) {
+ 		eprintk(&quot;Error attaching Lun %u to Target %s \n&quot;,
+ 			volume-&gt;lun, volume-&gt;target-&gt;name);
+ 		goto out;
+ 	}
+ 
++	volume-&gt;blk_cnt = bio_data-&gt;bdev-&gt;bd_inode-&gt;i_size &gt;&gt; volume-&gt;blk_shift;
++
+ 	/* Assign a vendor id, generate scsi id if none exists */
+ 	gen_scsiid(volume, bio_data-&gt;bdev-&gt;bd_inode);
+ 
+@@ -363,9 +381,6 @@
+ 	ClearLURCache(volume);
+ 	ClearLUWCache(volume);
+ 
+-	volume-&gt;blk_shift = SECTOR_SIZE_BITS;
+-	volume-&gt;blk_cnt = bio_data-&gt;bdev-&gt;bd_inode-&gt;i_size &gt;&gt; volume-&gt;blk_shift;
+-
+   out:
+ 	if (err &lt; 0)
+ 		blockio_detach(volume);
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/kernel/file-io.c	2010-03-02 02:42:53 UTC (rev 301)
+@@ -180,6 +180,7 @@
+ 	{Opt_path, &quot;Path=%s&quot;},
+ 	{Opt_ignore, &quot;Type=%s&quot;},
+ 	{Opt_ignore, &quot;IOMode=%s&quot;},
++	{Opt_ignore, &quot;BlockSize=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+@@ -296,7 +297,9 @@
+ 		goto out;
+ 	}
+ 
+-	lu-&gt;blk_shift = SECTOR_SIZE_BITS;
++	if (!lu-&gt;blk_shift)
++		lu-&gt;blk_shift = ilog2(IET_DEF_BLOCK_SIZE);
++
+ 	lu-&gt;blk_cnt = inode-&gt;i_size &gt;&gt; lu-&gt;blk_shift;
+ 
+ 	/* we're using the page cache */
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/kernel/iscsi.h	2010-03-02 02:42:53 UTC (rev 301)
+@@ -465,7 +465,9 @@
+ #define cmnd_opcode(cmnd) ((cmnd)-&gt;pdu.bhs.opcode &amp; ISCSI_OPCODE_MASK)
+ #define cmnd_scsicode(cmnd) cmnd_hdr(cmnd)-&gt;scb[0]
+ 
+-#define	SECTOR_SIZE_BITS	9
++/* default and maximum scsi level block sizes */
++#define IET_DEF_BLOCK_SIZE	512
++#define IET_MAX_BLOCK_SIZE	4096
+ 
+ enum cmnd_flags {
+ 	CMND_hashed,
+
+Modified: trunk/kernel/null-io.c
+===================================================================
+--- trunk/kernel/null-io.c	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/kernel/null-io.c	2010-03-02 02:42:53 UTC (rev 301)
+@@ -16,16 +16,17 @@
+ #include &quot;iscsi_dbg.h&quot;
+ #include &quot;iotype.h&quot;
+ 
+-struct nullio_data {
+-	u64 sectors;
+-};
+-
+ enum {
+-	Opt_sectors, Opt_ignore, Opt_err,
++	Opt_blk_cnt, Opt_ignore, Opt_err,
+ };
+ 
+ static match_table_t tokens = {
+-	{Opt_sectors, &quot;Sectors=%u&quot;},
++	/* alias for compatibility with existing setups and documentation */
++	{Opt_blk_cnt, &quot;Sectors=%u&quot;},
++	/* but actually it is the scsi block count, now that we can
++	 * specify the block size. */
++	{Opt_blk_cnt, &quot;Blocks=%u&quot;},
++	{Opt_ignore, &quot;BlockSize=%s&quot;},
+ 	{Opt_ignore, &quot;Type=%s&quot;},
+ 	{Opt_err, NULL},
+ };
+@@ -34,7 +35,6 @@
+ {
+ 	int err = 0;
+ 	char *p, *q;
+-	struct nullio_data *data = volume-&gt;private;
+ 
+ 	while ((p = strsep(&amp;params, &quot;,&quot;)) != NULL) {
+ 		substring_t args[MAX_OPT_ARGS];
+@@ -43,11 +43,11 @@
+ 			continue;
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+-		case Opt_sectors:
++		case Opt_blk_cnt:
+ 			q = match_strdup(&amp;args[0]);
+ 			if (!q)
+ 				return -ENOMEM;
+-			data-&gt;sectors = simple_strtoull(q, NULL, 10);
++			volume-&gt;blk_cnt = simple_strtoull(q, NULL, 10);
+ 			kfree(q);
+ 			break;
+ 		case Opt_ignore:
+@@ -63,52 +63,33 @@
+ 
+ static void nullio_detach(struct iet_volume *lu)
+ {
+-	struct nullio_data *p = lu-&gt;private;
+-
+-	kfree(p);
+-	lu-&gt;private = NULL;
+ }
+ 
+ static int nullio_attach(struct iet_volume *lu, char *args)
+ {
+ 	int err = 0;
+-	struct nullio_data *p;
+ 
+-	if (lu-&gt;private) {
+-		printk(&quot;already attached ? %d\n&quot;, lu-&gt;lun);
+-		return -EBUSY;
+-	}
+-
+-	p = kzalloc(sizeof(*p), GFP_KERNEL);
+-	if (!p)
+-		return -ENOMEM;
+-
+-	lu-&gt;private = p;
+-
+ 	if ((err = parse_nullio_params(lu, args)) &lt; 0) {
+ 		eprintk(&quot;%d\n&quot;, err);
+ 		goto out;
+ 	}
+ 
+-	lu-&gt;blk_shift = SECTOR_SIZE_BITS;
+-	lu-&gt;blk_cnt = (p-&gt;sectors = p-&gt;sectors ? : 1 &lt;&lt; 27); /* 64 GB */
++	if (!lu-&gt;blk_shift)
++		lu-&gt;blk_shift = ilog2(IET_DEF_BLOCK_SIZE);
+ 
++	/* defaults to 64 GiB */
++	if (!lu-&gt;blk_cnt)
++		lu-&gt;blk_cnt = 1 &lt;&lt; (36 - lu-&gt;blk_shift);
++
+ out:
+ 	if (err &lt; 0)
+ 		nullio_detach(lu);
+ 	return err;
+ }
+ 
+-void nullio_show(struct iet_volume *lu, struct seq_file *seq)
+-{
+-	struct nullio_data *p = lu-&gt;private;
+-	seq_printf(seq, &quot; sectors:%llu\n&quot;, p-&gt;sectors);
+-}
+-
+ struct iotype nullio =
+ {
+ 	.name = &quot;nullio&quot;,
+ 	.attach = nullio_attach,
+ 	.detach = nullio_detach,
+-	.show = nullio_show,
+ };
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2010-03-01 16:21:49 UTC (rev 300)
++++ trunk/kernel/volume.c	2010-03-02 02:42:53 UTC (rev 301)
+@@ -6,6 +6,7 @@
+ 
+ #include &lt;linux/types.h&gt;
+ #include &lt;linux/parser.h&gt;
++#include &lt;linux/log2.h&gt;
+ 
+ #include &quot;iscsi.h&quot;
+ #include &quot;iscsi_dbg.h&quot;
+@@ -25,18 +26,21 @@
+ enum {
+ 	Opt_type,
+ 	Opt_iomode,
++	Opt_blk_size,
+ 	Opt_err,
+ };
+ 
+ static match_table_t tokens = {
+ 	{Opt_type, &quot;Type=%s&quot;},
+ 	{Opt_iomode, &quot;IOMode=%s&quot;},
++	{Opt_blk_size, &quot;BlockSize=%u&quot;},
+ 	{Opt_err, NULL},
+ };
+ 
+ static int set_iotype(struct iet_volume *volume, char *params)
+ {
+ 	int err = 0;
++	unsigned blk_sz;
+ 	substring_t args[MAX_OPT_ARGS];
+ 	char *p, *argp = NULL, *buf = (char *) get_zeroed_page(GFP_USER);
+ 
+@@ -67,6 +71,22 @@
+ 				SetLUWCache(volume);
+ 			kfree(argp);
+ 			break;
++		case Opt_blk_size:
++			argp = match_strdup(&amp;args[0]);
++			if (!argp) {
++				err = -ENOMEM;
++				break;
++			}
++			blk_sz = simple_strtoull(argp, NULL, 10);
++			if (is_power_of_2(blk_sz) &amp;&amp;
++			    512 &lt;= blk_sz &amp;&amp; blk_sz &lt;= IET_MAX_BLOCK_SIZE)
++				volume-&gt;blk_shift = ilog2(blk_sz);
++			else {
++				eprintk(&quot;invalid BlockSize=%u\n&quot;, blk_sz);
++				err = -EINVAL;
++			}
++			kfree(argp);
++			break;
+ 		default:
+ 			break;
+ 		}
+@@ -257,6 +277,8 @@
+ 		else
+ 			seq_printf(seq, &quot; iomode:wt&quot;);
+ 
++		seq_printf(seq, &quot; blocks:%llu blocksize:%u&quot;,
++			volume-&gt;blk_cnt, 1 &lt;&lt; volume-&gt;blk_shift);
+ 		if (volume-&gt;iotype-&gt;show)
+ 			volume-&gt;iotype-&gt;show(volume, seq);
+ 		else
+
+Added: trunk/patches/compat-2.6.30.patch
+===================================================================
+--- trunk/patches/compat-2.6.30.patch	                        (rev 0)
++++ trunk/patches/compat-2.6.30.patch	2010-03-02 02:42:53 UTC (rev 301)
+@@ -0,0 +1,11 @@
++--- sector2/kernel/block-io.c	2010-03-01 11:44:57.000000000 -0500
+++++ sector2/kernel/block-io.c.30	2010-03-01 11:50:00.000000000 -0500
++@@ -356,7 +356,7 @@ blockio_attach(struct iet_volume *volume
++ 	err = parse_blockio_params(volume, args);
++ 	if (!err) {
++ 		/* see Documentation/ABI/testing/sysfs-block */
++-		unsigned bsz = bdev_logical_block_size(bio_data-&gt;bdev);
+++		unsigned bsz = bdev_hardsect_size(bio_data-&gt;bdev);
++ 		if (!volume-&gt;blk_shift)
++ 			volume-&gt;blk_shift = ilog2(bsz);
++ 		else if (volume-&gt;blk_shift &lt; ilog2(bsz)) {
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000212.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[300] trunk
+</A></li>
+	<LI>Next message: <A HREF="000214.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[302]	trunk/kernel/file-io.c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#215">[ date ]</a>
+              <a href="thread.html#215">[ thread ]</a>
+              <a href="subject.html#215">[ subject ]</a>
+              <a href="author.html#215">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>

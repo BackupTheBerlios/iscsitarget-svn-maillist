@@ -1,0 +1,827 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Iscsitarget-svn] SF.net SVN: iscsitarget:[315] trunk
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/iscsitarget-svn/2010-April/index.html" >
+   <LINK REL="made" HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B315%5D%20trunk&In-Reply-To=%3CE1NzymC-0003LV-CJ%40sfp-svn-2.v30.ch3.sourceforge.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000226.html">
+   <LINK REL="Next"  HREF="000228.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Iscsitarget-svn] SF.net SVN: iscsitarget:[315] trunk</H1>
+    <B>rswwalker at users.sourceforge.net</B> 
+    <A HREF="mailto:iscsitarget-svn%40lists.berlios.de?Subject=Re%3A%20%5BIscsitarget-svn%5D%20SF.net%20SVN%3A%20iscsitarget%3A%5B315%5D%20trunk&In-Reply-To=%3CE1NzymC-0003LV-CJ%40sfp-svn-2.v30.ch3.sourceforge.com%3E"
+       TITLE="[Iscsitarget-svn] SF.net SVN: iscsitarget:[315] trunk">rswwalker at users.sourceforge.net
+       </A><BR>
+    <I>Thu Apr  8 22:56:36 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000226.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[314] trunk/kernel
+</A></li>
+        <LI>Next message: <A HREF="000228.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[316] trunk/dkms.conf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#227">[ date ]</a>
+              <a href="thread.html#227">[ thread ]</a>
+              <a href="subject.html#227">[ subject ]</a>
+              <a href="author.html#227">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Revision: 315
+          <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=315&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=315&amp;view=rev</A>
+Author:   rswwalker
+Date:     2010-04-08 20:56:35 +0000 (Thu, 08 Apr 2010)
+
+Log Message:
+-----------
+Move the common iotype functions from each iotype to volume.c.
+
+Modifies the gen_scsiid to generate either a MD5 hash of the
+target's IQN plus the volume's LUN, or a concatenation of the
+target's TID and LUN numbers if no MD5 can be generated.
+
+Sets the scsi_sn to the hex of scsi_id if no scsi_sn is
+provided. Required doubling the size of scsi_sn to
+accommodate this (2 * SCSI_ID_LEN).
+
+Removes the VENDOR_ID from the scsi_id and adds it to the VPD
+0x83 request in target_disk.c so one doesn't need to jump
+over it to modify the scsi_id.
+
+Removes the validity checks in VPD 0x80 request in target_disk
+and moves it to set_scsisn in volume.
+
+Changes since rev2:
+ - Fixed bug in volume.c where auto-gen scsi_sn from scsi_id
+used the SCSI_SN_LEN instead of SCSI_ID_LEN.
+
+ - Added extra char at the end of scsi_sn for nul terminating
+character as scsi_sn is a string val and not a binary like
+scsi_id is, so we need to make sure string funcs don't break.
+
+ - Moved protocol formatting from set_scsisn to target_disk.c
+for VPD 80.
+
+Signed-off-by: Ross Walker
+
+Revision Links:
+--------------
+    <A HREF="http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev">http://iscsitarget.svn.sourceforge.net/iscsitarget/?rev=2&amp;view=rev</A>
+
+Modified Paths:
+--------------
+    trunk/include/iet_u.h
+    trunk/kernel/block-io.c
+    trunk/kernel/file-io.c
+    trunk/kernel/iscsi.h
+    trunk/kernel/null-io.c
+    trunk/kernel/target_disk.c
+    trunk/kernel/volume.c
+    trunk/patches/compat-2.6.14-2.6.18.patch
+    trunk/patches/compat-2.6.23.patch
+
+Modified: trunk/include/iet_u.h
+===================================================================
+--- trunk/include/iet_u.h	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/include/iet_u.h	2010-04-08 20:56:35 UTC (rev 315)
+@@ -9,9 +9,8 @@
+ 
+ #define ISCSI_LISTEN_PORT	3260
+ 
+-#define VENDOR_ID_LEN	8
+-#define SCSI_ID_LEN	24
+-#define SCSI_SN_LEN	16
++#define SCSI_ID_LEN	16
++#define SCSI_SN_LEN	(SCSI_ID_LEN * 2)
+ 
+ #ifndef aligned_u64
+ #define aligned_u64 unsigned long long __attribute__((aligned(8)))
+
+Modified: trunk/kernel/block-io.c
+===================================================================
+--- trunk/kernel/block-io.c	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/kernel/block-io.c	2010-04-08 20:56:35 UTC (rev 315)
+@@ -175,78 +175,21 @@
+ 	return err;
+ }
+ 
+-static int
+-set_scsiid(struct iet_volume *volume, const char *id)
+-{
+-	size_t len;
+-
+-	if ((len = strlen(id)) &gt; SCSI_ID_LEN - VENDOR_ID_LEN) {
+-		eprintk(&quot;SCSI ID too long, %zd provided, %u max\n&quot;, len,
+-			SCSI_ID_LEN - VENDOR_ID_LEN);
+-		return -EINVAL;
+-	}
+-
+-	memcpy(volume-&gt;scsi_id + VENDOR_ID_LEN, id, len);
+-
+-	return 0;
+-}
+-
+-static void
+-gen_scsiid(struct iet_volume *volume, struct inode *inode)
+-{
+-	int i;
+-	u32 *p;
+-
+-	strlcpy(volume-&gt;scsi_id, VENDOR_ID, VENDOR_ID_LEN);
+-
+-	for (i = VENDOR_ID_LEN; i &lt; SCSI_ID_LEN; i++)
+-		if (volume-&gt;scsi_id[i])
+-			return;
+-
+-	/* If a scsi id doesn't exist generate a 16 byte one:
+-	 * Bytes   1-4: target type
+-	 * Bytes   5-8: target id
+-	 * Bytes  9-12: inode number
+-	 * Bytes 13-16: device type
+-	 */
+-	p = (u32 *) (volume-&gt;scsi_id + VENDOR_ID_LEN);
+-	*(p + 0) = volume-&gt;target-&gt;trgt_param.target_type;
+-	*(p + 1) = volume-&gt;target-&gt;tid;
+-	*(p + 2) = volume-&gt;lun;
+-	*(p + 3) = (unsigned int) inode-&gt;i_sb-&gt;s_dev;
+-}
+-
+-static int
+-set_scsisn(struct iet_volume *volume, const char *sn)
+-{
+-	size_t len;
+-
+-	if ((len = strlen(sn)) &gt; SCSI_SN_LEN) {
+-		eprintk(&quot;SCSI SN too long, %zd provided, %u max\n&quot;, len,
+-			SCSI_SN_LEN);
+-		return -EINVAL;
+-	}
+-
+-	memcpy(volume-&gt;scsi_sn, sn, len);
+-
+-	return 0;
+-}
+-
+ /* Create an enumeration of our accepted actions */
+ enum
+ {
+-	Opt_scsiid, Opt_scsisn, Opt_path, Opt_ignore, Opt_err,
++	opt_scsiid, opt_scsisn, opt_path, opt_ignore, opt_err,
+ };
+ 
+ /* Create a match table using our action enums and their matching options */
+ static match_table_t tokens = {
+-	{Opt_scsiid, &quot;scsiid=%s&quot;},
+-	{Opt_scsisn, &quot;scsisn=%s&quot;},
+-	{Opt_path, &quot;path=%s&quot;},
+-	{Opt_ignore, &quot;type=%s&quot;},
+-	{Opt_ignore, &quot;iomode=%s&quot;},
+-	{Opt_ignore, &quot;blocksize=%s&quot;},
+-	{Opt_err, NULL},
++	{opt_path, &quot;path=%s&quot;},
++	{opt_ignore, &quot;scsiid=%s&quot;},
++	{opt_ignore, &quot;scsisn=%s&quot;},
++	{opt_ignore, &quot;type=%s&quot;},
++	{opt_ignore, &quot;iomode=%s&quot;},
++	{opt_ignore, &quot;blocksize=%s&quot;},
++	{opt_err, NULL},
+ };
+ 
+ static int
+@@ -267,27 +210,7 @@
+ 		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+-		case Opt_scsiid:
+-			if (!(q = match_strdup(&amp;args[0]))) {
+-				err = -ENOMEM;
+-				goto out;
+-			}
+-			err = set_scsiid(volume, q);
+-			kfree(q);
+-			if (err &lt; 0)
+-				goto out;
+-			break;
+-		case Opt_scsisn:
+-			if (!(q = match_strdup(&amp;args[0]))) {
+-				err = -ENOMEM;
+-				goto out;
+-			}
+-			err = set_scsisn(volume, q);
+-			kfree(q);
+-			if (err &lt; 0)
+-				goto out;
+-			break;
+-		case Opt_path:
++		case opt_path:
+ 			if (info-&gt;path) {
+ 				iprintk(&quot;Target %s, LUN %u: &quot;
+ 					&quot;duplicate \&quot;Path\&quot; param\n&quot;,
+@@ -304,7 +227,7 @@
+ 			if (err &lt; 0)
+ 				goto out;
+ 			break;
+-		case Opt_ignore:
++		case opt_ignore:
+ 			break;
+ 		default:
+ 			iprintk(&quot;Target %s, LUN %u: unknown param %s\n&quot;,
+@@ -375,9 +298,6 @@
+ 
+ 	volume-&gt;blk_cnt = bio_data-&gt;bdev-&gt;bd_inode-&gt;i_size &gt;&gt; volume-&gt;blk_shift;
+ 
+-	/* Assign a vendor id, generate scsi id if none exists */
+-	gen_scsiid(volume, bio_data-&gt;bdev-&gt;bd_inode);
+-
+ 	/* Offer neither write nor read caching */
+ 	ClearLURCache(volume);
+ 	ClearLUWCache(volume);
+
+Modified: trunk/kernel/file-io.c
+===================================================================
+--- trunk/kernel/file-io.c	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/kernel/file-io.c	2010-04-08 20:56:35 UTC (rev 315)
+@@ -125,64 +125,18 @@
+ 	return err;
+ }
+ 
+-static int set_scsiid(struct iet_volume *volume, const char *id)
+-{
+-	size_t len;
+-
+-	if ((len = strlen(id)) &gt; SCSI_ID_LEN - VENDOR_ID_LEN) {
+-		eprintk(&quot;SCSI ID too long, %zd provided, %u max\n&quot;, len,
+-			SCSI_ID_LEN - VENDOR_ID_LEN);
+-		return -EINVAL;
+-	}
+-
+-	memcpy(volume-&gt;scsi_id + VENDOR_ID_LEN, id, len);
+-
+-	return 0;
+-}
+-
+-static void gen_scsiid(struct iet_volume *volume, struct inode *inode)
+-{
+-	int i;
+-	u32 *p;
+-
+-	strlcpy(volume-&gt;scsi_id, VENDOR_ID, VENDOR_ID_LEN);
+-
+-	for (i = VENDOR_ID_LEN; i &lt; SCSI_ID_LEN; i++)
+-		if (volume-&gt;scsi_id[i])
+-			return;
+-
+-	p = (u32 *) (volume-&gt;scsi_id + VENDOR_ID_LEN);
+-	*(p + 0) = volume-&gt;target-&gt;trgt_param.target_type;
+-	*(p + 1) = volume-&gt;target-&gt;tid;
+-	*(p + 2) = (unsigned int) inode-&gt;i_ino;
+-	*(p + 3) = (unsigned int) inode-&gt;i_sb-&gt;s_dev;
+-}
+-
+-static int set_scsisn(struct iet_volume *volume, const char *sn)
+-{
+-	size_t len;
+-
+-	if ((len = strlen(sn)) &gt; SCSI_SN_LEN) {
+-		eprintk(&quot;SCSI SN too long, %zd provided, %u max\n&quot;, len,
+-			SCSI_SN_LEN);
+-		return -EINVAL;
+-	}
+-	memcpy(volume-&gt;scsi_sn, sn, len);
+-	return 0;
+-}
+-
+ enum {
+-	Opt_scsiid, Opt_scsisn, Opt_path, Opt_ignore, Opt_err,
++	opt_path, opt_ignore, opt_err,
+ };
+ 
+ static match_table_t tokens = {
+-	{Opt_scsiid, &quot;scsiid=%s&quot;},
+-	{Opt_scsisn, &quot;scsisn=%s&quot;},
+-	{Opt_path, &quot;path=%s&quot;},
+-	{Opt_ignore, &quot;type=%s&quot;},
+-	{Opt_ignore, &quot;iomode=%s&quot;},
+-	{Opt_ignore, &quot;blocksize=%s&quot;},
+-	{Opt_err, NULL},
++	{opt_path, &quot;path=%s&quot;},
++	{opt_ignore, &quot;scsiid=%s&quot;},
++	{opt_ignore, &quot;scsisn=%s&quot;},
++	{opt_ignore, &quot;type=%s&quot;},
++	{opt_ignore, &quot;iomode=%s&quot;},
++	{opt_ignore, &quot;blocksize=%s&quot;},
++	{opt_err, NULL},
+ };
+ 
+ static int parse_fileio_params(struct iet_volume *volume, char *params)
+@@ -199,27 +153,7 @@
+ 		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+-		case Opt_scsiid:
+-			if (!(q = match_strdup(&amp;args[0]))) {
+-				err = -ENOMEM;
+-				goto out;
+-			}
+-			err = set_scsiid(volume, q);
+-			kfree(q);
+-			if (err &lt; 0)
+-				goto out;
+-			break;
+-		case Opt_scsisn:
+-			if (!(q = match_strdup(&amp;args[0]))) {
+-				err = -ENOMEM;
+-				goto out;
+-			}
+-			err = set_scsisn(volume, q);
+-			kfree(q);
+-			if (err &lt; 0)
+-				goto out;
+-			break;
+-		case Opt_path:
++		case opt_path:
+ 			if (info-&gt;path) {
+ 				iprintk(&quot;Target %s, LUN %u: &quot;
+ 					&quot;duplicate \&quot;Path\&quot; param\n&quot;,
+@@ -236,7 +170,7 @@
+ 			if (err &lt; 0)
+ 				goto out;
+ 			break;
+-		case Opt_ignore:
++		case opt_ignore:
+ 			break;
+ 		default:
+ 			iprintk(&quot;Target %s, LUN %u: unknown param %s\n&quot;,
+@@ -288,8 +222,6 @@
+ 	}
+ 	inode = p-&gt;filp-&gt;f_dentry-&gt;d_inode;
+ 
+-	gen_scsiid(lu, inode);
+-
+ 	if (S_ISREG(inode-&gt;i_mode))
+ 		;
+ 	else if (S_ISBLK(inode-&gt;i_mode))
+
+Modified: trunk/kernel/iscsi.h
+===================================================================
+--- trunk/kernel/iscsi.h	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/kernel/iscsi.h	2010-04-08 20:56:35 UTC (rev 315)
+@@ -151,7 +151,7 @@
+ 	struct iscsi_queue queue;
+ 
+ 	u8 scsi_id[SCSI_ID_LEN];
+-	u8 scsi_sn[SCSI_SN_LEN];
++	u8 scsi_sn[SCSI_SN_LEN + 1];
+ 
+ 	u32 blk_shift;
+ 	u64 blk_cnt;
+
+Modified: trunk/kernel/null-io.c
+===================================================================
+--- trunk/kernel/null-io.c	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/kernel/null-io.c	2010-04-08 20:56:35 UTC (rev 315)
+@@ -17,18 +17,20 @@
+ #include &quot;iotype.h&quot;
+ 
+ enum {
+-	Opt_blk_cnt, Opt_ignore, Opt_err,
++	opt_blk_cnt, opt_ignore, opt_err,
+ };
+ 
+ static match_table_t tokens = {
+ 	/* alias for compatibility with existing setups and documentation */
+-	{Opt_blk_cnt, &quot;sectors=%u&quot;},
++	{opt_blk_cnt, &quot;sectors=%u&quot;},
+ 	/* but actually it is the scsi block count, now that we can
+ 	 * specify the block size. */
+-	{Opt_blk_cnt, &quot;blocks=%u&quot;},
+-	{Opt_ignore, &quot;blocksize=%s&quot;},
+-	{Opt_ignore, &quot;type=%s&quot;},
+-	{Opt_err, NULL},
++	{opt_blk_cnt, &quot;blocks=%u&quot;},
++	{opt_ignore, &quot;scsiid=%s&quot;},
++	{opt_ignore, &quot;scsisn=%s&quot;},
++	{opt_ignore, &quot;blocksize=%s&quot;},
++	{opt_ignore, &quot;type=%s&quot;},
++	{opt_err, NULL},
+ };
+ 
+ static int parse_nullio_params(struct iet_volume *volume, char *params)
+@@ -44,14 +46,14 @@
+ 		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+-		case Opt_blk_cnt:
++		case opt_blk_cnt:
+ 			q = match_strdup(&amp;args[0]);
+ 			if (!q)
+ 				return -ENOMEM;
+ 			volume-&gt;blk_cnt = simple_strtoull(q, NULL, 10);
+ 			kfree(q);
+ 			break;
+-		case Opt_ignore:
++		case opt_ignore:
+ 			break;
+ 		default:
+ 			eprintk(&quot;Unknown %s\n&quot;, p);
+
+Modified: trunk/kernel/target_disk.c
+===================================================================
+--- trunk/kernel/target_disk.c	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/kernel/target_disk.c	2010-04-08 20:56:35 UTC (rev 315)
+@@ -193,11 +193,11 @@
+ 		data[7] = 0x02;
+ 		memset(data + 8, 0x20, 28);
+ 		memcpy(data + 8,
+-		       VENDOR_ID, min_t(size_t, strlen(VENDOR_ID), 8));
++			VENDOR_ID, min_t(size_t, strlen(VENDOR_ID), 8));
+ 		memcpy(data + 16,
+-		       PRODUCT_ID, min_t(size_t, strlen(PRODUCT_ID), 16));
++			PRODUCT_ID, min_t(size_t, strlen(PRODUCT_ID), 16));
+ 		memcpy(data + 32,
+-		       PRODUCT_REV, min_t(size_t, strlen(PRODUCT_REV), 4));
++			PRODUCT_REV, min_t(size_t, strlen(PRODUCT_REV), 4));
+ 		data[58] = 0x03;
+ 		data[59] = 0x20;
+ 		data[60] = 0x09;
+@@ -217,35 +217,34 @@
+ 			tio_set(tio, 7, 0);
+ 			err = 0;
+ 		} else if (scb[2] == 0x80) {
+-			int len = (cmnd-&gt;lun &amp;&amp; strlen(cmnd-&gt;lun-&gt;scsi_sn)) ?
+-				SCSI_SN_LEN : 4;
++			u32 len = (cmnd-&gt;lun) ? SCSI_SN_LEN : 4;
+ 
+ 			data[1] = 0x80;
+ 			data[3] = len;
+ 			memset(data + 4, 0x20, len);
++			if (cmnd-&gt;lun) {
++				size_t offset = SCSI_SN_LEN -
++						strlen(cmnd-&gt;lun-&gt;scsi_sn);
++				memcpy(data + 4 + offset, cmnd-&gt;lun-&gt;scsi_sn,
++						strlen(cmnd-&gt;lun-&gt;scsi_sn));
++			}
+ 			tio_set(tio, len + 4, 0);
+ 			err = 0;
+-
+-			if (len == SCSI_SN_LEN) {
+-				char *p, *q;
+-
+-				p = data + 4 + len - 1;
+-				q = cmnd-&gt;lun-&gt;scsi_sn + len - 1;
+-
+-				for (; len &gt; 0; len--, q--)
+-					if (isascii(*q) &amp;&amp; isprint(*q))
+-						*(p--) = *q;
+-			}
+ 		} else if (scb[2] == 0x83) {
+-			u32 len = SCSI_ID_LEN * sizeof(u8);
++			u32 len = SCSI_ID_LEN + 8;
+ 
+ 			data[1] = 0x83;
+ 			data[3] = len + 4;
+ 			data[4] = 0x1;
+ 			data[5] = 0x1;
+ 			data[7] = len;
+-			if (cmnd-&gt;lun) /* We need this ? */
+-				memcpy(data + 8, cmnd-&gt;lun-&gt;scsi_id, len);
++			if (cmnd-&gt;lun) { /* We need this ? */
++				memset(data + 8, 0x20, 8);
++				memcpy(data + 8, VENDOR_ID, 
++					min_t(size_t, strlen(VENDOR_ID), 8));
++				memcpy(data + 16, cmnd-&gt;lun-&gt;scsi_id,
++								SCSI_ID_LEN);
++			}
+ 			tio_set(tio, len + 8, 0);
+ 			err = 0;
+ 		}
+
+Modified: trunk/kernel/volume.c
+===================================================================
+--- trunk/kernel/volume.c	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/kernel/volume.c	2010-04-08 20:56:35 UTC (rev 315)
+@@ -24,21 +24,100 @@
+ }
+ 
+ enum {
+-	Opt_type,
+-	Opt_iomode,
+-	Opt_blk_size,
+-	Opt_err,
++	opt_type,
++	opt_iomode,
++	opt_scsiid,
++	opt_scsisn,
++	opt_blk_size,
++	opt_err,
+ };
+ 
+ static match_table_t tokens = {
+-	{Opt_type, &quot;type=%s&quot;},
+-	{Opt_iomode, &quot;iomode=%s&quot;},
+-	{Opt_blk_size, &quot;blocksize=%u&quot;},
+-	{Opt_err, NULL},
++	{opt_type, &quot;type=%s&quot;},
++	{opt_iomode, &quot;iomode=%s&quot;},
++	{opt_scsiid, &quot;scsiid=%s&quot;},
++	{opt_scsisn, &quot;scsisn=%s&quot;},
++	{opt_blk_size, &quot;blocksize=%u&quot;},
++	{opt_err, NULL},
+ };
+ 
+-static int set_iotype(struct iet_volume *volume, char *params)
++static int set_scsiid(struct iet_volume *volume, const char *id)
+ {
++	size_t len;
++
++	if ((len = strlen(id)) &gt; SCSI_ID_LEN) {
++		eprintk(&quot;SCSI ID too long, %zd provided, %u max\n&quot;, len,
++								SCSI_ID_LEN);
++		return -EINVAL;
++	}
++
++	memcpy(volume-&gt;scsi_id, id, len);
++
++	return 0;
++}
++
++static int set_scsisn(struct iet_volume *volume, const char *sn)
++{
++	size_t len;
++	int i;
++
++	if ((len = strlen(sn)) &gt; SCSI_SN_LEN) {
++		eprintk(&quot;SCSI SN too long, %zd provided, %u max\n&quot;, len,
++								SCSI_SN_LEN);
++		return -EINVAL;
++	}
++
++	for (i = 0; i &lt; len; i++) {
++		if (!isascii(*(sn + i)) || !isprint(*(sn + i))) {
++			eprintk(&quot;invalid characters in SCSI SN, %s\n&quot;,
++				&quot;only printable ascii characters allowed!&quot;);
++			return -EINVAL;
++		}
++	}
++
++	memcpy(volume-&gt;scsi_sn, sn, len);
++
++	return 0;
++}
++
++/* Generate a MD5 hash of the target IQN and LUN number */
++static void gen_scsiid(struct iet_volume *volume)
++{
++	struct hash_desc hash;
++
++	hash.tfm = crypto_alloc_hash(&quot;md5&quot;, 0, CRYPTO_ALG_ASYNC);
++	hash.flags = 0;
++
++	if (hash.tfm) {
++		struct scatterlist sg[2];
++		unsigned int nbytes = 0;
++
++		sg_init_table(sg, 2);
++
++		sg_set_buf(&amp;sg[0], volume-&gt;target-&gt;name,
++					strlen(volume-&gt;target-&gt;name));
++		nbytes += strlen(volume-&gt;target-&gt;name);
++
++		sg_set_buf(&amp;sg[1], &amp;volume-&gt;lun, sizeof(volume-&gt;lun));
++		nbytes += sizeof(volume-&gt;lun);
++
++		crypto_hash_init(&amp;hash);
++		crypto_hash_update(&amp;hash, sg, nbytes);
++		crypto_hash_final(&amp;hash, volume-&gt;scsi_id);
++
++		crypto_free_hash(hash.tfm);
++	} else {
++		/* If no MD5 available set ID to TID and LUN */
++		memcpy(volume-&gt;scsi_id, &amp;volume-&gt;target-&gt;tid,
++						sizeof(volume-&gt;target-&gt;tid));
++		memcpy(volume-&gt;scsi_id + sizeof(volume-&gt;target-&gt;tid),
++					&amp;volume-&gt;lun, sizeof(volume-&gt;lun));
++	}	
++
++}
++
++static int parse_volume_params(struct iet_volume *volume, char *params)
++{
+ 	int err = 0;
+ 	unsigned blk_sz;
+ 	substring_t args[MAX_OPT_ARGS];
+@@ -46,6 +125,7 @@
+ 
+ 	if (!buf)
+ 		return -ENOMEM;
++
+ 	strncpy(buf, params, PAGE_CACHE_SIZE);
+ 
+ 	while ((p = strsep(&amp;buf, &quot;,&quot;)) != NULL) {
+@@ -56,28 +136,54 @@
+ 		iet_strtolower(p);
+ 		token = match_token(p, tokens, args);
+ 		switch (token) {
+-		case Opt_type:
+-			if (!(argp = match_strdup(&amp;args[0])))
++		case opt_type:
++			argp = match_strdup(&amp;args[0]);
++			if (!argp) {
+ 				err = -ENOMEM;
+-			if (argp &amp;&amp; !(volume-&gt;iotype = get_iotype(argp)))
++				break;
++			}
++			if (!(volume-&gt;iotype = get_iotype(argp)))
+ 				err = -ENOENT;
+ 			kfree(argp);
+ 			break;
+-		case Opt_iomode:
+-			if (!(argp = match_strdup(&amp;args[0])))
++		case opt_iomode:
++			argp = match_strdup(&amp;args[0]);
++			if (!argp) {
+ 				err = -ENOMEM;
+-			if (argp &amp;&amp; !strcmp(argp, &quot;ro&quot;))
++				break;
++			}
++			if (!strcmp(argp, &quot;ro&quot;))
+ 				SetLUReadonly(volume);
+-			else if (argp &amp;&amp; !strcmp(argp, &quot;wb&quot;))
++			else if (!strcmp(argp, &quot;wb&quot;))
+ 				SetLUWCache(volume);
++			else if (strcmp(argp, &quot;wt&quot;))
++				err = -EINVAL;
+ 			kfree(argp);
+ 			break;
+-		case Opt_blk_size:
++		case opt_scsiid:
+ 			argp = match_strdup(&amp;args[0]);
+ 			if (!argp) {
+ 				err = -ENOMEM;
+ 				break;
+ 			}
++			err = set_scsiid(volume, argp);
++			kfree(argp);
++			break;
++		case opt_scsisn:
++			argp = match_strdup(&amp;args[0]);
++			if (!argp) {
++				err = -ENOMEM;
++				break;
++			}
++			err = set_scsisn(volume, argp);
++			kfree(argp);
++			break;
++		case opt_blk_size:
++			argp = match_strdup(&amp;args[0]);
++			if (!argp) {
++				err = -ENOMEM;
++				break;
++			}
+ 			blk_sz = simple_strtoull(argp, NULL, 10);
+ 			if (is_power_of_2(blk_sz) &amp;&amp;
+ 			    512 &lt;= blk_sz &amp;&amp; blk_sz &lt;= IET_MAX_BLOCK_SIZE)
+@@ -136,7 +242,7 @@
+ 		goto free_args;
+ 	}
+ 
+-	ret = set_iotype(volume, args);
++	ret = parse_volume_params(volume, args);
+ 	if (ret &lt; 0)
+ 		goto free_args;
+ 
+@@ -144,6 +250,17 @@
+ 	if (ret &lt; 0)
+ 		goto free_args;
+ 
++	if (!volume-&gt;scsi_id[0])
++		gen_scsiid(volume);
++
++	if (!volume-&gt;scsi_sn[0]) {
++		int i;
++
++		for (i = 0; i &lt; SCSI_ID_LEN; i++)
++			snprintf(volume-&gt;scsi_sn + (i * 2), 3, &quot;%02x&quot;,
++							volume-&gt;scsi_id[i]);
++	}
++
+ 	INIT_LIST_HEAD(&amp;volume-&gt;queue.wait_list);
+ 	spin_lock_init(&amp;volume-&gt;queue.queue_lock);
+ 	spin_lock_init(&amp;volume-&gt;reserve_lock);
+
+Modified: trunk/patches/compat-2.6.14-2.6.18.patch
+===================================================================
+--- trunk/patches/compat-2.6.14-2.6.18.patch	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/patches/compat-2.6.14-2.6.18.patch	2010-04-08 20:56:35 UTC (rev 315)
+@@ -210,3 +210,43 @@
+  
+  	if (!current-&gt;io_context)
+  		eprintk(&quot;%s\n&quot;, &quot;Failed to get IO context&quot;);
++--- param/kernel/volume.c	2010-03-03 13:42:04.000000000 -0500
+++++ param/kernel/volume.c.18	2010-03-03 00:13:26.000000000 -0500
++@@ -83,28 +83,26 @@ static int set_scsisn(struct iet_volume 
++ 
++ static void gen_scsiid(struct iet_volume *volume)
++ {
++-	struct hash_desc hash;
+++	struct crypto_tfm *tfm;
++ 
++-	hash.tfm = crypto_alloc_hash(&quot;md5&quot;, 0, CRYPTO_ALG_ASYNC);
++-	hash.flags = 0;
+++	tfm = crypto_alloc_tfm(&quot;md5&quot;, 0);
++ 
++-	if (hash.tfm) {
+++	if (tfm) {
++ 		struct scatterlist sg[2];
++-		unsigned int nbytes = 0;
++ 
++ 		sg[0].page = virt_to_page(volume-&gt;target-&gt;name);
++ 		sg[0].offset = offset_in_page(volume-&gt;target-&gt;name);
++-		nbytes += sg[0].length = strlen(volume-&gt;target-&gt;name);
+++		sg[0].length = strlen(volume-&gt;target-&gt;name);
++ 
++ 		sg[1].page = virt_to_page(&amp;volume-&gt;lun);
++ 		sg[1].offset = offset_in_page(&amp;volume-&gt;lun);
++-		nbytes += sg[1].length = sizeof(volume-&gt;lun);
+++		sg[1].length = sizeof(volume-&gt;lun);
++ 
++-		crypto_hash_init(&amp;hash);
++-		crypto_hash_update(&amp;hash, sg, nbytes);
++-		crypto_hash_final(&amp;hash, volume-&gt;scsi_id);
+++		crypto_digest_init(tfm);
+++		crypto_digest_update(tfm, sg, 2);
+++		crypto_digest_final(tfm, volume-&gt;scsi_id);
++ 
++-		crypto_free_hash(hash.tfm);
+++		crypto_free_tfm(tfm);
++ 	} else {
++ 		/* If no MD5 available set ID to TID and LUN */
++ 		memcpy(volume-&gt;scsi_id, volume-&gt;target-&gt;tid,
+
+Modified: trunk/patches/compat-2.6.23.patch
+===================================================================
+--- trunk/patches/compat-2.6.23.patch	2010-04-08 20:49:07 UTC (rev 314)
++++ trunk/patches/compat-2.6.23.patch	2010-04-08 20:56:35 UTC (rev 315)
+@@ -150,3 +150,27 @@
+  	if (!nl)
+  		return -ENOMEM;
+  	else
++--- param/kernel/volume.c	2010-03-03 13:41:36.000000000 -0500
+++++ param/kernel/volume.c	2010-03-03 13:42:04.000000000 -0500
++@@ -92,14 +92,13 @@ static void gen_scsiid(struct iet_volume
++ 		struct scatterlist sg[2];
++ 		unsigned int nbytes = 0;
++ 
++-		sg_init_table(sg, 2);
++-
++-		sg_set_buf(&amp;sg[0], volume-&gt;target-&gt;name,
++-					strlen(volume-&gt;target-&gt;name));
++-		nbytes += strlen(volume-&gt;target-&gt;name);
++-
++-		sg_set_buf(&amp;sg[1], &amp;volume-&gt;lun, sizeof(volume-&gt;lun));
++-		nbytes += sizeof(volume-&gt;lun);
+++		sg[0].page = virt_to_page(volume-&gt;target-&gt;name);
+++		sg[0].offset = offset_in_page(volume-&gt;target-&gt;name);
+++		nbytes += sg[0].length = strlen(volume-&gt;target-&gt;name);
+++
+++		sg[1].page = virt_to_page(&amp;volume-&gt;lun);
+++		sg[1].offset = offset_in_page(&amp;volume-&gt;lun);
+++		nbytes += sg[1].length = sizeof(volume-&gt;lun);
++ 
++ 		crypto_hash_init(&amp;hash);
++ 		crypto_hash_update(&amp;hash, sg, nbytes);
+
+
+This was sent by the SourceForge.net collaborative development platform, the world's largest Open Source development site.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000226.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[314] trunk/kernel
+</A></li>
+	<LI>Next message: <A HREF="000228.html">[Iscsitarget-svn] SF.net SVN: iscsitarget:[316] trunk/dkms.conf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#227">[ date ]</a>
+              <a href="thread.html#227">[ thread ]</a>
+              <a href="subject.html#227">[ subject ]</a>
+              <a href="author.html#227">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/iscsitarget-svn">More information about the Iscsitarget-svn
+mailing list</a><br>
+</body></html>
